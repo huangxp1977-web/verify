@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>证书查询-验证页面</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: "Microsoft YaHei", sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+            padding: 15px;
+        }
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            margin: 30px 0;
+        }
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #000;
+        }
+        .notice, .operation {
+            background-color: #e3e3e3;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .notice-title, .operation-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        .notice-content, .operation-content {
+            font-size: 14px;
+            color: #555;
+            line-height: 1.8;
+            text-align: center;
+        }
+        .operation-content .contact {
+            color: #007bff;
+            text-decoration: none;
+        }
+        .certificate-frame {
+            width: 80%;
+            padding: 10px;
+            margin: 0 auto;
+            text-align: center;
+        }
+        .certificate {
+            width: 100%;
+            display: block;
+            cursor: zoom-in;
+            transition: all 0.3s ease;
+        }
+        .certificate:hover {
+            transform: scale(1.02);
+        }
+        .not-found, .invalid {
+            color: #e74c3c;
+            font-size: 16px;
+            font-weight: bold;
+            padding: 20px;
+            text-align: center;
+        }
+        .zoom-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(0, 0, 0, 0.85);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+        .zoom-modal.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        .zoom-content {
+            width: 90%;
+            height: 90%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        .zoom-image {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        .close-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 40px;
+            height: 40px;
+            background-color: #e74c3c;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 20px;
+            border: none;
+            cursor: pointer;
+            z-index: 10000;
+            transition: all 0.3s ease;
+        }
+        .close-btn:hover {
+            background-color: #c0392b;
+            transform: scale(1.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">证书查询验证</h1>
+        </div>
+        <div class="notice">
+            <p class="notice-content">本页面由系统生成并电子签名，所示证书信息与备案一致。任何篡改或伪造本页面构成违法行为。若验证结果异常，请立即停止使用并通过官方渠道核实。</p>
+        </div>
+        <div class="operation">
+            <h3 class="operation-title">操作与联络</h3>
+            <p class="operation-content">如需人工核实，请提供购买凭证、产品照片与扫码页截图，<br>联系官方客服：400-993-6624；<br>邮箱：<a href="mailto:huayishengwutian@gmail.com" class="contact">huayishengwutian@gmail.com</a></p>
+        </div>
+        <div class="certificate-frame" id="certificateContainer">
+            <!-- 证书图片将通过JS动态加载 -->
+        </div>
+    </div>
+
+    <div class="zoom-modal" id="zoomModal">
+        <div class="zoom-content">
+            <img src="" alt="放大的证书" class="zoom-image" id="zoomImage">
+            <button class="close-btn" id="closeBtn">×</button>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = '../api/cert.php'; // 确保此路径正确指向api文件
+        const certificateContainer = document.getElementById('certificateContainer');
+        const zoomModal = document.getElementById('zoomModal');
+        const zoomImage = document.getElementById('zoomImage');
+        const closeBtn = document.getElementById('closeBtn');
+
+        // 修复：同时获取cert_no和code两个参数
+        const urlParams = new URLSearchParams(window.location.search);
+        const certNo = urlParams.get('cert_no');
+        const code = urlParams.get('code'); // 新增：获取唯一码参数
+
+        // 修复：验证两个参数是否都存在
+        if (!certNo || !code) {
+            let errorText = '';
+            if (!certNo && !code) {
+                errorText = '请提供证书编号（cert_no）和唯一码（code）参数';
+            } else if (!certNo) {
+                errorText = '请提供证书编号（cert_no参数）';
+            } else {
+                errorText = '请提供完整的查询链接（缺少唯一码code参数）';
+            }
+            certificateContainer.innerHTML = `<div class="not-found">${errorText}</div>`;
+        } else {
+            // 修复：请求时同时传递cert_no和code参数
+            fetch(`${API_URL}?cert_no=${encodeURIComponent(certNo)}&code=${encodeURIComponent(code)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.data.image_url) {
+                        const certImg = document.createElement('img');
+                        certImg.src = data.data.image_url;
+                        certImg.alt = data.data.cert_name || '证书图片';
+                        certImg.className = 'certificate';
+                        
+                        certImg.addEventListener('click', () => {
+                            zoomImage.src = data.data.image_url;
+                            zoomModal.classList.add('active');
+                            document.body.style.overflow = 'hidden';
+                        });
+                        
+                        certificateContainer.appendChild(certImg);
+                    } else if (data.code === 403) {
+                        certificateContainer.innerHTML = `<div class="invalid">${data.message}</div>`;
+                    } else {
+                        certificateContainer.innerHTML = `<div class="not-found">${data.message}</div>`;
+                    }
+                })
+                .catch(error => {
+                    console.error('查询错误:', error);
+                    certificateContainer.innerHTML = '<div class="not-found">查询失败，请稍后重试</div>';
+                });
+        }
+
+        closeBtn.addEventListener('click', closeZoomModal);
+        zoomModal.addEventListener('click', (e) => {
+            if (e.target === zoomModal) closeZoomModal();
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && zoomModal.classList.contains('active')) {
+                closeZoomModal();
+            }
+        });
+
+        function closeZoomModal() {
+            zoomModal.classList.remove('active');
+            document.body.style.overflow = 'auto';
+        }
+    </script>
+</body>
+</html>

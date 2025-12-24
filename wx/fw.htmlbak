@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html data-use-rem="750">
+<head>
+<meta charset="UTF-8">
+<title>德欧美提</title>
+<meta name="renderer" content="webkit">
+<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+<meta name="format-detection" content="telephone=no, email=no">
+<meta name="google" value="notranslate">
+<meta name="description" content="">
+<meta name="author" content="Administrator">
+<meta name="apple-itunes-app" content="app-id=123131232132">
+<meta name="HandheldFriendly" content="true">
+<meta name="MobileOptimized" content="320">
+<meta name="screen-orientation" content="portrait">
+<meta name="x5-orientation" content="portrait">
+<meta name="full-screen" content="yes">
+<meta name="x5-fullscreen" content="true">
+<meta name="browsermode" content="application">
+<meta name="x5-page-mode" content="app">
+<meta name="x5-page-mode" content="default">
+<link rel="stylesheet" href="static/css/swiper.min.css">
+<link rel="stylesheet" href="static/css/reset.css">
+<link rel="stylesheet" href="static/css/index.css">
+<style>
+</style>
+</head>
+<body>
+	<div class="wrap">
+		<div class="banner">
+			<div class="swiper-container">
+				<ul class="swiper-wrapper">
+					<li class="banner_lis swiper-slide"><img src="static/images/7.jpg" ></li>
+					<li class="banner_lis swiper-slide"><img src="static/images/8.jpg" ></li>
+				</ul>
+				<div class="swiper-pagination"></div>
+			</div>
+		</div>
+		<div class="result">
+			<h3>查询结果</h3>
+			<p>该防伪码状态：未查询到该讯息</p>
+			<p>特别提醒：该产品为假冒伪劣产品，如有疑问请拨打咨询电话021-58200852。</p>
+		</div>
+	</div>
+</body>
+<script type="text/javascript" src="static/js/swiper.min.js"></script>
+<script type="text/javascript" src="static/js/rem.js"></script>
+<script>
+	// 轮播图
+	var swiper = new Swiper('.swiper-container', {
+        pagination: {
+        el: '.swiper-pagination',
+        },
+        autoplay: {
+            delay: 2000,
+            stopOnLastSlide: false,          
+            disableOnInteraction: true,
+        },
+ 	});
+</script>
+</html>
