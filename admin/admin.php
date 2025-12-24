@@ -37,23 +37,7 @@ try {
     // 获取所有生产日期（格式化为Y-m-d）
     $dates = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
-    // 获取产品库数据 (自动修复：如果表不存在则创建)
-    $pdo->exec("CREATE TABLE IF NOT EXISTS product_library (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        product_name VARCHAR(100) NOT NULL,
-        default_image_url VARCHAR(255),
-        default_region VARCHAR(100),
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-
-    // 如果还没有数据，插入一条示例
-    try {
-        if ($pdo->query("SELECT COUNT(*) FROM product_library")->fetchColumn() == 0) {
-             $pdo->prepare("INSERT INTO product_library (product_name, default_region) VALUES (?, ?)")
-                 ->execute(['示例产品A', '浙江省 杭州市 西湖区']);
-        }
-    } catch (Exception $ignore) {}
-
+    // 获取产品库数据
     $stmt = $pdo->query("SELECT * FROM product_library ORDER BY product_name ASC");
     $product_lib = $stmt->fetchAll(PDO::FETCH_ASSOC);
     $product_lib_json = json_encode($product_lib);
