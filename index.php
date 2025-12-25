@@ -11,10 +11,13 @@ $isWechat = isWechatBrowser();
 
 // 构建目标URL
 if ($isWechat) {
-    // 微信环境跳转至微信专属页面
-    $targetUrl = 'wx/fw.html';
+    // 微信环境
     if (!empty($code)) {
-        $targetUrl .= '?code=' . urlencode($code);
+        // 有防伪码参数，直接跳转到查询结果页
+        $targetUrl = 'wx/fw.html?code=' . urlencode($code);
+    } else {
+        // 无防伪码，跳转到扫码/输码选择页
+        $targetUrl = 'wx/scan.php';
     }
 } else {
     // 非微信环境跳转至web目录
