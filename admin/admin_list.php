@@ -1064,14 +1064,14 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
             box-shadow: 0 0 10px rgba(0,0,0,0.1);
         }
         h1 {
-            color: #8c6f3f;
+            color: #4a3f69;
             font-size: 28px;
             margin: 0;
             text-align: center;
             font-weight: bold;
         }
         h2 {
-            color: #8c6f3f;
+            color: #4a3f69;
             font-size: 24px;
             border-bottom: 1px solid #eee;
             padding-bottom: 10px;
@@ -1083,7 +1083,7 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
             align-items: center;
             margin-bottom: 30px;
             padding-bottom: 20px;
-            border-bottom: 2px solid #c09f5e;
+            border-bottom: 2px solid #8b7aa8;
         }
         .breadcrumb {
             margin: 0 0 20px 0;
@@ -1130,7 +1130,7 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
             border-bottom: 1px solid #eee;
         }
         th {
-            background-color: #f9f9f9;
+            background-color: #f5f3fa;
             font-weight: bold;
         }
         tr:hover {
@@ -1138,7 +1138,7 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
         }
         .btn {
             padding: 10px 20px;
-            background: #8c6f3f;
+            background: #4a3f69;
             color: white;
             border: none;
             border-radius: 4px;
@@ -1149,40 +1149,48 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
             transition: background-color 0.3s;
         }
         .btn:hover {
-            background: #6d5732;
+            background: #3a3154;
         }
         .btn-secondary {
-            background: #3498db;
+            background: #fff;
+            color: #4a3f69;
+            border: 1px solid #4a3f69;
         }
         .btn-secondary:hover {
-            background: #2980b9;
+            background: #f5f3fa;
         }
         .btn-edit {
-            background: #f39c12;
+            background: #fff;
+            color: #4a3f69;
+            border: 1px solid #4a3f69;
         }
         .btn-edit:hover {
-            background: #e67e22;
+            background: #f5f3fa;
         }
         .btn-delete {
-            background: #e74c3c;
+            background: #fdf0f0;
+            color: #e74c3c;
+            border: 1px solid #e74c3c;
         }
         .btn-delete:hover {
-            background: #c0392b;
+            background: #fce4e4;
         }
         .section {
             padding: 20px;
             border: 1px solid #eee;
             border-radius: 8px;
-            background: #f9f9f9;
+            background: #f5f3fa;
             margin-bottom: 20px;
         }
         .btn-back {
-            background: #95a5a6;
+            background: #fff;
+            color: #4a3f69;
+            border: 1px solid #4a3f69;
             margin-bottom: 20px;
             display: inline-block;
         }
         .btn-back:hover {
-            background: #7f8c8d;
+            background: #f5f3fa;
         }
         .modal {
             display: none;
@@ -1260,31 +1268,32 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
         }
         .pagination a:hover {
             background-color: #f5f5f5;
-            border-color: #8c6f3f;
-            color: #8c6f3f;
+            border-color: #4a3f69;
+            color: #4a3f69;
         }
         .pagination span.current {
-            background-color: #8c6f3f;
+            background-color: #4a3f69;
             color: white;
-            border-color: #8c6f3f;
+            border-color: #4a3f69;
         }
         .pagination span {
             color: #999;
         }
         .sidebar {
             width: 220px;
-            background-color: #8c6f3f;
+            background-color: #4a3f69;
             color: white;
-            min-height: 100vh;
+            height: 100vh;
             position: fixed;
             left: 0;
             top: 0;
             padding: 20px 0;
             overflow-y: auto;
+            box-sizing: border-box;
         }
         .sidebar-header {
             padding: 0 20px 20px;
-            border-bottom: 1px solid #a68c52;
+            border-bottom: 1px solid #6b5a8a;
             margin-bottom: 20px;
         }
         .sidebar-header h2 {
@@ -1309,11 +1318,48 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
             transition: background-color 0.3s;
         }
         .sidebar-menu a:hover {
-            background-color: #6d5732;
+            background-color: #3a3154;
         }
         .sidebar-menu a.active {
-            background-color: #6d5732;
+            background-color: #3a3154;
             border-left: 4px solid #fff;
+        }
+        /* 二级菜单样式 */
+        .has-submenu > a {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .has-submenu .arrow {
+            font-size: 12px;
+            transition: transform 0.3s;
+        }
+        .has-submenu.open .arrow {
+            transform: rotate(180deg);
+        }
+        .submenu {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+            background-color: #4a3f69;
+        }
+        .has-submenu.open .submenu {
+            max-height: 200px;
+        }
+        .submenu li a {
+            padding-left: 40px;
+            font-size: 14px;
+            background-color: transparent;
+        }
+        .submenu li a:hover {
+            background-color: #3a3154;
+        }
+        .submenu li a.active {
+            background-color: #3a3154;
+            border-left: 4px solid #8b7aa8;
         }
         .main-content {
             flex: 1;
@@ -1335,16 +1381,19 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
             padding: 6px;
         }
         .btn-danger {
-            background: #e74c3c;
+            background: #fdf0f0;
+            color: #e74c3c;
+            border: 1px solid #e74c3c;
         }
         .btn-danger:hover {
-            background: #c0392b;
+            background: #fce4e4;
         }
         .btn-restore {
-            background: #2ecc71;
+            background: #4a3f69;
+            color: white;
         }
         .btn-restore:hover {
-            background: #27ae60;
+            background: #3a3154;
         }
         .select-checkbox {
             width: 18px;
@@ -1354,7 +1403,7 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
         .batch-actions {
             margin: 15px 0;
             padding: 10px;
-            background-color: #f9f9f9;
+            background-color: #f5f3fa;
             border-radius: 4px;
         }
         /* 筛选表单响应式优化 */
@@ -1378,15 +1427,40 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
         </div>
         <ul class="sidebar-menu">
             <li><a href="admin.php">系统首页</a></li>
-            <li><a href="admin_list.php" class="active">溯源数据</a></li>
-            <li><a href="admin_distributors.php">经销商管理</a></li>
-            <li><a href="admin_product_library.php">产品管理</a></li>
-            <li><a href="admin_warehouse_staff.php">出库人员</a></li>
-            <li><a href="admin_certificates.php">证书管理</a></li>
-            <li><a href="admin_password.php">修改密码</a></li>
+            <li class="has-submenu open">
+                <a href="javascript:void(0)" onclick="toggleSubmenu(this)">品牌业务 <span class="arrow">▼</span></a>
+                <ul class="submenu">
+                    <li><a href="admin_list.php" class="active">溯源数据</a></li>
+                    <li><a href="admin_distributors.php">经销商管理</a></li>
+                    <li><a href="admin_product_library.php">产品管理</a></li>
+                    <li><a href="admin_warehouse_staff.php">出库人员</a></li>
+                </ul>
+            </li>
+            <li class="has-submenu">
+                <a href="javascript:void(0)" onclick="toggleSubmenu(this)">代工业务 <span class="arrow">▼</span></a>
+                <ul class="submenu">
+                    <li><a href="admin_certificates.php">证书管理</a></li>
+                    <li><a href="admin_query_codes.php">查询码管理</a></li>
+                </ul>
+            </li>
+            <li class="has-submenu">
+                <a href="javascript:void(0)" onclick="toggleSubmenu(this)">系统设置 <span class="arrow">▼</span></a>
+                <ul class="submenu">
+                    <li><a href="admin_password.php">修改密码</a></li>
+                    <li><a href="admin_images.php">图片素材</a></li>
+                    <li><a href="admin_qiniu.php">七牛云接口</a></li>
+                </ul>
+            </li>
             <li><a href="?action=logout">退出登录</a></li>
         </ul>
     </div>
+    
+    <script>
+    function toggleSubmenu(el) {
+        var parent = el.parentElement;
+        parent.classList.toggle('open');
+    }
+    </script>
     
     <!-- 主内容区域 -->
     <div class="main-content">

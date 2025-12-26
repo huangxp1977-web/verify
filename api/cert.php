@@ -80,9 +80,9 @@ try {
     $updateStmt->bindParam(':id', $linkId);
     $updateStmt->execute();
 
-    // 4. 查询证书详情
+    // 4. 查询证书详情（包含状态检查）
     $certStmt = $pdo->prepare("
-        SELECT cert_name, cert_no, issuer, issue_date, expire_date, image_url, create_time, update_time 
+        SELECT cert_name, cert_no, issuer, issue_date, expire_date, image_url, status, create_time, update_time 
         FROM certificates 
         WHERE cert_no = :cert_no 
         LIMIT 1
@@ -92,6 +92,15 @@ try {
 
     if ($certStmt->rowCount() > 0) {
         $certData = $certStmt->fetch(PDO::FETCH_ASSOC);
+        
+        // 检查证书状态（status为0表示禁用）
+        $certStatus = isset($certData['status']) ? $certData['status'] : 1;
+        if ($certStatus == 0) {
+            $response['code'] = 403;
+            $response['message'] = '该证书已停用，暂不支持查询';
+            echo json_encode($response, JSON_UNESCAPED_UNICODE);
+            exit;
+        }
         
         $response['success'] = true;
         $remainingTimes = MAX_QUERY_TIMES - $newQueryCount;

@@ -861,18 +861,19 @@ function exportAsExcel($data, $title) {
         /* 左侧导航栏 */
         .sidebar {
             width: 220px;
-            background-color: #8c6f3f;
+            background-color: #4a3f69;
             color: white;
-            min-height: 100vh;
+            height: 100vh;
             position: fixed;
             left: 0;
             top: 0;
             padding: 20px 0;
             overflow-y: auto;
+            box-sizing: border-box;
         }
         .sidebar-header {
             padding: 0 20px 20px;
-            border-bottom: 1px solid #a68c52;
+            border-bottom: 1px solid #6b5a8a;
             margin-bottom: 20px;
         }
         .sidebar-header h2 {
@@ -897,11 +898,48 @@ function exportAsExcel($data, $title) {
             transition: background-color 0.3s;
         }
         .sidebar-menu a:hover {
-            background-color: #6d5732;
+            background-color: #3a3154;
         }
         .sidebar-menu a.active {
-            background-color: #6d5732;
+            background-color: #3a3154;
             border-left: 4px solid #fff;
+        }
+        /* 二级菜单样式 */
+        .has-submenu > a {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .has-submenu .arrow {
+            font-size: 12px;
+            transition: transform 0.3s;
+        }
+        .has-submenu.open .arrow {
+            transform: rotate(180deg);
+        }
+        .submenu {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+            background-color: #4a3f69;
+        }
+        .has-submenu.open .submenu {
+            max-height: 200px;
+        }
+        .submenu li a {
+            padding-left: 40px;
+            font-size: 14px;
+            background-color: transparent;
+        }
+        .submenu li a:hover {
+            background-color: #3a3154;
+        }
+        .submenu li a.active {
+            background-color: #3a3154;
+            border-left: 4px solid #8b7aa8;
         }
         .main-content {
             flex: 1;
@@ -917,7 +955,7 @@ function exportAsExcel($data, $title) {
             box-shadow: 0 0 10px rgba(0,0,0,0.1);
         }
         h1 {
-            color: #8c6f3f;
+            color: #4a3f69;
             font-size: 28px;
             margin: 0;
             text-align: center;
@@ -927,21 +965,21 @@ function exportAsExcel($data, $title) {
             text-align: left;
         }
         h2 {
-            color: #8c6f3f;
+            color: #4a3f69;
             font-size: 24px;
             border-bottom: 1px solid #eee;
             padding-bottom: 10px;
             margin-bottom: 20px;
         }
         h3 {
-            color: #8c6f3f;
+            color: #4a3f69;
         }
         .header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 30px;
-            border-bottom: 2px solid #c09f5e;
+            border-bottom: 2px solid #8b7aa8;
             padding-bottom: 20px;
         }
         .stats {
@@ -956,7 +994,7 @@ function exportAsExcel($data, $title) {
             border-radius: 8px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             text-align: center;
-            border-top: 4px solid #8c6f3f;
+            border-top: 4px solid #4a3f69;
             transition: transform 0.3s, box-shadow 0.3s;
         }
         .stat-box:hover {
@@ -973,7 +1011,7 @@ function exportAsExcel($data, $title) {
         .stat-value {
             font-size: 32px;
             font-weight: bold;
-            color: #8c6f3f;
+            color: #4a3f69;
             margin: 0;
         }
         .form-group {
@@ -996,12 +1034,12 @@ function exportAsExcel($data, $title) {
             transition: border-color 0.3s;
         }
         input:focus, select:focus, textarea:focus {
-            border-color: #8c6f3f;
+            border-color: #4a3f69;
             outline: none;
         }
         .btn {
             padding: 10px 20px;
-            background: #8c6f3f;
+            background: #4a3f69;
             color: white;
             border: none;
             border-radius: 4px;
@@ -1012,13 +1050,15 @@ function exportAsExcel($data, $title) {
             transition: background-color 0.3s;
         }
         .btn:hover {
-            background: #6d5732;
+            background: #3a3154;
         }
         .btn-secondary {
-            background: #a88a4f;
+            background: #fff;
+            color: #4a3f69;
+            border: 1px solid #4a3f69;
         }
         .btn-secondary:hover {
-            background: #8c6f3f;
+            background: #f5f3fa;
         }
         .btn-logout {
             background: #e74c3c;
@@ -1030,7 +1070,7 @@ function exportAsExcel($data, $title) {
             background: #9c7e4f;
         }
         .btn-list:hover {
-            background: #8c6f3f;
+            background: #4a3f69;
         }
         .section {
             margin-bottom: 30px;
@@ -1087,7 +1127,7 @@ function exportAsExcel($data, $title) {
             margin-top: 20px;
             padding: 20px;
             border-radius: 8px;
-            background-color: #f9f9f9;
+            background-color: #f5f3fa;
         }
         .result-header {
             padding: 10px;
@@ -1159,14 +1199,14 @@ function exportAsExcel($data, $title) {
             min-width: 200px;
             text-align: center;
             padding: 15px;
-            background: #8c6f3f;
+            background: #4a3f69;
             color: white;
             text-decoration: none;
             border-radius: 4px;
             transition: background-color 0.3s;
         }
         .management-links a:hover {
-            background: #6d5732;
+            background: #3a3154;
         }
         .messages-container {
             margin-bottom: 20px;
@@ -1181,15 +1221,50 @@ function exportAsExcel($data, $title) {
         </div>
         <ul class="sidebar-menu">
             <li><a href="admin.php" class="active">系统首页</a></li>
-            <li><a href="admin_list.php">溯源数据</a></li>
-            <li><a href="admin_distributors.php">经销商管理</a></li>
-            <li><a href="admin_product_library.php">产品管理</a></li>
-            <li><a href="admin_warehouse_staff.php">出库人员</a></li>
-            <li><a href="admin_certificates.php">证书管理</a></li>
-            <li><a href="admin_password.php">修改密码</a></li>
+            <li class="has-submenu open">
+                <a href="javascript:void(0)" onclick="toggleSubmenu(this)">品牌业务 <span class="arrow">▼</span></a>
+                <ul class="submenu">
+                    <li><a href="admin_list.php">溯源数据</a></li>
+                    <li><a href="admin_distributors.php">经销商管理</a></li>
+                    <li><a href="admin_product_library.php">产品管理</a></li>
+                    <li><a href="admin_warehouse_staff.php">出库人员</a></li>
+                </ul>
+            </li>
+            <li class="has-submenu">
+                <a href="javascript:void(0)" onclick="toggleSubmenu(this)">代工业务 <span class="arrow">▼</span></a>
+                <ul class="submenu">
+                    <li><a href="admin_certificates.php">证书管理</a></li>
+                    <li><a href="admin_query_codes.php">查询码管理</a></li>
+                </ul>
+            </li>
+            <li class="has-submenu">
+                <a href="javascript:void(0)" onclick="toggleSubmenu(this)">系统设置 <span class="arrow">▼</span></a>
+                <ul class="submenu">
+                    <li><a href="admin_password.php">修改密码</a></li>
+                    <li><a href="admin_images.php">图片素材</a></li>
+                    <li><a href="admin_qiniu.php">七牛云接口</a></li>
+                </ul>
+            </li>
             <li><a href="?action=logout">退出登录</a></li>
         </ul>
     </div>
+    
+    <script>
+    function toggleSubmenu(el) {
+        var parent = el.parentElement;
+        parent.classList.toggle('open');
+    }
+    // 自动展开当前页面所在的子菜单
+    document.addEventListener('DOMContentLoaded', function() {
+        var currentPath = window.location.pathname;
+        var submenus = document.querySelectorAll('.submenu a');
+        submenus.forEach(function(link) {
+            if (currentPath.indexOf(link.getAttribute('href')) !== -1) {
+                link.closest('.has-submenu').classList.add('open');
+            }
+        });
+    });
+    </script>
     
     <!-- 主内容区域 -->
     <div class="main-content">

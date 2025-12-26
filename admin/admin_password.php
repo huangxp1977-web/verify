@@ -72,11 +72,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         .sidebar {
             width: 220px;
-            background-color: #8c6f3f;
+            background-color: #4a3f69;
             color: white;
             position: fixed;
             height: 100%;
             overflow-y: auto;
+            box-sizing: border-box;
         }
         .sidebar-header {
             padding: 20px;
@@ -106,8 +107,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             transition: background 0.3s;
         }
         .sidebar-menu a:hover, .sidebar-menu a.active {
-            background-color: #6d5732;
+            background-color: #3a3154;
             border-left: 4px solid #fff;
+        }
+        /* 二级菜单样式 */
+        .has-submenu > a {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .has-submenu .arrow {
+            font-size: 12px;
+            transition: transform 0.3s;
+        }
+        .has-submenu.open .arrow {
+            transform: rotate(180deg);
+        }
+        .submenu {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+            background-color: #4a3f69;
+        }
+        .has-submenu.open .submenu {
+            max-height: 200px;
+        }
+        .submenu li a {
+            padding-left: 40px;
+            font-size: 14px;
+            background-color: transparent;
+        }
+        .submenu li a:hover {
+            background-color: #3a3154;
+        }
+        .submenu li a.active {
+            background-color: #3a3154;
+            border-left: 4px solid #8b7aa8;
         }
         .main-content {
             flex: 1;
@@ -123,7 +161,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             box-shadow: 0 0 10px rgba(0,0,0,0.1);
         }
         h1 {
-            color: #8c6f3f;
+            color: #4a3f69;
             font-size: 28px;
             margin: 0;
             text-align: center;
@@ -137,12 +175,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             justify-content: space-between;
             align-items: center;
             margin-bottom: 30px;
-            border-bottom: 2px solid #c09f5e;
+            border-bottom: 2px solid #8b7aa8;
             padding-bottom: 20px;
         }
         .btn {
             padding: 10px 20px;
-            background: #8c6f3f;
+            background: #4a3f69;
             color: white;
             border: none;
             border-radius: 4px;
@@ -153,7 +191,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             transition: background-color 0.3s;
         }
         .btn:hover {
-            background: #6d5732;
+            background: #3a3154;
         }
         .form-group {
             margin-bottom: 20px;
@@ -175,14 +213,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             transition: border-color 0.3s;
         }
         input:focus {
-            border-color: #8c6f3f;
+            border-color: #4a3f69;
             outline: none;
         }
         .section {
             padding: 20px;
             border: 1px solid #eee;
             border-radius: 8px;
-            background: #f9f9f9;
+            background: #f5f3fa;
         }
         .success {
             background-color: #dff0d8;
@@ -210,22 +248,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
         <ul class="sidebar-menu">
             <li><a href="admin.php">系统首页</a></li>
-            <li><a href="admin_list.php">溯源数据</a></li>
-            <li><a href="admin_distributors.php">经销商管理</a></li>
-            <li><a href="admin_product_library.php">产品管理</a></li>
-            <li><a href="admin_warehouse_staff.php">出库人员</a></li>
-            <li><a href="admin_certificates.php">证书管理</a></li>
-            <li><a href="admin_password.php" class="active">修改密码</a></li>
+            <li class="has-submenu">
+                <a href="javascript:void(0)" onclick="toggleSubmenu(this)">品牌业务 <span class="arrow">▼</span></a>
+                <ul class="submenu">
+                    <li><a href="admin_list.php">溯源数据</a></li>
+                    <li><a href="admin_distributors.php">经销商管理</a></li>
+                    <li><a href="admin_product_library.php">产品管理</a></li>
+                    <li><a href="admin_warehouse_staff.php">出库人员</a></li>
+                </ul>
+            </li>
+            <li class="has-submenu">
+                <a href="javascript:void(0)" onclick="toggleSubmenu(this)">代工业务 <span class="arrow">▼</span></a>
+                <ul class="submenu">
+                    <li><a href="admin_certificates.php">证书管理</a></li>
+                    <li><a href="admin_query_codes.php">查询码管理</a></li>
+                </ul>
+            </li>
+            <li class="has-submenu open">
+                <a href="javascript:void(0)" onclick="toggleSubmenu(this)">系统设置 <span class="arrow">▼</span></a>
+                <ul class="submenu">
+                    <li><a href="admin_password.php" class="active">修改密码</a></li>
+                    <li><a href="admin_images.php">图片素材</a></li>\r
+                    <li><a href="admin_qiniu.php">七牛云接口</a></li>
+                </ul>
+            </li>
             <li><a href="?action=logout">退出登录</a></li>
         </ul>
     </div>
+    
+    <script>
+    function toggleSubmenu(el) {
+        var parent = el.parentElement;
+        parent.classList.toggle('open');
+    }
+    </script>
     
     <!-- 主内容区域 -->
     <div class="main-content">
         <div class="container">
             <div class="header">
                 <h1>修改密码</h1>
-                <a href="https://m.lvxinchaxun.com/warehouse/warehouse_scan.php" target="_blank" class="btn">出库扫码</a>
             </div>
             
             <?php if ($success): ?>

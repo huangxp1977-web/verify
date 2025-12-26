@@ -67,15 +67,48 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_product'])) {
     }
 }
 
-// 处理删除产品
+// 处理删除产品（仅当没有关联数据时允许删除）
 if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id'])) {
     $id = intval($_GET['id']);
     try {
-        $stmt = $pdo->prepare("DELETE FROM product_library WHERE id = ?");
+        // 检查是否有关联的溯源数据
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM products WHERE product_name COLLATE utf8mb4_general_ci = (SELECT product_name FROM product_library WHERE id = ?)");
         $stmt->execute([$id]);
-        $success = "产品删除成功";
+        $relatedCount = $stmt->fetchColumn();
+        
+        if ($relatedCount > 0) {
+            $error = "该产品有 {$relatedCount} 条关联数据，无法删除，只能禁用";
+        } else {
+            $stmt = $pdo->prepare("DELETE FROM product_library WHERE id = ?");
+            $stmt->execute([$id]);
+            $success = "产品删除成功";
+        }
     } catch(PDOException $e) {
         $error = "删除产品出错: " . $e->getMessage();
+    }
+}
+
+// 处理切换产品状态（启用/禁用）
+if (isset($_GET['action']) && $_GET['action'] == 'toggle_status' && isset($_GET['id'])) {
+    $id = intval($_GET['id']);
+    try {
+        $stmt = $pdo->prepare("SELECT status, product_name FROM product_library WHERE id = ?");
+        $stmt->execute([$id]);
+        $prod = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($prod) {
+            $newStatus = (isset($prod['status']) && $prod['status'] == 1) ? 0 : 1;
+            $statusText = $newStatus == 1 ? '启用' : '禁用';
+            
+            $stmt = $pdo->prepare("UPDATE product_library SET status = ? WHERE id = ?");
+            $stmt->execute([$newStatus, $id]);
+            
+            $success = "产品【{$prod['product_name']}】已{$statusText}";
+            header("Location: admin_product_library.php");
+            exit;
+        }
+    } catch(PDOException $e) {
+        $error = "操作失败: " . $e->getMessage();
     }
 }
 
@@ -109,11 +142,12 @@ $products = getProducts($pdo);
         }
         .sidebar {
             width: 220px;
-            background-color: #8c6f3f;
+            background-color: #4a3f69;
             color: white;
             position: fixed;
             height: 100%;
             overflow-y: auto;
+            box-sizing: border-box;
         }
         .sidebar-header {
             padding: 20px;
@@ -143,8 +177,45 @@ $products = getProducts($pdo);
             transition: background 0.3s;
         }
         .sidebar-menu a:hover, .sidebar-menu a.active {
-            background-color: #6d5732;
+            background-color: #3a3154;
             border-left: 4px solid #fff;
+        }
+        /* 二级菜单样式 */
+        .has-submenu > a {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .has-submenu .arrow {
+            font-size: 12px;
+            transition: transform 0.3s;
+        }
+        .has-submenu.open .arrow {
+            transform: rotate(180deg);
+        }
+        .submenu {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+            background-color: #4a3f69;
+        }
+        .has-submenu.open .submenu {
+            max-height: 200px;
+        }
+        .submenu li a {
+            padding-left: 40px;
+            font-size: 14px;
+            background-color: transparent;
+        }
+        .submenu li a:hover {
+            background-color: #3a3154;
+        }
+        .submenu li a.active {
+            background-color: #3a3154;
+            border-left: 4px solid #8b7aa8;
         }
         .main-content {
             flex: 1;
@@ -164,18 +235,18 @@ $products = getProducts($pdo);
             justify-content: space-between;
             align-items: center;
             margin-bottom: 30px;
-            border-bottom: 2px solid #c09f5e;
+            border-bottom: 2px solid #8b7aa8;
             padding-bottom: 20px;
         }
         h1 {
-            color: #8c6f3f;
+            color: #4a3f69;
             font-size: 28px;
             margin: 0;
             font-weight: bold;
         }
         .btn {
             padding: 10px 20px;
-            background: #8c6f3f;
+            background: #4a3f69;
             color: white;
             border: none;
             border-radius: 4px;
@@ -183,17 +254,17 @@ $products = getProducts($pdo);
             text-decoration: none;
             display: inline-block;
         }
-        .btn:hover { background: #6d5732; }
-        .btn-secondary { background: #3498db; }
-        .btn-secondary:hover { background: #2980b9; }
-        .btn-danger { background: #e74c3c; }
-        .btn-danger:hover { background: #c0392b; }
+        .btn:hover { background: #3a3154; }
+        .btn-secondary { background: #fff; color: #4a3f69; border: 1px solid #4a3f69; }
+        .btn-secondary:hover { background: #f5f3fa; }
+        .btn-danger { background: #fdf0f0; color: #e74c3c; border: 1px solid #e74c3c; }
+        .btn-danger:hover { background: #fce4e4; color: #c0392b; border-color: #c0392b; }
         
         .section {
             padding: 20px;
             border: 1px solid #eee;
             border-radius: 8px;
-            background: #f9f9f9;
+            background: #f5f3fa;
             margin-bottom: 30px;
         }
         .form-group { margin-bottom: 15px; }
@@ -222,15 +293,40 @@ $products = getProducts($pdo);
         </div>
         <ul class="sidebar-menu">
             <li><a href="admin.php">系统首页</a></li>
-            <li><a href="admin_list.php">溯源数据</a></li>
-            <li><a href="admin_distributors.php">经销商管理</a></li>
-            <li><a href="admin_product_library.php" class="active">产品管理</a></li>
-            <li><a href="admin_warehouse_staff.php">出库人员</a></li>
-            <li><a href="admin_certificates.php">证书管理</a></li>
-            <li><a href="admin_password.php">修改密码</a></li>
+            <li class="has-submenu open">
+                <a href="javascript:void(0)" onclick="toggleSubmenu(this)">品牌业务 <span class="arrow">▼</span></a>
+                <ul class="submenu">
+                    <li><a href="admin_list.php">溯源数据</a></li>
+                    <li><a href="admin_distributors.php">经销商管理</a></li>
+                    <li><a href="admin_product_library.php" class="active">产品管理</a></li>
+                    <li><a href="admin_warehouse_staff.php">出库人员</a></li>
+                </ul>
+            </li>
+            <li class="has-submenu">
+                <a href="javascript:void(0)" onclick="toggleSubmenu(this)">代工业务 <span class="arrow">▼</span></a>
+                <ul class="submenu">
+                    <li><a href="admin_certificates.php">证书管理</a></li>
+                    <li><a href="admin_query_codes.php">查询码管理</a></li>
+                </ul>
+            </li>
+            <li class="has-submenu">
+                <a href="javascript:void(0)" onclick="toggleSubmenu(this)">系统设置 <span class="arrow">▼</span></a>
+                <ul class="submenu">
+                    <li><a href="admin_password.php">修改密码</a></li>
+                    <li><a href="admin_images.php">图片素材</a></li>\r
+                    <li><a href="admin_qiniu.php">七牛云接口</a></li>
+                </ul>
+            </li>
             <li><a href="?action=logout">退出登录</a></li>
         </ul>
     </div>
+    
+    <script>
+    function toggleSubmenu(el) {
+        var parent = el.parentElement;
+        parent.classList.toggle('open');
+    }
+    </script>
 
     <div class="main-content">
         <div class="container">
@@ -296,11 +392,19 @@ $products = getProducts($pdo);
                         <th>产品名称</th>
                         <th>默认地区</th>
                         <th>图片URL</th>
+                        <th>状态</th>
                         <th>操作</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php foreach ($products as $prod): ?>
+                    <?php 
+                    // 检查是否有关联数据
+                    $checkStmt = $pdo->prepare("SELECT COUNT(*) FROM products WHERE product_name COLLATE utf8mb4_general_ci = ?");
+                    $checkStmt->execute([$prod['product_name']]);
+                    $hasRelatedData = $checkStmt->fetchColumn() > 0;
+                    $status = isset($prod['status']) ? $prod['status'] : 1;
+                    ?>
                     <tr>
                         <td><?php echo $prod['id']; ?></td>
                         <td><?php echo htmlspecialchars($prod['product_name']); ?></td>
@@ -313,8 +417,26 @@ $products = getProducts($pdo);
                             <?php endif; ?>
                         </td>
                         <td>
-                            <a href="?action=edit&id=<?php echo $prod['id']; ?>" class="btn btn-secondary" style="padding: 5px 10px; font-size: 12px;">编辑</a>
-                            <a href="?action=delete&id=<?php echo $prod['id']; ?>" class="btn btn-danger" style="padding: 5px 10px; font-size: 12px;" onclick="return confirm('确定要删除这个产品吗？');">删除</a>
+                            <?php if ($status == 1): ?>
+                                <span style="color: #27ae60;">✓ 启用</span>
+                            <?php else: ?>
+                                <span style="color: #e74c3c;">✗ 禁用</span>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <?php if ($hasRelatedData): ?>
+                                <span class="btn" style="background: #ccc; cursor: not-allowed; padding: 5px 10px; font-size: 12px;" title="有关联数据，无法编辑">编辑</span>
+                            <?php else: ?>
+                                <a href="?action=edit&id=<?php echo $prod['id']; ?>" class="btn btn-secondary" style="padding: 5px 10px; font-size: 12px;">编辑</a>
+                            <?php endif; ?>
+                            
+                            <?php if (!$hasRelatedData): ?>
+                                <a href="?action=delete&id=<?php echo $prod['id']; ?>" class="btn btn-danger" style="padding: 5px 10px; font-size: 12px;" onclick="return confirm('确定要删除这个产品吗？');">删除</a>
+                            <?php elseif ($status == 1): ?>
+                                <a href="?action=toggle_status&id=<?php echo $prod['id']; ?>" class="btn btn-danger" style="padding: 5px 10px; font-size: 12px;" onclick="return confirm('确定要禁用该产品吗？');">禁用</a>
+                            <?php else: ?>
+                                <a href="?action=toggle_status&id=<?php echo $prod['id']; ?>" class="btn" style="background: #27ae60; padding: 5px 10px; font-size: 12px;" onclick="return confirm('确定要启用该产品吗？');">启用</a>
+                            <?php endif; ?>
                         </td>
                     </tr>
                     <?php endforeach; ?>

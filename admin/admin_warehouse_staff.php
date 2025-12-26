@@ -125,6 +125,30 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id']))
     }
 }
 
+// 处理切换出库人员状态（启用/禁用）
+if (isset($_GET['action']) && $_GET['action'] == 'toggle_status' && isset($_GET['id'])) {
+    $id = intval($_GET['id']);
+    try {
+        $stmt = $pdo->prepare("SELECT status, full_name FROM warehouse_staff WHERE id = ?");
+        $stmt->execute([$id]);
+        $staff = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($staff) {
+            $newStatus = (isset($staff['status']) && $staff['status'] == 1) ? 0 : 1;
+            $statusText = $newStatus == 1 ? '启用' : '禁用';
+            
+            $stmt = $pdo->prepare("UPDATE warehouse_staff SET status = ? WHERE id = ?");
+            $stmt->execute([$newStatus, $id]);
+            
+            $success = "出库人员【{$staff['full_name']}】已{$statusText}";
+            header("Location: admin_warehouse_staff.php");
+            exit;
+        }
+    } catch(PDOException $e) {
+        $error = "操作失败: " . $e->getMessage();
+    }
+}
+
 // 获取编辑的出库人员信息
 $edit_staff = null;
 if (isset($_GET['action']) && $_GET['action'] == 'edit' && isset($_GET['id'])) {
@@ -169,18 +193,19 @@ try {
         /* 左侧导航栏 */
         .sidebar {
             width: 220px;
-            background-color: #8c6f3f;
+            background-color: #4a3f69;
             color: white;
-            min-height: 100vh;
+            height: 100vh;
             position: fixed;
             left: 0;
             top: 0;
             padding: 20px 0;
             overflow-y: auto;
+            box-sizing: border-box;
         }
         .sidebar-header {
             padding: 0 20px 20px;
-            border-bottom: 1px solid #a68c52;
+            border-bottom: 1px solid #6b5a8a;
             margin-bottom: 20px;
         }
         .sidebar-header h2 {
@@ -205,11 +230,48 @@ try {
             transition: background-color 0.3s;
         }
         .sidebar-menu a:hover {
-            background-color: #6d5732;
+            background-color: #3a3154;
         }
         .sidebar-menu a.active {
-            background-color: #6d5732;
+            background-color: #3a3154;
             border-left: 4px solid #fff;
+        }
+        /* 二级菜单样式 */
+        .has-submenu > a {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .has-submenu .arrow {
+            font-size: 12px;
+            transition: transform 0.3s;
+        }
+        .has-submenu.open .arrow {
+            transform: rotate(180deg);
+        }
+        .submenu {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+            background-color: #4a3f69;
+        }
+        .has-submenu.open .submenu {
+            max-height: 200px;
+        }
+        .submenu li a {
+            padding-left: 40px;
+            font-size: 14px;
+            background-color: transparent;
+        }
+        .submenu li a:hover {
+            background-color: #3a3154;
+        }
+        .submenu li a.active {
+            background-color: #3a3154;
+            border-left: 4px solid #8b7aa8;
         }
         /* 主内容区域 */
         .main-content {
@@ -231,10 +293,10 @@ try {
             align-items: center;
             margin-bottom: 30px;
             padding-bottom: 20px;
-            border-bottom: 2px solid #c09f5e;
+            border-bottom: 2px solid #8b7aa8;
         }
         h1 {
-            color: #8c6f3f;
+            color: #4a3f69;
             font-size: 28px;
             margin: 0;
             text-align: center;
@@ -244,7 +306,7 @@ try {
             text-align: left;
         }
         h2 {
-            color: #8c6f3f;
+            color: #4a3f69;
             font-size: 24px;
             border-bottom: 1px solid #eee;
             padding-bottom: 10px;
@@ -252,7 +314,7 @@ try {
         }
         .btn {
             padding: 10px 20px;
-            background: #8c6f3f;
+            background: #4a3f69;
             color: white;
             border: none;
             border-radius: 4px;
@@ -263,19 +325,25 @@ try {
             transition: background-color 0.3s;
         }
         .btn:hover {
-            background: #6d5732;
+            background: #3a3154;
         }
         .btn-secondary {
-            background: #3498db;
+            background: #fff;
+            color: #4a3f69;
+            border: 1px solid #4a3f69;
         }
         .btn-secondary:hover {
-            background: #2980b9;
+            background: #f5f3fa;
         }
         .btn-danger {
-            background: #e74c3c;
+            background: #fdf0f0;
+            color: #e74c3c;
+            border: 1px solid #e74c3c;
         }
         .btn-danger:hover {
-            background: #c0392b;
+            background: #fce4e4;
+            color: #c0392b;
+            border-color: #c0392b;
         }
         .btn-logout {
             background: #e74c3c;
@@ -288,7 +356,7 @@ try {
             padding: 20px;
             border: 1px solid #eee;
             border-radius: 8px;
-            background-color: #f9f9f9;
+            background-color: #f5f3fa;
         }
         .form-group {
             margin-bottom: 15px;
@@ -333,12 +401,12 @@ try {
             border-bottom: 1px solid #eee;
         }
         th {
-            background-color: #8c6f3f;
+            background-color: #4a3f69;
             color: white;
             font-weight: bold;
         }
         tr:nth-child(even) {
-            background-color: #f9f9f9;
+            background-color: #f5f3fa;
         }
         tr:hover {
             background-color: #f5f5f5;
@@ -359,12 +427,12 @@ try {
             gap: 15px;
             margin-bottom: 20px;
             padding: 15px;
-            background-color: #f9f9f9;
+            background-color: #f5f3fa;
             border-radius: 8px;
             border: 1px solid #eee;
         }
         .nav-links a {
-            color: #8c6f3f;
+            color: #4a3f69;
             text-decoration: none;
             padding: 8px 15px;
             border-radius: 4px;
@@ -383,15 +451,40 @@ try {
         </div>
         <ul class="sidebar-menu">
             <li><a href="admin.php">系统首页</a></li>
-            <li><a href="admin_list.php">溯源数据</a></li>
-            <li><a href="admin_distributors.php">经销商管理</a></li>
-            <li><a href="admin_product_library.php">产品管理</a></li>
-            <li><a href="admin_warehouse_staff.php" class="active">出库人员</a></li>
-            <li><a href="admin_certificates.php">证书管理</a></li>
-            <li><a href="admin_password.php">修改密码</a></li>
+            <li class="has-submenu open">
+                <a href="javascript:void(0)" onclick="toggleSubmenu(this)">品牌业务 <span class="arrow">▼</span></a>
+                <ul class="submenu">
+                    <li><a href="admin_list.php">溯源数据</a></li>
+                    <li><a href="admin_distributors.php">经销商管理</a></li>
+                    <li><a href="admin_product_library.php">产品管理</a></li>
+                    <li><a href="admin_warehouse_staff.php" class="active">出库人员</a></li>
+                </ul>
+            </li>
+            <li class="has-submenu">
+                <a href="javascript:void(0)" onclick="toggleSubmenu(this)">代工业务 <span class="arrow">▼</span></a>
+                <ul class="submenu">
+                    <li><a href="admin_certificates.php">证书管理</a></li>
+                    <li><a href="admin_query_codes.php">查询码管理</a></li>
+                </ul>
+            </li>
+            <li class="has-submenu">
+                <a href="javascript:void(0)" onclick="toggleSubmenu(this)">系统设置 <span class="arrow">▼</span></a>
+                <ul class="submenu">
+                    <li><a href="admin_password.php">修改密码</a></li>
+                    <li><a href="admin_images.php">图片素材</a></li>
+                    <li><a href="admin_qiniu.php">七牛云接口</a></li>
+                </ul>
+            </li>
             <li><a href="?action=logout">退出登录</a></li>
         </ul>
     </div>
+    
+    <script>
+    function toggleSubmenu(el) {
+        var parent = el.parentElement;
+        parent.classList.toggle('open');
+    }
+    </script>
     
     <!-- 主内容区域 -->
     <div class="main-content">
@@ -415,10 +508,12 @@ try {
                 <?php if ($edit_staff): ?>
                     <input type="hidden" name="id" value="<?php echo $edit_staff['id']; ?>">
                 <?php endif; ?>
+                <?php $isEditingAdmin = $edit_staff && strtolower($edit_staff['username']) === 'admin'; ?>
                 
                 <div class="form-group">
                     <label for="username">用户名 *</label>
-                    <input type="text" id="username" name="username" value="<?php echo $edit_staff ? htmlspecialchars($edit_staff['username']) : ''; ?>" required>
+                    <input type="text" id="username" name="username" value="<?php echo $edit_staff ? htmlspecialchars($edit_staff['username']) : ''; ?>" required<?php echo $isEditingAdmin ? ' readonly style="background: #eee;"' : ''; ?>>
+                    <?php if ($isEditingAdmin): ?><small style="color: #999;">管理员用户名不可修改</small><?php endif; ?>
                 </div>
                 
                 <div class="form-group">
@@ -438,10 +533,11 @@ try {
                 
                 <div class="form-group">
                     <label for="status">状态 *</label>
-                    <select id="status" name="status" required>
+                    <select id="status" name="status" required<?php echo $isEditingAdmin ? ' disabled style="background: #eee;"' : ''; ?>>
                         <option value="1"<?php echo ($edit_staff && $edit_staff['status'] == 1) ? ' selected' : ''; ?>>启用</option>
                         <option value="0"<?php echo ($edit_staff && $edit_staff['status'] == 0) ? ' selected' : ''; ?>>禁用</option>
                     </select>
+                    <?php if ($isEditingAdmin): ?><input type="hidden" name="status" value="1"><small style="color: #999;">管理员状态不可修改</small><?php endif; ?>
                 </div>
                 
                 <button type="submit" name="<?php echo $edit_staff ? 'edit_staff' : 'add_staff'; ?>" class="btn"><?php echo $edit_staff ? '更新出库人员' : '添加出库人员'; ?></button>
@@ -469,19 +565,25 @@ try {
                 <tbody>
                     <?php if (count($staff) > 0): ?>
                         <?php foreach ($staff as $s): ?>
+                            <?php 
+                            $status = isset($s['status']) ? $s['status'] : 1;
+                            $isAdmin = strtolower($s['username']) === 'admin';
+                            ?>
                             <tr>
                                 <td><?php echo $s['id']; ?></td>
                                 <td><?php echo htmlspecialchars($s['username']); ?></td>
                                 <td><?php echo htmlspecialchars($s['full_name']); ?></td>
                                 <td><?php echo htmlspecialchars($s['phone']); ?></td>
-                                <td class="<?php echo $s['status'] == 1 ? 'status-active' : 'status-inactive'; ?>">
-                                    <?php echo $s['status'] == 1 ? '启用' : '禁用'; ?>
+                                <td class="<?php echo $status == 1 ? 'status-active' : 'status-inactive'; ?>">
+                                    <?php echo $status == 1 ? '✓ 启用' : '✗ 禁用'; ?>
                                 </td>
                                 <td><?php echo $s['created_at']; ?></td>
                                 <td>
                                     <div class="action-buttons">
                                         <a href="admin_warehouse_staff.php?action=edit&id=<?php echo $s['id']; ?>" class="btn btn-secondary">编辑</a>
-                                        <a href="admin_warehouse_staff.php?action=delete&id=<?php echo $s['id']; ?>" class="btn btn-danger" onclick="return confirm('确定要删除这个出库人员吗？');">删除</a>
+                                        <?php if (!$isAdmin): ?>
+                                            <a href="admin_warehouse_staff.php?action=delete&id=<?php echo $s['id']; ?>" class="btn btn-danger" onclick="return confirm('确定要删除这个出库人员吗？');">删除</a>
+                                        <?php endif; ?>
                                     </div>
                                 </td>
                             </tr>
