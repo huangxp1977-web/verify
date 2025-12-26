@@ -294,11 +294,11 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
             border: 1px solid #ddd;
             border-radius: 4px;
             text-decoration: none;
-            color: #333;
+            color: #4a3f69;
         }
         .pagination a:hover {
-            background: #4a3f69;
-            color: white;
+            background: #f5f3fa;
+            color: #4a3f69;
             border-color: #4a3f69;
         }
         .pagination .current {
@@ -457,6 +457,8 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
             <!-- 分页 -->
             <?php if ($totalPages > 1): ?>
                 <div class="pagination">
+                    <span>共 <?php echo $totalRecords; ?> 条，<?php echo $totalPages; ?> 页，第 <?php echo $page; ?> 页</span>
+
                     <?php
                     // 构建分页URL参数
                     $queryParams = [];
@@ -464,26 +466,54 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
                     if (!empty($searchCode)) $queryParams['code'] = $searchCode;
                     if ($searchQueryCount !== '') $queryParams['query_count'] = $searchQueryCount;
                     $baseUrl = '?' . http_build_query($queryParams);
-                    $baseUrl .= (count($queryParams) > 0 ? '&' : '') . 'page=';
+                    $join = (count($queryParams) > 0 ? '&' : '?'); // Use ? if no params, & if params exist. Wait, http_build_query returns string without leading ?.
+                    // Actually http_build_query output doesn't start with ?.
+                    // The original code was: $baseUrl = '?' . http_build_query($queryParams);
+                    // So $baseUrl already starts with ?.
+                    // Wait, if queryParams is empty, http_build_query returns empty string.
+                    // So $baseUrl would be '?'.
+                    // Then for page, we need 'page=' or '&page='.
+                    // If $baseUrl is just '?', we need 'page='.
+                    // If $baseUrl is '?foo=bar', we need '&page='.
+                    
+                    // Let's refine the URL building logic to be robust.
+                    $urlStart = count($queryParams) > 0 ? '?' . http_build_query($queryParams) . '&' : '?';
+                    
+                    // Previous Page
+                    if ($page > 1) {
+                         echo '<a href="' . $urlStart . 'page=' . ($page - 1) . '">上一页</a>';
+                    }
+                    
+                    $start = max(1, $page - 2);
+                    $end = min($totalPages, $page + 2);
+                    
+                    if ($start > 1) {
+                        echo '<a href="' . $urlStart . 'page=1">1</a>';
+                        if ($start > 2) {
+                            echo '<span>...</span>';
+                        }
+                    }
+                    
+                    for ($i = $start; $i <= $end; $i++) {
+                        if ($i == $page) {
+                            echo '<span class="current">' . $i . '</span>';
+                        } else {
+                            echo '<a href="' . $urlStart . 'page=' . $i . '">' . $i . '</a>';
+                        }
+                    }
+                    
+                    if ($end < $totalPages) {
+                        if ($end < $totalPages - 1) {
+                            echo '<span>...</span>';
+                        }
+                        echo '<a href="' . $urlStart . 'page=' . $totalPages . '">' . $totalPages . '</a>';
+                    }
+                    
+                    // Next Page
+                    if ($page < $totalPages) {
+                         echo '<a href="' . $urlStart . 'page=' . ($page + 1) . '">下一页</a>';
+                    }
                     ?>
-                    
-                    <?php if ($page > 1): ?>
-                        <a href="<?php echo $baseUrl . '1'; ?>">首页</a>
-                        <a href="<?php echo $baseUrl . ($page - 1); ?>">上一页</a>
-                    <?php else: ?>
-                        <span class="disabled">首页</span>
-                        <span class="disabled">上一页</span>
-                    <?php endif; ?>
-                    
-                    <span class="info">第 <?php echo $page; ?> / <?php echo $totalPages; ?> 页</span>
-                    
-                    <?php if ($page < $totalPages): ?>
-                        <a href="<?php echo $baseUrl . ($page + 1); ?>">下一页</a>
-                        <a href="<?php echo $baseUrl . $totalPages; ?>">尾页</a>
-                    <?php else: ?>
-                        <span class="disabled">下一页</span>
-                        <span class="disabled">尾页</span>
-                    <?php endif; ?>
                 </div>
             <?php endif; ?>
         </div>

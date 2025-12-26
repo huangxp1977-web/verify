@@ -908,7 +908,7 @@ try {
 }
 
 // 生成分页链接的函数
-function generate_pagination($current_page, $total_pages, $base_url) {
+function generate_pagination($current_page, $total_pages, $base_url, $total_records) {
     // 保留筛选参数
     $queryParams = [];
     if (!empty($_GET['box_code'])) $queryParams[] = "box_code=" . urlencode($_GET['box_code']);
@@ -1264,10 +1264,10 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
             text-decoration: none;
             border: 1px solid #ddd;
             border-radius: 4px;
-            color: #333;
+            color: #4a3f69;
         }
         .pagination a:hover {
-            background-color: #f5f5f5;
+            background-color: #f5f3fa;
             border-color: #4a3f69;
             color: #4a3f69;
         }
@@ -1276,9 +1276,7 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
             color: white;
             border-color: #4a3f69;
         }
-        .pagination span {
-            color: #999;
-        }
+
         .sidebar {
             width: 220px;
             background-color: #4a3f69;
@@ -1694,7 +1692,7 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
                 if ($id > 0) {
                     $base_url .= '&id=' . $id;
                 }
-                echo generate_pagination($page, $total_pages, $base_url);
+                echo generate_pagination($page, $total_pages, $base_url, $total_records);
             ?>
         <?php endif; ?>
         </div>
