@@ -1465,7 +1465,7 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
         <div class="container">
             <div class="header">
                 <h1>溯源数据</h1>
-                <a href="https://m.lvxinchaxun.com/warehouse/warehouse_scan.php" target="_blank" class="btn">出库扫码</a>
+                <a href="/warehouse/warehouse_scan.php" target="_blank" class="btn">出库扫码</a>
             </div>
         
         <!-- 面包屑导航 -->

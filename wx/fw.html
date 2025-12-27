@@ -112,6 +112,11 @@
 
     // 3. 核心函数：调用API查询防伪码并展示结果
     async function queryTraceCode() {
+        // 自动识别品牌逻辑
+        var isGuoKong = window.location.hostname.indexOf('guokonghuayi') > -1;
+        var brandName = isGuoKong ? '国控华医' : '德欧美提';
+        if (isGuoKong) { document.title = '国控华医'; }
+
         // 获取URL中的code参数
         const code = getUrlParam('code');
         const resultContainer = document.getElementById('resultContainer');
@@ -241,7 +246,7 @@
                     <h3>查询结果</h3>
                     <p class="status">该防伪码状态：正品</p>
                     <p class="red">产品防伪码：${code.trim()}</p> <!-- 新增显示查询的防伪码 -->
-                    <p>恭喜您，该产品为德欧美提品牌正品，请放心使用</p>
+                    <p>恭喜您，该产品为${brandName}品牌正品，请放心使用</p>
                     ${detailHtml}
                 `;
             } else {

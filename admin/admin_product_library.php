@@ -332,7 +332,7 @@ $products = getProducts($pdo);
         <div class="container">
             <div class="header">
                 <h1>产品库管理</h1>
-                <a href="https://m.lvxinchaxun.com/warehouse/warehouse_scan.php" target="_blank" class="btn">出库扫码</a>
+                <a href="/warehouse/warehouse_scan.php" target="_blank" class="btn">出库扫码</a>
             </div>
 
             <?php if ($success): ?>

@@ -171,7 +171,11 @@ try {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>产品出库扫码 - 产品溯源系统</title>
+<?php
+    $isGuoKong = (strpos($_SERVER['HTTP_HOST'], 'guokonghuayi.com') !== false);
+    $brandName = $isGuoKong ? '国控华医' : '产品溯源';
+?>
+    <title>产品出库扫码 - <?php echo $brandName; ?>系统</title>
     <style>
         /* 全局样式重置与基础设置 */
         * {

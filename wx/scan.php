@@ -2,12 +2,16 @@
 require_once "jssdk.php";
 $jssdk = new JSSDK("wx28d06b295bc4c379", "47f846d74f6bf7e638de23685aad8c28");
 $signPackage = $jssdk->GetSignPackage();
+
+// 自动识别品牌（根据域名）
+$isGuoKong = (strpos($_SERVER['HTTP_HOST'], 'guokonghuayi') !== false);
+$brandName = $isGuoKong ? '国控华医' : '德欧美提';
 ?>
 <!DOCTYPE html>
 <html data-use-rem="750">
 <head>
 <meta charset="UTF-8">
-<title>德欧美提</title>
+<title><?php echo $brandName; ?></title>
 <meta name="renderer" content="webkit">
 <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">

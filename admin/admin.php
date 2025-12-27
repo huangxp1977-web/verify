@@ -279,8 +279,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_data'])) {
             }
             $whereSql = empty($whereClauses) ? "" : "WHERE " . implode(" AND ", $whereClauses);
 
-            // 防伪码查询网址
-            $queryUrl = "http://m.lvxinchaxun.com/index.php?code=";
+            // 防伪码查询网址 (自动识别当前协议和域名)
+            $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || $_SERVER['SERVER_PORT'] == 443) ? "https://" : "http://";
+            $domain = $_SERVER['HTTP_HOST'];
+            $queryUrl = $protocol . $domain . "/index.php?code=";
 
             // 获取符合条件的所有箱子
             $boxStmt = $pdo->prepare("
@@ -595,7 +597,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_zero_data'])) {
         // 关联查询：只查有盒子但无产品的箱子
         $whereSql = empty($whereClauses) ? "" : "WHERE " . implode(" AND ", $whereClauses);
 
-        $queryUrl = "http://m.lvxinchaxun.com/index.php?code=";
+        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || $_SERVER['SERVER_PORT'] == 443) ? "https://" : "http://";
+        $domain = $_SERVER['HTTP_HOST'];
+        $queryUrl = $protocol . $domain . "/index.php?code=";
 
         // 查询符合条件的箱子+盒子数据
         $stmt = $pdo->prepare("
@@ -1282,7 +1286,7 @@ function exportAsExcel($data, $title) {
 
             <div class="header">
                 <h1>系统首页</h1>
-                <a href="https://m.lvxinchaxun.com/warehouse/warehouse_scan.php" target="_blank" class="btn">出库扫码</a>
+                <a href="/warehouse/warehouse_scan.php" target="_blank" class="btn">出库扫码</a>
             </div>
                 
                 <div class="stats">
@@ -1317,7 +1321,7 @@ function exportAsExcel($data, $title) {
                     <a href="admin_list.php">溯源数据</a>
                     <a href="admin_distributors.php">经销商管理</a>
                     <a href="admin_warehouse_staff.php">出库人员管理</a>
-                    <a href="https://m.lvxinchaxun.com/warehouse/warehouse_scan.php" target="_blank">出库扫码入口</a>
+                    <a href="/warehouse/warehouse_scan.php" target="_blank">出库扫码入口</a>
                     <a href="admin_certificates.php" target="_blank">证书管理</a>
                 </div>
         

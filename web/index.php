@@ -7,6 +7,10 @@ $result = null;
 $error = '';
 $type = '';
 
+// 自动识别品牌（根据域名）
+$isGuoKong = (strpos($_SERVER['HTTP_HOST'], 'guokonghuayi') !== false);
+$brandName = $isGuoKong ? '国控华医' : '德欧美提';
+
 // 数据库查询逻辑（保持不变）
 if (!empty($code)) {
     try {
@@ -76,7 +80,7 @@ if (!empty($code)) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>产品溯源查询系统</title>
+    <title>产品溯源查询系统 - <?php echo $brandName; ?></title>
     <style>
         /* 跳转遮罩（优先加载） */
         .jump-mask {
@@ -166,6 +170,7 @@ if (!empty($code)) {
             <div class="admin-link">
                 <a href="../login.php">管理员入口</a>
             </div>
+            
             
             <h1>产品溯源查询系统</h1>
             
