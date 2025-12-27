@@ -172,7 +172,7 @@ if (!empty($code)) {
             </div>
             
             
-            <h1>产品溯源查询系统</h1>
+            <h1><?php echo $brandName; ?> - 产品溯源查询系统</h1>
             
             <div class="search-form">
                 <form method="get" action="">
