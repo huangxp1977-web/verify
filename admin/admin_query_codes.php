@@ -358,7 +358,8 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
                 <a href="javascript:void(0)" onclick="toggleSubmenu(this)">系统设置 <span class="arrow">▼</span></a>
                 <ul class="submenu">
                     <li><a href="admin_password.php">修改密码</a></li>
-                    <li><a href="admin_images.php">图片素材</a></li>\r
+                    <li><a href="admin_images.php">图片素材</a></li>
+                    <li><a href="admin_scan_editor.php">扫码编辑器</a></li>\r
                     <li><a href="admin_qiniu.php">七牛云接口</a></li>
                 </ul>
             </li>

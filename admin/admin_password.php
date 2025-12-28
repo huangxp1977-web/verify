@@ -36,14 +36,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             // 获取当前用户信息
             $admin_id = $_SESSION['admin_id'] ?? 1; // 默认ID 1，如果session里没存ID
-            $stmt = $pdo->prepare("SELECT password_hash FROM admins WHERE id = ?");
+            $stmt = $pdo->prepare("SELECT password_hash FROM users WHERE id = ?");
             $stmt->execute([$admin_id]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
             
             if ($user && password_verify($current_password, $user['password_hash'])) {
                 // 旧密码验证通过，更新密码
                 $new_hash = password_hash($new_password, PASSWORD_BCRYPT);
-                $update = $pdo->prepare("UPDATE admins SET password_hash = ? WHERE id = ?");
+                $update = $pdo->prepare("UPDATE users SET password_hash = ? WHERE id = ?");
                 $update->execute([$new_hash, $admin_id]);
                 $success = "密码修改成功！下次登录请使用新密码。";
             } else {
@@ -268,7 +268,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <a href="javascript:void(0)" onclick="toggleSubmenu(this)">系统设置 <span class="arrow">▼</span></a>
                 <ul class="submenu">
                     <li><a href="admin_password.php" class="active">修改密码</a></li>
-                    <li><a href="admin_images.php">图片素材</a></li>\r
+                    <li><a href="admin_images.php">图片素材</a></li>
+                    <li><a href="admin_scan_editor.php">扫码编辑器</a></li>\r
                     <li><a href="admin_qiniu.php">七牛云接口</a></li>
                 </ul>
             </li>

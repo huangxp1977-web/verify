@@ -1,9 +1,17 @@
 <?php
 require __DIR__ . '/config/config.php';
 
-// 只允许 guokonghuayi.com 域名访问后台
+// 只允许特定域名访问后台（生产环境 + 本地开发环境）
 $host = $_SERVER['HTTP_HOST'];
-if (strpos($host, 'guokonghuayi') === false) {
+$allowedHosts = ['guokonghuayi', 'localhost', '127.0.0.1', 'verify.local'];
+$isAllowed = false;
+foreach ($allowedHosts as $allowed) {
+    if (strpos($host, $allowed) !== false) {
+        $isAllowed = true;
+        break;
+    }
+}
+if (!$isAllowed) {
     header('Location: /');
     exit;
 }
@@ -30,23 +38,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     try {
         // 从数据库查询用户
-        $stmt = $pdo->prepare("SELECT id, username, password_hash FROM admins WHERE username = ?");
+        $stmt = $pdo->prepare("SELECT id, username, password_hash, role, status FROM users WHERE username = ?");
         $stmt->execute([$username]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         
-        // 验证密码
-        if ($user && password_verify($password, $user['password_hash'])) {
+        // 验证密码和状态
+        if ($user && $user['status'] == 1 && password_verify($password, $user['password_hash'])) {
             // 登录成功
             $_SESSION['admin_logged_in'] = true;
             $_SESSION['admin_id'] = $user['id'];
             $_SESSION['admin_username'] = $user['username'];
+            $_SESSION['admin_role'] = $user['role'];
             
-            // 更新最后登录时间（如果表中有这个字段的话，目前先忽略）
+            // 更新最后登录时间
+            $pdo->prepare("UPDATE users SET last_login = NOW() WHERE id = ?")->execute([$user['id']]);
             
             header('Location: admin/admin.php');
             exit;
+        } elseif ($user && $user['status'] == 0) {
+            $error = '账号已被禁用，请联系管理员';
         } else {
-            $error = '用户名或密码不正确';
+            // 本地调试：显示详细信息
+            if (strpos($_SERVER['HTTP_HOST'], 'verify.local') !== false || strpos($_SERVER['HTTP_HOST'], 'localhost') !== false) {
+                $error = '调试：用户=' . ($user ? '找到' : '未找到');
+                if ($user) {
+                    $error .= ' | Hash前20字符=' . substr($user['password_hash'], 0, 20);
+                    $error .= ' | 验证结果=' . (password_verify($password, $user['password_hash']) ? '通过' : '失败');
+                }
+            } else {
+                $error = '用户名或密码不正确';
+            }
         }
     } catch (PDOException $e) {
         $error = '系统错误，请联系管理员';

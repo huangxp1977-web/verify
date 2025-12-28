@@ -1,7 +1,25 @@
 <?php
+// 抑制本地开发环境的错误显示
+error_reporting(0);
 require_once "jssdk.php";
-$jssdk = new JSSDK("wx28d06b295bc4c379", "47f846d74f6bf7e638de23685aad8c28");
-$signPackage = $jssdk->GetSignPackage();
+try {
+    $jssdk = new JSSDK("wx28d06b295bc4c379", "47f846d74f6bf7e638de23685aad8c28");
+    $signPackage = $jssdk->GetSignPackage();
+} catch (Exception $e) {
+    // 本地开发或非微信环境，使用空配置
+    $signPackage = ['appId' => '', 'timestamp' => time(), 'nonceStr' => '', 'signature' => ''];
+}
+
+// 读取扫码页背景配置
+$layoutConfigFile = __DIR__ . '/../config/scan_layout.json';
+$scanBgUrl = '/wx/static/images/newbg.png';
+
+if (file_exists($layoutConfigFile)) {
+    $config = json_decode(file_get_contents($layoutConfigFile), true);
+    if (!empty($config['background'])) {
+        $scanBgUrl = $config['background'];
+    }
+}
 ?>
 <!DOCTYPE html>
 <html data-use-rem="750">
@@ -10,7 +28,7 @@ $signPackage = $jssdk->GetSignPackage();
 <title>德欧美提</title>
 <meta name="renderer" content="webkit">
 <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="format-detection" content="telephone=no, email=no">
 <meta name="google" value="notranslate">
 <meta name="description" content="">
@@ -25,7 +43,7 @@ $signPackage = $jssdk->GetSignPackage();
 <meta name="browsermode" content="application">
 <meta name="x5-page-mode" content="app">
 <meta name="x5-page-mode" content="default">
-<link rel="stylesheet" href="static/css/swiper.min.css">
+
 <link rel="stylesheet" href="static/css/reset.css">
 <link rel="stylesheet" href="static/css/index.css">
 <script src="http://res.wx.qq.com/open/js/jweixin-1.6.0.js"></script>
@@ -41,23 +59,22 @@ wx.config({
   ]
 });
 
-wx.ready(function () {
-  // 定义扫码函数
-  window.handleScanClick = function () {
+// 扫码点击处理 - 全局定义以支持非微信环境
+function handleScanClick() {
+  // 检查是否在微信环境且 wx.scanQRCode 可用
+  if (typeof wx !== 'undefined' && wx.scanQRCode) {
     wx.scanQRCode({
-      needResult: 0, // 直接返回扫描结果
+      needResult: 0,
       scanType: ["qrCode","barCode"],
       success: function (res) {
-        var result = res.resultStr; // 扫码返回的结果
-        /*
-        for (var i in res) {
-          alert(i + "---" + res[i]);
-        }*/
-        // 这里可以对 result 进行处理
+        var result = res.resultStr;
       }
     });
-  };
-});
+  } else {
+    // 非微信环境，提示或直接打开输码弹窗
+    alert('请在微信中打开此页面使用扫码功能，或使用输码查询');
+  }
+}
 </script>
 <style>
   /* 输码查询弹窗样式 */
@@ -122,26 +139,36 @@ wx.ready(function () {
     font-size: 0.24rem;
     cursor: pointer; /* 提示可点击 */
   }
-  /* 按钮容器样式 */
+  /* 按钮容器样式 - 原始设计 */
   .btnGroup {
     display: flex;
     justify-content: center;
-    margin-top: 8.6rem; /* LOGO与按钮间距 */
+    margin-top: 8.58rem; /* 原始值：LOGO与按钮间距 */
+    margin-left: -0.8rem; /* 整体往左移 */
   }
-  .btnGroup .scanBtn,
-  .btnGroup .inputBtn {
-    margin: 0 0.4rem;
-    cursor: pointer; /* 提示按钮可点击 */
+  /* 透明热区按钮 - 覆盖背景图上的假按钮 */
+  .scanBtn {
+    width: 2.12rem;
+    height: 0.8rem;
+    background: transparent; /* 透明 - 原始被注释掉的图片不存在 */
+    background-size: 100% 100%;
+    margin: 0 0.8rem;
+    cursor: pointer;
+
   }
-  /* 调整LOGO下方间距 */
-  .logos {
-    margin-bottom: 1.5rem;
+  .inputBtn {
+    width: 2.12rem;
+    height: 0.8rem;
+    background: transparent;
+    background-size: 100% 100%;
+    cursor: pointer;
+
   }
 </style>
 </head>
 <body>
   <div class="wrap">
-    <div class="scanBg">
+    <div class="scanBg" style="background: url(<?php echo htmlspecialchars($scanBgUrl); ?>) no-repeat; background-size: 100% 100%;">
       <!-- 按钮容器 -->
       <div class="btnGroup">
         <!-- 扫描按钮 -->
@@ -161,23 +188,10 @@ wx.ready(function () {
     </div>
   </div>
 </body>
-<script type="text/javascript" src="static/js/swiper.min.js"></script>
 <script type="text/javascript" src="static/js/rem.js"></script>
 
 <script>
-// 轮播图逻辑（保留原代码）
-var swiper = new Swiper('.swiper-container', {
-  pagination: {
-    el: '.swiper-pagination',
-  },
-  autoplay: {
-    delay: 2000,
-    stopOnLastSlide: false,
-    disableOnInteraction: true,
-  },
-});
-
-// 显示/隐藏弹窗逻辑（保留原代码）
+// 显示/隐藏弹窗逻辑
 function showInputModal() {
   document.getElementById('inputModal').style.display = 'flex';
 }
@@ -187,18 +201,12 @@ function hideInputModal() {
 
 // 输码查询逻辑：跳转到fw.html并携带参数
 function queryCode() {
-  var code = document.querySelector('.input_vul').value.trim(); // 去除空格，避免空字符
+  var code = document.querySelector('.input_vul').value.trim();
   if (code) {
-    // 用encodeURIComponent处理特殊字符（如中文、符号）
     window.location.href = 'fw.html?code=' + encodeURIComponent(code);
   } else {
     alert('请输入防伪码');
   }
 }
-
-// 页面加载时不再初始化SDK（删除原window.onload中的getWxConfig）
-window.onload = function() {
-  console.log("页面加载完成，点击扫码按钮后将初始化微信SDK");
-};
 </script>
 </html>

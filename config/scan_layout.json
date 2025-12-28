@@ -1,0 +1,15 @@
+{
+    "background": "/uploads/backgrounds/newbg.png",
+    "scanBtn": {
+        "x": 100,
+        "y": 750,
+        "width": 260,
+        "height": 260
+    },
+    "inputBtn": {
+        "x": 390,
+        "y": 750,
+        "width": 260,
+        "height": 260
+    }
+}

@@ -11,7 +11,15 @@ if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== tru
 
 header('Content-Type: application/json');
 
-$uploadDir = __DIR__ . '/../uploads/certificates/';
+// 支持不同分类的图片
+$cat = isset($_GET['cat']) ? $_GET['cat'] : 'certificates';
+$dirs = [
+    'certificates' => 'uploads/certificates/',
+    'products' => 'uploads/products/',
+    'backgrounds' => 'uploads/backgrounds/'
+];
+$dirPath = isset($dirs[$cat]) ? $dirs[$cat] : $dirs['certificates'];
+$uploadDir = __DIR__ . '/../' . $dirPath;
 $images = [];
 
 if (is_dir($uploadDir)) {
@@ -23,7 +31,7 @@ if (is_dir($uploadDir)) {
             $filepath = $uploadDir . $file;
             $images[] = [
                 'name' => $file,
-                'url' => '/uploads/certificates/' . $file,
+                'url' => '/' . $dirPath . $file,
                 'size' => filesize($filepath),
                 'time' => filemtime($filepath)
             ];

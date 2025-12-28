@@ -7,9 +7,17 @@ error_reporting(E_ALL);
 session_start();
 require __DIR__ . '/../config/config.php';
 
-// 只允许 guokonghuayi.com 域名访问后台
+// 只允许特定域名访问后台（生产环境 + 本地开发环境）
 $host = $_SERVER['HTTP_HOST'];
-if (strpos($host, 'guokonghuayi') === false) {
+$allowedHosts = ['guokonghuayi', 'localhost', '127.0.0.1', 'verify.local'];
+$isAllowed = false;
+foreach ($allowedHosts as $allowed) {
+    if (strpos($host, $allowed) !== false) {
+        $isAllowed = true;
+        break;
+    }
+}
+if (!$isAllowed) {
     header('Location: /');
     exit;
 }
@@ -1253,6 +1261,7 @@ function exportAsExcel($data, $title) {
                 <ul class="submenu">
                     <li><a href="admin_password.php">修改密码</a></li>
                     <li><a href="admin_images.php">图片素材</a></li>
+                    <li><a href="admin_scan_editor.php">扫码编辑器</a></li>
                     <li><a href="admin_qiniu.php">七牛云接口</a></li>
                 </ul>
             </li>

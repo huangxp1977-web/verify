@@ -5,7 +5,7 @@ $cert_no = isset($_GET['cert_no']) ? trim($_GET['cert_no']) : '';
 
 // 判断域名类型
 $host = $_SERVER['HTTP_HOST'];
-$isGuoKong = (strpos($host, 'guokonghuayi') !== false);
+$isGuoKong = (strpos($host, 'guokonghuayi') !== false || strpos($host, 'verify.local') !== false || strpos($host, 'localhost') !== false);
 $isLvXin = (strpos($host, 'lvxinchaxun') !== false);
 // 其他域名默认为德欧美提 (verify.aesthmed.cn)
 

@@ -102,10 +102,15 @@ class JSSDK {
   }
 
   private function get_php_file($filename) {
-    return trim(substr(file_get_contents($filename), 15));
+    $filepath = __DIR__ . '/' . $filename;
+    if (!file_exists($filepath)) {
+      return '{"expire_time":0}';
+    }
+    return trim(substr(file_get_contents($filepath), 15));
   }
   private function set_php_file($filename, $content) {
-    $fp = fopen($filename, "w");
+    $filepath = __DIR__ . '/' . $filename;
+    $fp = fopen($filepath, "w");
     fwrite($fp, "<?php exit();?>" . $content);
     fclose($fp);
   }

@@ -313,7 +313,8 @@ $products = getProducts($pdo);
                 <a href="javascript:void(0)" onclick="toggleSubmenu(this)">系统设置 <span class="arrow">▼</span></a>
                 <ul class="submenu">
                     <li><a href="admin_password.php">修改密码</a></li>
-                    <li><a href="admin_images.php">图片素材</a></li>\r
+                    <li><a href="admin_images.php">图片素材</a></li>
+                    <li><a href="admin_scan_editor.php">扫码编辑器</a></li>\r
                     <li><a href="admin_qiniu.php">七牛云接口</a></li>
                 </ul>
             </li>
@@ -372,9 +373,22 @@ $products = getProducts($pdo);
                     </div>
 
                     <div class="form-group">
-                        <label for="default_image_url">默认图片 URL</label>
-                        <input type="url" id="default_image_url" name="default_image_url" placeholder="http://example.com/image.jpg"
-                               value="<?php echo $edit_product ? htmlspecialchars($edit_product['default_image_url']) : ''; ?>">
+                        <label>产品图片</label>
+                        <div id="imagePreview" style="margin-bottom: 10px; position: relative; display: inline-block;">
+                            <?php if ($edit_product && $edit_product['default_image_url']): ?>
+                                <img src="<?php echo htmlspecialchars($edit_product['default_image_url']); ?>" 
+                                     class="image-preview" 
+                                     alt="产品图片">
+                                <span class="clear-image" onclick="clearImage()" title="清除图片">&times;</span>
+                            <?php else: ?>
+                                <span style="color: #999;">未选择图片</span>
+                            <?php endif; ?>
+                        </div>
+                        <div>
+                            <input type="hidden" id="default_image_url" name="default_image_url" 
+                                   value="<?php echo $edit_product ? htmlspecialchars($edit_product['default_image_url']) : ''; ?>">
+                            <button type="button" class="btn btn-secondary" onclick="openImagePicker()">从图片库选择</button>
+                        </div>
                     </div>
 
                     <button type="submit" class="btn"><?php echo $edit_product ? '更新产品' : '添加产品'; ?></button>
@@ -464,6 +478,132 @@ $products = getProducts($pdo);
             
             $('#distpicker select').change(updateRegion);
         });
+        
+        // 图片选择器功能
+        function openImagePicker() {
+            document.getElementById('imagePickerModal').style.display = 'flex';
+            loadProductImages();
+        }
+        
+        function closeImagePicker() {
+            document.getElementById('imagePickerModal').style.display = 'none';
+        }
+        
+        function loadProductImages() {
+            fetch('get_images.php?cat=products')
+                .then(response => response.json())
+                .then(images => {
+                    const grid = document.getElementById('imagePickerGrid');
+                    if (images.length === 0) {
+                        grid.innerHTML = '<div class="picker-empty">暂无产品图片，请先在<a href="admin_images.php?cat=products">图片素材</a>上传</div>';
+                        return;
+                    }
+                    var html = '<div class="picker-grid">';
+                    images.forEach(function(img) {
+                        html += '<div class="picker-item" onclick="selectImage(\'' + img.url + '\')">';
+                        html += '<img src="' + img.url + '" alt="' + img.name + '">';
+                        html += '</div>';
+                    });
+                    html += '</div>';
+                    grid.innerHTML = html;
+                })
+                .catch(err => {
+                    console.error('加载图片失败:', err);
+                });
+        }
+        
+        function selectImage(url) {
+            document.getElementById('default_image_url').value = url;
+            document.getElementById('imagePreview').innerHTML = '<img src="' + url + '" class="image-preview" alt="产品图片"><span class="clear-image" onclick="clearImage()" title="清除图片">&times;</span>';
+            closeImagePicker();
+        }
+        
+        function clearImage() {
+            document.getElementById('default_image_url').value = '';
+            document.getElementById('imagePreview').innerHTML = '<span style="color:#999;">未选择图片</span>';
+        }
+    </script>
+    
+    <!-- 图片选择器模态框 -->
+    <div id="imagePickerModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; overflow: auto;">
+        <div style="background: white; margin: 50px auto; max-width: 900px; border-radius: 8px; max-height: 80vh; display: flex; flex-direction: column;">
+            <div style="padding: 15px 20px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
+                <h3 style="margin: 0; color: #4a3f69;">选择产品图片</h3>
+                <button onclick="closeImagePicker()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #999;">&times;</button>
+            </div>
+            <div id="imagePickerGrid" style="padding: 20px; overflow-y: auto; flex: 1;">
+                <div style="text-align: center; padding: 40px; color: #999;">加载中...</div>
+            </div>
+        </div>
+    </div>
+    
+    <style>
+        .picker-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 10px;
+        }
+        .picker-item {
+            position: relative;
+            padding-top: 100%;
+            border: 2px solid #eee;
+            border-radius: 4px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: border-color 0.3s, transform 0.2s;
+        }
+        .picker-item:hover {
+            border-color: #4a3f69;
+            transform: scale(1.05);
+        }
+        .picker-item img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .picker-empty {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+        .picker-empty a {
+            color: #4a3f69;
+        }
+        .image-preview {
+            max-width: 200px;
+            max-height: 150px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+        .clear-image {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            width: 20px;
+            height: 20px;
+            background: #dc3545;
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 18px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .clear-image:hover {
+            background: #c82333;
+        }
+    </style>
+    
+    <script>
+    // 点击遮罩关闭模态框
+    document.getElementById('imagePickerModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeImagePicker();
+        }
+    });
     </script>
 </body>
 </html>
