@@ -7,6 +7,13 @@ error_reporting(E_ALL);
 session_start();
 require __DIR__ . '/../config/config.php';
 
+// 只允许 guokonghuayi.com 域名访问后台
+$host = $_SERVER['HTTP_HOST'];
+if (strpos($host, 'guokonghuayi') === false) {
+    header('Location: /');
+    exit;
+}
+
 // 检查登录状态
 if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
     header('Location: ../login.php');

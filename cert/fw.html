@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,6 +11,7 @@
             padding: 0;
             box-sizing: border-box;
         }
+
         body {
             font-family: "Microsoft YaHei", sans-serif;
             background-color: #f5f5f5;
@@ -17,63 +19,79 @@
             line-height: 1.6;
             padding: 15px;
         }
+
         .container {
             max-width: 500px;
             margin: 0 auto;
         }
+
         .header {
             text-align: center;
             margin: 30px 0;
         }
+
         .title {
             font-size: 24px;
             font-weight: bold;
             color: #000;
         }
-        .notice, .operation {
+
+        .notice,
+        .operation {
             background-color: #e3e3e3;
             border-radius: 8px;
             padding: 15px;
             margin-bottom: 20px;
         }
-        .notice-title, .operation-title {
+
+        .notice-title,
+        .operation-title {
             font-size: 16px;
             font-weight: bold;
             margin-bottom: 10px;
             text-align: center;
         }
-        .notice-content, .operation-content {
+
+        .notice-content,
+        .operation-content {
             font-size: 14px;
             color: #555;
             line-height: 1.8;
             text-align: center;
         }
+
         .operation-content .contact {
             color: #007bff;
             text-decoration: none;
         }
+
         .certificate-frame {
             width: 80%;
             padding: 10px;
             margin: 0 auto;
             text-align: center;
         }
+
         .certificate {
             width: 100%;
             display: block;
             cursor: zoom-in;
             transition: all 0.3s ease;
         }
+
         .certificate:hover {
             transform: scale(1.02);
         }
-        .not-found, .invalid {
+
+        .not-found,
+        .invalid {
             color: #e74c3c;
             font-size: 16px;
             font-weight: bold;
             padding: 20px;
             text-align: center;
         }
+
         .zoom-modal {
             position: fixed;
             top: 0;
@@ -89,10 +107,12 @@
             visibility: hidden;
             transition: all 0.3s ease;
         }
+
         .zoom-modal.active {
             opacity: 1;
             visibility: visible;
         }
+
         .zoom-content {
             width: 90%;
             height: 90%;
@@ -101,11 +121,13 @@
             justify-content: center;
             position: relative;
         }
+
         .zoom-image {
             max-width: 100%;
             max-height: 100%;
             object-fit: contain;
         }
+
         .close-btn {
             position: absolute;
             top: 20px;
@@ -124,12 +146,14 @@
             z-index: 10000;
             transition: all 0.3s ease;
         }
+
         .close-btn:hover {
             background-color: #c0392b;
             transform: scale(1.1);
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <div class="header">
@@ -140,7 +164,9 @@
         </div>
         <div class="operation">
             <h3 class="operation-title">操作与联络</h3>
-            <p class="operation-content">如需人工核实，请提供购买凭证、产品照片与扫码页截图，<br>联系官方客服：400-993-6624；<br>邮箱：<a href="mailto:huayishengwutian@gmail.com" class="contact">huayishengwutian@gmail.com</a></p>
+            <p class="operation-content">如需人工核实，请提供购买凭证、产品照片与扫码页截图，<br>联系官方客服：<a href="tel:400-993-6624"
+                    class="contact">400-993-6624</a>；<br>邮箱：<a href="mailto:huayishengwutian@gmail.com"
+                    class="contact">huayishengwutian@gmail.com</a></p>
         </div>
         <div class="certificate-frame" id="certificateContainer">
             <!-- 证书图片将通过JS动态加载 -->
@@ -187,13 +213,13 @@
                         certImg.src = data.data.image_url;
                         certImg.alt = data.data.cert_name || '证书图片';
                         certImg.className = 'certificate';
-                        
+
                         certImg.addEventListener('click', () => {
                             zoomImage.src = data.data.image_url;
                             zoomModal.classList.add('active');
                             document.body.style.overflow = 'hidden';
                         });
-                        
+
                         certificateContainer.appendChild(certImg);
                     } else if (data.code === 403) {
                         certificateContainer.innerHTML = `<div class="invalid">${data.message}</div>`;
@@ -223,4 +249,5 @@
         }
     </script>
 </body>
+
 </html>

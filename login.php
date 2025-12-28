@@ -1,6 +1,13 @@
 <?php
 require __DIR__ . '/config/config.php';
 
+// 只允许 guokonghuayi.com 域名访问后台
+$host = $_SERVER['HTTP_HOST'];
+if (strpos($host, 'guokonghuayi') === false) {
+    header('Location: /');
+    exit;
+}
+
 session_start();
 
 // 如果已登录，跳转到管理页面

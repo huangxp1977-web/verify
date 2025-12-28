@@ -1,6 +1,13 @@
 <?php
-// 获取防伪码参数
+// 获取参数
 $code = isset($_GET['code']) ? trim($_GET['code']) : '';
+$cert_no = isset($_GET['cert_no']) ? trim($_GET['cert_no']) : '';
+
+// 判断域名类型
+$host = $_SERVER['HTTP_HOST'];
+$isGuoKong = (strpos($host, 'guokonghuayi') !== false);
+$isLvXin = (strpos($host, 'lvxinchaxun') !== false);
+// 其他域名默认为德欧美提 (verify.aesthmed.cn)
 
 // 判断是否为微信浏览器
 function isWechatBrowser() {
@@ -9,19 +16,40 @@ function isWechatBrowser() {
 }
 $isWechat = isWechatBrowser();
 
-// 构建目标URL
-if ($isWechat) {
-    // 微信环境
-    if (!empty($code)) {
-        // 有防伪码参数，直接跳转到查询结果页
-        $targetUrl = 'wx/fw.html?code=' . urlencode($code);
+// 根据域名和环境构建目标URL
+if ($isGuoKong) {
+    // 华医域名 guokonghuayi.com
+    if ($isWechat) {
+        // 微信环境 -> 证书扫码页
+        if (!empty($cert_no) && !empty($code)) {
+            $targetUrl = 'cert/fw.html?cert_no=' . urlencode($cert_no) . '&code=' . urlencode($code);
+        } else {
+            $targetUrl = 'cert/scan.php';
+        }
     } else {
-        // 无防伪码，跳转到扫码/输码选择页
-        $targetUrl = 'wx/scan.php';
+        // PC环境 -> 后台登录页
+        $targetUrl = 'login.php';
+    }
+} elseif ($isLvXin) {
+    // 旧域名 m.lvxinchaxun.com -> 证书系统
+    if (!empty($cert_no) && !empty($code)) {
+        $targetUrl = 'cert/fw.html?cert_no=' . urlencode($cert_no) . '&code=' . urlencode($code);
+    } else {
+        $targetUrl = 'cert/scan.php';
     }
 } else {
-    // 非微信环境跳转至web目录
-    $targetUrl = 'web';
+    // 德欧美提域名 verify.aesthmed.cn
+    if ($isWechat) {
+        // 微信环境 -> 产品溯源
+        if (!empty($code)) {
+            $targetUrl = 'wx/fw.html?code=' . urlencode($code);
+        } else {
+            $targetUrl = 'wx/scan.php';
+        }
+    } else {
+        // PC环境 -> 扫码页（和微信显示一样）
+        $targetUrl = 'wx/scan.php';
+    }
 }
 
 // 清除可能的输出缓冲，确保header函数能正常工作
@@ -31,5 +59,5 @@ if (ob_get_length()) {
 
 // PHP服务器端跳转
 header("Location: {$targetUrl}");
-exit; // 终止脚本执行，确保跳转后不会有任何额外输出
+exit;
 ?>
