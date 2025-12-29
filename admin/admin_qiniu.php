@@ -36,7 +36,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $accessKey = trim($_POST['access_key'] ?? '');
     $secretKey = trim($_POST['secret_key'] ?? '');
     $bucket = trim($_POST['bucket'] ?? '');
-    $domain = trim($_POST['domain'] ?? '');
+    $domainHost = trim($_POST['domain_host'] ?? '');
+    $domain = 'https://' . $domainHost;
     $enabled = isset($_POST['enabled']) ? 1 : 0;
     
     // 验证必填项（仅当启用时）
@@ -392,8 +393,21 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
                 
                 <div class="form-group">
                     <label>访问域名 (Domain)</label>
-                    <input type="text" name="domain" value="<?php echo htmlspecialchars($qiniuConfig['domain']); ?>" placeholder="例如：https://cdn.example.com">
-                    <small style="color: #e74c3c;">注意：必须包含 http:// 或 https:// 前缀，否则图片无法显示</small>
+                    <?php
+                    // 解析现有域名的主机部分
+                    $currentDomain = $qiniuConfig['domain'] ?? '';
+                    $currentHost = $currentDomain;
+                    if (strpos($currentDomain, 'https://') === 0) {
+                        $currentHost = substr($currentDomain, 8);
+                    } elseif (strpos($currentDomain, 'http://') === 0) {
+                        $currentHost = substr($currentDomain, 7);
+                    }
+                    ?>
+                    <div style="display: flex; gap: 0;">
+                        <span style="display: inline-flex; align-items: center; padding: 0 12px; background: #e9ecef; border: 1px solid #ddd; border-radius: 4px 0 0 4px; border-right: none; color: #495057; font-size: 14px;">https://</span>
+                        <input type="text" name="domain_host" value="<?php echo htmlspecialchars($currentHost); ?>" placeholder="cdn.example.com" style="flex: 1; border-radius: 0 4px 4px 0;">
+                    </div>
+                    <small>输入七牛云绑定的域名</small>
                 </div>
                 
                 <div class="form-group">

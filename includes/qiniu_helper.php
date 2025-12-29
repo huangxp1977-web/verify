@@ -81,7 +81,11 @@ function uploadToQiniu($localFilePath, $key) {
     }
     
     // 使用 cURL 上传
-    $uploadUrl = 'https://up-z2.qiniup.com'; // 华南区域
+    // 华东: up.qiniup.com
+    // 华北: up-z1.qiniup.com
+    // 华南: up-z2.qiniup.com
+    // 根据域名 hb-bkt 判断为华北
+    $uploadUrl = 'https://up-z1.qiniup.com';
     
     $cfile = new CURLFile($localFilePath);
     $postData = [
