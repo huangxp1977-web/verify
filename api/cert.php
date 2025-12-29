@@ -76,7 +76,7 @@ try {
     $newQueryCount = $currentQueryCount + 1;
     $updateStmt = $pdo->prepare("
         UPDATE certificate_links 
-        SET query_count = :new_count 
+        SET query_count = :new_count, last_scan_time = NOW() 
         WHERE id = :id
     ");
     $updateStmt->bindParam(':new_count', $newQueryCount, PDO::PARAM_INT);

@@ -29,6 +29,14 @@ if (!empty($searchCertNo)) {
 }
 
 if (!empty($searchCode)) {
+    // 智能处理：如果输入的是完整链接，尝试提取 code 参数
+    if (strpos($searchCode, 'code=') !== false) {
+        parse_str(parse_url($searchCode, PHP_URL_QUERY), $queryParams);
+        if (isset($queryParams['code'])) {
+            $searchCode = $queryParams['code']; // 替换为提取出的纯码
+        }
+    }
+    // 无论输入的是链接还是码，最终都去匹配 unique_code 字段
     $where[] = "cl.unique_code LIKE ?";
     $params[] = "%{$searchCode}%";
 }
@@ -67,6 +75,14 @@ $links = $stmt->fetchAll(PDO::FETCH_ASSOC);
 if (isset($_GET['action']) && $_GET['action'] == 'logout') {
     session_destroy();
     header('Location: /login.php');
+    exit;
+}
+// 重置扫码次数
+if (isset($_GET['action']) && $_GET['action'] == 'reset_count' && isset($_GET['id'])) {
+    $id = intval($_GET['id']);
+    $resetStmt = $pdo->prepare("UPDATE certificate_links SET query_count = 0, last_scan_time = NULL WHERE id = ?");
+    $resetStmt->execute([$id]);
+    echo "<script>alert('重置成功！'); window.location.href='admin_query_codes.php';</script>";
     exit;
 }
 ?>
@@ -252,7 +268,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
         }
         th, td {
             padding: 10px 12px;
-            text-align: left;
+            text-align: center;
             border-bottom: 1px solid #eee;
         }
         th {
@@ -324,11 +340,38 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
         }
         .url-cell {
             max-width: 300px;
+            font-size: 12px;
+            color: #666;
+        }
+        /* 新增复制按钮样式 */
+        .btn-copy {
+            padding: 2px 6px;
+            background: #eee;
+            color: #333;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-left: 5px;
+            flex-shrink: 0;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        .btn-copy:hover {
+            background: #e0e0e0;
+        }
+        /* 调整 URL 单元格内的布局 */
+        .url-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+        .url-text {
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
-            font-size: 12px;
-            color: #666;
+            max-width: 250px;
         }
     </style>
 </head>
@@ -373,6 +416,81 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
         var parent = el.parentElement;
         parent.classList.toggle('open');
     }
+
+    // 复制到剪贴板功能
+    function copyToClipboard(text) {
+        if (!text) return;
+        
+        // 使用现代 API
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text).then(function() {
+                showToast('链接已复制');
+            }, function(err) {
+                console.error('复制失败', err);
+                fallbackCopyText(text);
+            });
+        } else {
+            fallbackCopyText(text);
+        }
+    }
+    
+    // 降级兼容处理
+    function fallbackCopyText(text) {
+        var textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-9999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        
+        try {
+            var successful = document.execCommand('copy');
+            if (successful) {
+                showToast('链接已复制');
+            } else {
+                alert('复制失败，请手动复制');
+            }
+        } catch (err) {
+            console.error('Fallback: Oops, unable to copy', err);
+            alert('复制失败，请手动复制');
+        }
+        
+        document.body.removeChild(textArea);
+    }
+
+    // 简单的提示框
+    function showToast(message) {
+        var toast = document.createElement('div');
+        toast.textContent = message;
+        toast.style.position = 'fixed';
+        toast.style.bottom = '20px';
+        toast.style.left = '50%';
+        toast.style.transform = 'translateX(-50%)';
+        toast.style.background = 'rgba(0,0,0,0.7)';
+        toast.style.color = '#fff';
+        toast.style.padding = '8px 16px';
+        toast.style.borderRadius = '4px';
+        toast.style.zIndex = '9999';
+        toast.style.fontSize = '14px';
+        
+        document.body.appendChild(toast);
+        
+        setTimeout(function() {
+            toast.style.opacity = '0';
+            toast.style.transition = 'opacity 0.5s';
+            setTimeout(function() {
+                document.body.removeChild(toast);
+            }, 500);
+        }, 1500);
+    }
+
+    // 重置次数
+    function resetCount(id) {
+        if(confirm('确定要将此码的扫码次数重置为0吗？\n重置后该码将变成“未使用”状态。')) {
+            window.location.href = 'admin_query_codes.php?action=reset_count&id=' + id;
+        }
+    }
     </script>
     
     <div class="main-content">
@@ -386,8 +504,8 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
                     <input type="text" name="cert_no" value="<?php echo htmlspecialchars($searchCertNo); ?>" placeholder="输入证书编号">
                 </div>
                 <div class="form-group">
-                    <label>查询码:</label>
-                    <input type="text" name="code" value="<?php echo htmlspecialchars($searchCode); ?>" placeholder="输入查询码">
+                    <label>查询链接/码:</label>
+                    <input type="text" name="code" value="<?php echo htmlspecialchars($searchCode); ?>" placeholder="输入链接或查询码">
                 </div>
                 <div class="form-group">
                     <label>使用状态:</label>
@@ -416,10 +534,11 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
                             <th>ID</th>
                             <th>证书编号</th>
                             <th>证书名称</th>
-                            <th>查询码</th>
                             <th>使用状态</th>
                             <th>查询链接</th>
+                            <th>最后扫码时间</th>
                             <th>创建时间</th>
+                            <th>操作</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -429,7 +548,6 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
                                     <td><?php echo $link['id']; ?></td>
                                     <td><?php echo htmlspecialchars($link['cert_no']); ?></td>
                                     <td><?php echo htmlspecialchars($link['cert_name'] ?? '-'); ?></td>
-                                    <td><?php echo htmlspecialchars($link['unique_code']); ?></td>
                                     <td>
                                         <?php 
                                         $qc = isset($link['query_count']) ? intval($link['query_count']) : 0;
@@ -442,9 +560,18 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
                                         <?php endif; ?>
                                     </td>
                                     <td class="url-cell" title="<?php echo htmlspecialchars($link['query_url'] ?? ''); ?>">
-                                        <?php echo htmlspecialchars($link['query_url'] ?? '-'); ?>
+                                        <div class="url-wrapper">
+                                            <span class="url-text"><?php echo htmlspecialchars($link['query_url'] ?? '-'); ?></span>
+                                            <?php if (!empty($link['query_url'])): ?>
+                                                <button type="button" class="btn-copy" onclick="copyToClipboard('<?php echo htmlspecialchars($link['query_url']); ?>')">复制</button>
+                                            <?php endif; ?>
+                                        </div>
                                     </td>
+                                    <td><?php echo isset($link['last_scan_time']) ? $link['last_scan_time'] : '-'; ?></td>
                                     <td><?php echo isset($link['create_time']) ? $link['create_time'] : '-'; ?></td>
+                                    <td>
+                                        <button class="btn btn-secondary" onclick="resetCount(<?php echo $link['id']; ?>)" style="padding: 2px 8px; font-size: 12px; background: #fff; color: #dc3545; border-color: #dc3545;">重置</button>
+                                    </td>
                                 </tr>
                             <?php endforeach; ?>
                         <?php else: ?>
