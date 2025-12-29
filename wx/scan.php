@@ -12,7 +12,7 @@ try {
 
 // 读取扫码页背景配置
 $layoutConfigFile = __DIR__ . '/../config/scan_layout.json';
-$scanBgUrl = '/wx/static/images/newbg.png';
+$scanBgUrl = '/uploads/backgrounds/newbg.png'; // 默认值
 
 if (file_exists($layoutConfigFile)) {
     $config = json_decode(file_get_contents($layoutConfigFile), true);
@@ -20,6 +20,10 @@ if (file_exists($layoutConfigFile)) {
         $scanBgUrl = $config['background'];
     }
 }
+
+// 引入七牛云辅助函数，处理图片URL
+require_once __DIR__ . '/../includes/qiniu_helper.php';
+$scanBgUrl = getImageUrl($scanBgUrl);
 ?>
 <!DOCTYPE html>
 <html data-use-rem="750">

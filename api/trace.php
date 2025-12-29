@@ -8,6 +8,9 @@ header("Content-Type: application/json; charset=utf-8");
 // 引入数据库配置
 require '../config/config.php';
 
+// 引入七牛云辅助函数
+require_once __DIR__ . '/../includes/qiniu_helper.php';
+
 // 初始化返回数据结构
 $response = [
     'success' => false,
@@ -56,7 +59,7 @@ try {
             'box_code' => htmlspecialchars($productData['box_code']),
             'region' => htmlspecialchars($productData['region']),
             'production_date' => htmlspecialchars($productData['production_date']),
-            'image_url' => !empty($productData['image_url']) ? htmlspecialchars($productData['image_url']) : null,
+            'image_url' => !empty($productData['image_url']) ? getImageUrl(htmlspecialchars($productData['image_url'])) : null,
             'create_time' => htmlspecialchars($productData['create_time']) // 假设表中有创建时间字段
         ];
         echo json_encode($response, JSON_UNESCAPED_UNICODE);
@@ -91,7 +94,7 @@ try {
                 'product_name' => htmlspecialchars($p['product_name']),
                 'region' => htmlspecialchars($p['region']),
                 'production_date' => htmlspecialchars($p['production_date']),
-                'image_url' => !empty($p['image_url']) ? htmlspecialchars($p['image_url']) : null
+                'image_url' => !empty($p['image_url']) ? getImageUrl(htmlspecialchars($p['image_url'])) : null
             ];
         }
 

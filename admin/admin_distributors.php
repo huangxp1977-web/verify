@@ -1,6 +1,7 @@
 <?php
 session_start();
 require __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/check_domain.php';
 
 // 检查登录状态
 if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
@@ -164,7 +165,7 @@ try {
             margin: 0;
             padding: 0;
             background-color: #f4f4f4;
-            background-image: url('images/bg-pattern.png');
+
             background-repeat: repeat;
             color: #333;
             display: flex;

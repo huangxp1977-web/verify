@@ -5,6 +5,7 @@ error_reporting(E_ALL);
 
 session_start();
 require __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/check_domain.php';
 
 // 通用工具函数
 function generateUniqueCode() {
@@ -441,7 +442,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
             margin: 0;
             padding: 0;
             background-color: #f4f4f4;
-            background-image: url('images/bg-pattern.png');
+
             background-repeat: repeat;
             color: #333;
             display: flex;

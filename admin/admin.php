@@ -7,20 +7,8 @@ error_reporting(E_ALL);
 session_start();
 require __DIR__ . '/../config/config.php';
 
-// 只允许特定域名访问后台（生产环境 + 本地开发环境）
-$host = $_SERVER['HTTP_HOST'];
-$allowedHosts = ['guokonghuayi', 'localhost', '127.0.0.1', 'verify.local'];
-$isAllowed = false;
-foreach ($allowedHosts as $allowed) {
-    if (strpos($host, $allowed) !== false) {
-        $isAllowed = true;
-        break;
-    }
-}
-if (!$isAllowed) {
-    header('Location: /');
-    exit;
-}
+// 引入统一域名鉴权
+require_once __DIR__ . '/check_domain.php';
 
 // 检查登录状态
 if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
@@ -871,7 +859,7 @@ function exportAsExcel($data, $title) {
             margin: 0;
             padding: 0;
             background-color: #f4f4f4;
-            background-image: url('images/bg-pattern.png');
+
             background-repeat: repeat;
             color: #333;
             display: flex;

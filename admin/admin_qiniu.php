@@ -1,6 +1,7 @@
 <?php
 session_start();
-require_once __DIR__ . '/../config/config.php';
+require __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/check_domain.php';
 
 // 检查登录状态
 if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
@@ -89,7 +90,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
             margin: 0;
             padding: 0;
             background-color: #f4f4f4;
-            background-image: url('images/bg-pattern.png');
+
             background-repeat: repeat;
             color: #333;
             display: flex;
@@ -392,7 +393,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
                 <div class="form-group">
                     <label>访问域名 (Domain)</label>
                     <input type="text" name="domain" value="<?php echo htmlspecialchars($qiniuConfig['domain']); ?>" placeholder="例如：https://cdn.example.com">
-                    <small>绑定的CDN加速域名或测试域名，需包含 http:// 或 https://</small>
+                    <small style="color: #e74c3c;">注意：必须包含 http:// 或 https:// 前缀，否则图片无法显示</small>
                 </div>
                 
                 <div class="form-group">
@@ -406,6 +407,81 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
                 <button type="submit" class="btn">保存配置</button>
             </form>
             </div>
+            
+            <?php if ($qiniuConfig['enabled']): ?>
+            <!-- 同步功能区块 -->
+            <div style="background: #f5f3fa; border: 1px solid #d4cce8; border-radius: 8px; padding: 20px; margin-top: 20px;">
+                <h3 style="margin-top: 0; color: #4a3f69;">文件同步</h3>
+                <p style="color: #666; font-size: 14px;">将本地 uploads 目录的文件同步到七牛云，同步后本地文件将被删除。</p>
+                
+                <div id="syncStats" style="background: #fff; padding: 15px; border-radius: 4px; margin-bottom: 15px;">
+                    <span id="fileCount">正在统计...</span>
+                </div>
+                
+                <button type="button" class="btn" id="syncBtn" onclick="startSync()">开始同步</button>
+                <span id="syncStatus" style="margin-left: 15px; color: #666;"></span>
+                
+                <div id="syncResult" style="margin-top: 15px; display: none;">
+                    <pre style="background: #f4f4f4; padding: 10px; border-radius: 4px; max-height: 200px; overflow: auto;"></pre>
+                </div>
+            </div>
+            
+            <script>
+            // 页面加载时获取文件统计
+            document.addEventListener('DOMContentLoaded', function() {
+                fetch('/api/qiniu_sync.php?action=list')
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) {
+                            document.getElementById('fileCount').innerHTML = 
+                                '待同步文件: <strong>' + data.count + '</strong> 个';
+                        } else {
+                            document.getElementById('fileCount').textContent = '获取失败: ' + data.message;
+                        }
+                    })
+                    .catch(e => {
+                        document.getElementById('fileCount').textContent = '统计失败';
+                    });
+            });
+            
+            // 开始同步
+            function startSync() {
+                if (!confirm('确定要同步所有文件到七牛云吗？同步后本地文件将被删除。')) {
+                    return;
+                }
+                
+                var btn = document.getElementById('syncBtn');
+                var status = document.getElementById('syncStatus');
+                var result = document.getElementById('syncResult');
+                
+                btn.disabled = true;
+                btn.textContent = '同步中...';
+                status.textContent = '请稍候，正在同步...';
+                
+                fetch('/api/qiniu_sync.php?action=sync')
+                    .then(r => r.json())
+                    .then(data => {
+                        btn.disabled = false;
+                        btn.textContent = '开始同步';
+                        
+                        if (data.success) {
+                            status.innerHTML = '<span style="color: green;">' + data.message + '</span>';
+                            result.style.display = 'block';
+                            result.querySelector('pre').textContent = JSON.stringify(data.results, null, 2);
+                            // 刷新文件统计
+                            document.getElementById('fileCount').innerHTML = '待同步文件: <strong>0</strong> 个';
+                        } else {
+                            status.innerHTML = '<span style="color: red;">同步失败: ' + data.message + '</span>';
+                        }
+                    })
+                    .catch(e => {
+                        btn.disabled = false;
+                        btn.textContent = '开始同步';
+                        status.innerHTML = '<span style="color: red;">请求失败</span>';
+                    });
+            }
+            </script>
+            <?php endif; ?>
         </div>
     </div>
 </body>

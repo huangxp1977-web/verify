@@ -2,13 +2,8 @@
 session_start();
 require_once __DIR__ . '/../config/config.php';
 
-// 只允许 guokonghuayi.com 域名访问后台
-$host = $_SERVER['HTTP_HOST'];
-if (strpos($host, 'guokonghuayi') === false) {
-    header('Location: /');
-    exit;
-}
-
+// 引入统一域名鉴权
+require_once __DIR__ . '/check_domain.php';
 // 检查登录状态
 if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
     header('Location: /login.php');

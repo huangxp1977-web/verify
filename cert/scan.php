@@ -208,7 +208,7 @@ body {
         <div class="wechat-tip" id="wechatTip">请在微信内打开本页面，以正常使用扫码功能</div>
         <div class="contact-section">
             <h3 class="contact-title">操作与联络</h3>
-            <p class="contact-content">如需人工核实或申诉，请提供：购买凭证、产品照片与扫码页截图，<br>联系官方客服：400-993-6624；<br>邮箱：<a href="mailto:huayishengwutian@gmail.com" class="contact-link">huayishengwutian@gmail.com</a></p>
+            <p class="contact-content">如需人工核实或申诉，请提供：购买凭证、产品照片与扫码页截图，<br>联系官方客服：<a href="tel:4009936624" class="contact-link">400-993-6624</a>；<br>邮箱：<a href="mailto:huayishengwutian@gmail.com" class="contact-link">huayishengwutian@gmail.com</a></p>
         </div>
     </div>
 

@@ -5,6 +5,7 @@ ini_set('max_execution_time', 300);
 
 session_start();
 require __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/check_domain.php';
 
 // 检查登录状态
 if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {

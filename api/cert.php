@@ -8,6 +8,9 @@ header("Content-Type: application/json; charset=utf-8");
 // 引入数据库配置
 require '../config/config.php';
 
+// 引入七牛云辅助函数
+require_once __DIR__ . '/../includes/qiniu_helper.php';
+
 $response = [
     'success' => false,
     'code' => 200,
@@ -117,7 +120,7 @@ try {
             'issuer' => htmlspecialchars($certData['issuer'] ?? ''),
             'issue_date' => htmlspecialchars($certData['issue_date']),
             'expire_date' => htmlspecialchars($certData['expire_date'] ?? ''),
-            'image_url' => !empty($certData['image_url']) ? htmlspecialchars($certData['image_url']) : null,
+            'image_url' => !empty($certData['image_url']) ? getImageUrl(htmlspecialchars($certData['image_url'])) : null,
             'create_time' => htmlspecialchars($certData['create_time']),
             'update_time' => htmlspecialchars($certData['update_time'])
         ];

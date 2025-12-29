@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/check_domain.php';
 
 // 检查登录状态
 if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
@@ -82,7 +83,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
             margin: 0;
             padding: 0;
             background-color: #f4f4f4;
-            background-image: url('images/bg-pattern.png');
+
             background-repeat: repeat;
             color: #333;
             display: flex;
@@ -359,7 +360,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
                 <ul class="submenu">
                     <li><a href="admin_password.php">修改密码</a></li>
                     <li><a href="admin_images.php">图片素材</a></li>
-                    <li><a href="admin_scan_editor.php">扫码编辑器</a></li>\r
+                    <li><a href="admin_scan_editor.php">扫码编辑器</a></li>
                     <li><a href="admin_qiniu.php">七牛云接口</a></li>
                 </ul>
             </li>

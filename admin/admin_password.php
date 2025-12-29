@@ -5,6 +5,7 @@ error_reporting(E_ALL);
 
 session_start();
 require __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/check_domain.php';
 
 // 检查登录状态
 if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
@@ -269,7 +270,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <ul class="submenu">
                     <li><a href="admin_password.php" class="active">修改密码</a></li>
                     <li><a href="admin_images.php">图片素材</a></li>
-                    <li><a href="admin_scan_editor.php">扫码编辑器</a></li>\r
+                    <li><a href="admin_scan_editor.php">扫码编辑器</a></li>
                     <li><a href="admin_qiniu.php">七牛云接口</a></li>
                 </ul>
             </li>
