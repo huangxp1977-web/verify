@@ -13,7 +13,9 @@ function generateUniqueCode() {
 }
 
 function generateCertQueryUrl($certNo, $uniqueCode) {
-    $host = $_SERVER['HTTP_HOST'];
+    // 强制使用生产域名（防止本地开发环境生成 localhost 链接）
+    // $host = $_SERVER['HTTP_HOST'];
+    $host = 'guokonghuayi.com';
     return "http://{$host}/cert/fw.html?cert_no=" . urlencode($certNo) . "&code=" . $uniqueCode;
 }
 
