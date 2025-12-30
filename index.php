@@ -22,7 +22,7 @@ if ($isGuoKong) {
     if ($isWechat) {
         // 微信环境 -> 证书扫码页
         if (!empty($cert_no) && !empty($code)) {
-            $targetUrl = 'cert/fw.html?cert_no=' . urlencode($cert_no) . '&code=' . urlencode($code);
+            $targetUrl = 'cert/fw.php?cert_no=' . urlencode($cert_no) . '&code=' . urlencode($code);
         } else {
             $targetUrl = 'cert/scan.php';
         }
@@ -33,7 +33,7 @@ if ($isGuoKong) {
 } elseif ($isLvXin) {
     // 旧域名 m.lvxinchaxun.com -> 证书系统
     if (!empty($cert_no) && !empty($code)) {
-        $targetUrl = 'cert/fw.html?cert_no=' . urlencode($cert_no) . '&code=' . urlencode($code);
+        $targetUrl = 'cert/fw.php?cert_no=' . urlencode($cert_no) . '&code=' . urlencode($code);
     } else {
         $targetUrl = 'cert/scan.php';
     }
@@ -42,7 +42,7 @@ if ($isGuoKong) {
     if ($isWechat) {
         // 微信环境 -> 产品溯源
         if (!empty($code)) {
-            $targetUrl = 'wx/fw.html?code=' . urlencode($code);
+            $targetUrl = 'wx/fw.php?code=' . urlencode($code);
         } else {
             $targetUrl = 'wx/scan.php';
         }

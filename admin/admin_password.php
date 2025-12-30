@@ -270,7 +270,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <ul class="submenu">
                     <li><a href="admin_password.php" class="active">修改密码</a></li>
                     <li><a href="admin_images.php">图片素材</a></li>
-                    <li><a href="admin_scan_editor.php">扫码编辑器</a></li>
+                    <li><a href="admin_scan_editor.php">背景设计</a></li>
                     <li><a href="admin_qiniu.php">七牛云接口</a></li>
                 </ul>
             </li>

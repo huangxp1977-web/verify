@@ -328,7 +328,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
                 <ul class="submenu">
                     <li><a href="admin_password.php">修改密码</a></li>
                     <li><a href="admin_images.php">图片素材</a></li>
-                    <li><a href="admin_scan_editor.php">扫码编辑器</a></li>
+                    <li><a href="admin_scan_editor.php">背景设计</a></li>
                     <li><a href="admin_qiniu.php" class="active">七牛云接口</a></li>
                 </ul>
             </li>
@@ -486,16 +486,22 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
                 fetch('/api/qiniu_sync.php?action=sync')
                     .then(r => r.json())
                     .then(data => {
-                        btn.disabled = false;
-                        btn.textContent = '开始同步';
-                        
                         if (data.success) {
                             status.innerHTML = '<span style="color: green;">' + data.message + '</span>';
                             result.style.display = 'block';
                             result.querySelector('pre').textContent = JSON.stringify(data.results, null, 2);
-                            // 刷新文件统计
+                            // 刷新文件统计并保持按钮禁用
                             document.getElementById('fileCount').innerHTML = '待同步文件: <strong>0</strong> 个';
+                            btn.disabled = true;
+                            btn.style.backgroundColor = '#ccc';
+                            btn.style.cursor = 'not-allowed';
+                            btn.textContent = '开始同步';
                         } else {
+                            // 同步失败时恢复按钮
+                            btn.disabled = false;
+                            btn.style.backgroundColor = '';
+                            btn.style.cursor = '';
+                            btn.textContent = '开始同步';
                             status.innerHTML = '<span style="color: red;">同步失败: ' + data.message + '</span>';
                         }
                     })

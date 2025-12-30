@@ -1,3 +1,11 @@
+<?php
+// 引入七牛云辅助函数，处理图片URL
+require_once __DIR__ . '/../includes/qiniu_helper.php';
+
+// 获取轮播图URLs
+$slide1Url = getImageUrl('/uploads/banners/7.png');
+$slide2Url = getImageUrl('/uploads/banners/8.png');
+?>
 <!DOCTYPE html>
 <html data-use-rem="750">
 
@@ -22,6 +30,7 @@
     <meta name="browsermode" content="application">
     <meta name="x5-page-mode" content="app">
     <meta name="x5-page-mode" content="default">
+    <link rel="icon" href="data:image/x-icon;base64,AAABAAEAEBAAAAEAIABoBAAAFgAAACgAAAAQAAAAIAAAAAEAIAAAAAAAAAQAABILAAASCwAAAAAAAAAAAAD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wB8gJT/fICU/3yAlP98gJT/////AP///wB8gJT/fICU/3yAlP98gJT/////AP///wD///8A////AP///wD///8A////AHyAlP98gJT/fICU/3yAlP////8A////AHyAlP98gJT/fICU/3yAlP////8A////AP///wD///8A////AP///wD///8AfICU/3yAlP98gJT/fICU/3yAlP98gJT/fICU/3yAlP98gJT/fICU/////wD///8A////AP///wD///8A////AP///wB8gJT/fICU/3yAlP98gJT/fICU/3yAlP98gJT/fICU/3yAlP98gJT/////AP///wD///8A////AP///wD///8A////AHyAlP98gJT/fICU/3yAlP////8A////AHyAlP98gJT/fICU/3yAlP////8A////AP///wD///8A////AP///wD///8AfICU/3yAlP98gJT/fICU/////wD///8AfICU/3yAlP98gJT/fICU/////wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A//8AAP//AAD//wAA44cAAOOHAADAAQAAwAEAAMABAADAAQAA44cAAOOHAAD//wAA//8AAP//AAD//wAA//8AAA==">
     <link rel="stylesheet" href="static/css/swiper.min.css">
     <link rel="stylesheet" href="static/css/reset.css">
     <link rel="stylesheet" href="static/css/index.css">
@@ -84,8 +93,8 @@
         <div class="banner">
             <div class="swiper-container">
                 <ul class="swiper-wrapper">
-                    <li class="banner_lis swiper-slide"><img src="static/images/7.png"></li>
-                    <li class="banner_lis swiper-slide"><img src="static/images/8.png"></li>
+                    <li class="banner_lis swiper-slide"><img src="<?php echo $slide1Url; ?>"></li>
+                    <li class="banner_lis swiper-slide"><img src="<?php echo $slide2Url; ?>"></li>
                 </ul>
                 <div class="swiper-pagination"></div>
             </div>
@@ -155,96 +164,6 @@
                 // 3.4.1 查询成功：根据类型（产品/盒子/箱子）展示不同详情
                 let detailHtml = '';
                 const data = apiResult.data;
-                /*
-                if (apiResult.type === 'product') {
-                    detailHtml = `
-                        <div class="product-detail">
-                            <div class="detail-item">
-                                <div class="detail-label">产品名称：</div>
-                                <div class="detail-value">${data.product_name || '未填写'}</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="detail-label">产品防伪码：</div>
-                                <div class="detail-value">${data.product_code}</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="detail-label">所属盒子码：</div>
-                                <div class="detail-value">${data.carton_code || '未知'}</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="detail-label">所属箱子码：</div>
-                                <div class="detail-value">${data.box_code || '未知'}</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="detail-label">生产地区：</div>
-                                <div class="detail-value">${data.region || '未填写'}</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="detail-label">生产日期：</div>
-                                <div class="detail-value">${data.production_date || '未填写'}</div>
-                            </div>
-                        </div>
-                    `;
-                    // 显示产品图片（如有）
-                    if (data.image_url) {
-                        detailHtml += `
-                            <div class="product-img">
-                                <img src="${data.image_url}" alt="产品图片">
-                            </div>
-                        `;
-                    }
-                }
-
-                else if (apiResult.type === 'carton') {
-                    detailHtml = `
-                        <div class="product-detail">
-                            <div class="detail-item">
-                                <div class="detail-label">盒子防伪码：</div>
-                                <div class="detail-value">${data.carton_code}</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="detail-label">所属箱子码：</div>
-                                <div class="detail-value">${data.box_code || '未知'}</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="detail-label">生产日期：</div>
-                                <div class="detail-value">${data.production_date || '未填写'}</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="detail-label">包含产品数：</div>
-                                <div class="detail-value">${data.product_count} 支</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="detail-label">产品防伪码列表：</div>
-                                <div class="detail-value">${data.product_codes.join('，') || '无'}</div>
-                            </div>
-                        </div>
-                    `;
-                }
-
-                else if (apiResult.type === 'box') {
-                    detailHtml = `
-                        <div class="product-detail">
-                            <div class="detail-item">
-                                <div class="detail-label">箱子防伪码：</div>
-                                <div class="detail-value">${data.box_code}</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="detail-label">生产日期：</div>
-                                <div class="detail-value">${data.production_date || '未填写'}</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="detail-label">包含盒子数：</div>
-                                <div class="detail-value">${data.carton_count} 个</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="detail-label">盒子防伪码列表：</div>
-                                <div class="detail-value">${data.carton_codes.join('，') || '无'}</div>
-                            </div>
-                        </div>
-                    `;
-                }
-                */
                 // 渲染成功结果，增加产品防伪码显示
                 resultContainer.className = 'result success';
                 resultContainer.innerHTML = `

@@ -203,11 +203,11 @@ function hideInputModal() {
   document.getElementById('inputModal').style.display = 'none';
 }
 
-// 输码查询逻辑：跳转到fw.html并携带参数
+// 输码查询逻辑：跳转到fw.php并携带参数
 function queryCode() {
   var code = document.querySelector('.input_vul').value.trim();
   if (code) {
-    window.location.href = 'fw.html?code=' + encodeURIComponent(code);
+    window.location.href = 'fw.php?code=' + encodeURIComponent(code);
   } else {
     alert('请输入防伪码');
   }

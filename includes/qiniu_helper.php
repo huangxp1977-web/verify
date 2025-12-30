@@ -69,6 +69,58 @@ function base64UrlEncode($data) {
     return str_replace(['+', '/'], ['-', '_'], base64_encode($data));
 }
 
+// 自动获取七牛云上传地址（根据bucket查询所属区域）
+function getQiniuUploadUrl() {
+    static $uploadUrl = null;
+    
+    if ($uploadUrl !== null) {
+        return $uploadUrl;
+    }
+    
+    $config = getQiniuConfig();
+    $accessKey = $config['access_key'] ?? '';
+    $bucket = $config['bucket'] ?? '';
+    
+    if (empty($accessKey) || empty($bucket)) {
+        return null;
+    }
+    
+    // 七牛云区域对应的上传地址
+    $uploadHosts = [
+        'z0' => 'https://up.qiniup.com',        // 华东
+        'z1' => 'https://up-z1.qiniup.com',     // 华北
+        'z2' => 'https://up-z2.qiniup.com',     // 华南
+        'na0' => 'https://up-na0.qiniup.com',   // 北美
+        'as0' => 'https://up-as0.qiniup.com',   // 东南亚
+    ];
+    
+    // 调用七牛API查询bucket所属区域
+    // API: https://uc.qbox.me/v2/query?ak={AccessKey}&bucket={Bucket}
+    $queryUrl = 'https://uc.qbox.me/v2/query?ak=' . urlencode($accessKey) . '&bucket=' . urlencode($bucket);
+    
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $queryUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+    
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    if ($httpCode === 200 && $response) {
+        $data = json_decode($response, true);
+        // API返回格式: {"region":"z1", "up":{"src":{"main":["up-z1.qiniup.com"]}}, ...}
+        if (isset($data['up']['src']['main'][0])) {
+            $uploadUrl = 'https://' . $data['up']['src']['main'][0];
+            return $uploadUrl;
+        }
+    }
+    
+    // 如果API查询失败，返回null让上层报错
+    return null;
+}
+
 // 上传文件到七牛云
 function uploadToQiniu($localFilePath, $key) {
     if (!file_exists($localFilePath)) {
@@ -80,12 +132,11 @@ function uploadToQiniu($localFilePath, $key) {
         return ['success' => false, 'error' => '无法生成上传凭证'];
     }
     
-    // 使用 cURL 上传
-    // 华东: up.qiniup.com
-    // 华北: up-z1.qiniup.com
-    // 华南: up-z2.qiniup.com
-    // 根据域名 hb-bkt 判断为华北
-    $uploadUrl = 'https://up-z1.qiniup.com';
+    // 自动获取上传地址（根据bucket所属区域）
+    $uploadUrl = getQiniuUploadUrl();
+    if (!$uploadUrl) {
+        return ['success' => false, 'error' => '无法获取上传地址'];
+    }
     
     $cfile = new CURLFile($localFilePath);
     $postData = [

@@ -16,7 +16,8 @@ $messages = ['success' => [], 'error' => []];
 $categories = [
     'certificates' => ['name' => '证书图片', 'dir' => 'uploads/certificates/', 'prefix' => 'cert_'],
     'products' => ['name' => '产品图片', 'dir' => 'uploads/products/', 'prefix' => 'prod_'],
-    'backgrounds' => ['name' => '扫码背景', 'dir' => 'uploads/backgrounds/', 'prefix' => 'bg_']
+    'backgrounds' => ['name' => '扫码背景', 'dir' => 'uploads/backgrounds/', 'prefix' => 'bg_'],
+    'banners' => ['name' => '轮播图', 'dir' => 'uploads/banners/', 'prefix' => 'banner_']
 ];
 
 // 当前分类
@@ -295,7 +296,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
                 <ul class="submenu">
                     <li><a href="admin_password.php">修改密码</a></li>
                     <li><a href="admin_images.php" class="active">图片素材</a></li>
-                    <li><a href="admin_scan_editor.php">扫码编辑器</a></li>
+                    <li><a href="admin_scan_editor.php">背景设计</a></li>
                     <li><a href="admin_qiniu.php">七牛云接口</a></li>
                 </ul>
             </li>

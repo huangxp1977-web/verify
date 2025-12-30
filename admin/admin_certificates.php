@@ -16,7 +16,7 @@ function generateCertQueryUrl($certNo, $uniqueCode) {
     // 强制使用生产域名（防止本地开发环境生成 localhost 链接）
     // $host = $_SERVER['HTTP_HOST'];
     $host = 'guokonghuayi.com';
-    return "https://{$host}/cert/fw.html?cert_no=" . urlencode($certNo) . "&code=" . $uniqueCode;
+    return "https://{$host}/cert/fw.php?cert_no=" . urlencode($certNo) . "&code=" . $uniqueCode;
 }
 
 // 检查登录状态
@@ -751,7 +751,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
                 <ul class="submenu">
                     <li><a href="admin_password.php">修改密码</a></li>
                     <li><a href="admin_images.php">图片素材</a></li>
-                    <li><a href="admin_scan_editor.php">扫码编辑器</a></li>
+                    <li><a href="admin_scan_editor.php">背景设计</a></li>
                     <li><a href="admin_qiniu.php">七牛云接口</a></li>
                 </ul>
             </li>
