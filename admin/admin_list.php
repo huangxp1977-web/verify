@@ -39,26 +39,10 @@ $distributors = $stmt->fetchAll(PDO::FETCH_ASSOC);
 $box_carton_counts = [];  // 箱子ID => 盒子数量
 $carton_product_counts = [];  // 盒子ID => 产品数量
 
-try {
-    // 获取备份日期
-    $stmt = $pdo->query("
-        SELECT DISTINCT DATE(deleted_at) AS backup_date 
-        FROM (
-            SELECT deleted_at FROM boxes_backup
-            UNION ALL
-            SELECT deleted_at FROM cartons_backup
-            UNION ALL
-            SELECT deleted_at FROM products_backup
-        ) AS all_backups
-        ORDER BY backup_date DESC
-    ");
-    $backup_dates = $stmt->fetchAll(PDO::FETCH_COLUMN);
-} catch (PDOException $e) {
-    $error = "获取备份日期失败: " . $e->getMessage();
-}
+// 【已移除】获取备份日期功能（不再需要，因为改用了软删除）
 
 
-// 处理单独删除
+// 处理单独删除（软删除：UPDATE status=0）
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_single'])) {
     $item_id = isset($_POST['item_id']) ? intval($_POST['item_id']) : 0;
     if ($item_id <= 0) {
@@ -68,86 +52,36 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_single'])) {
             $pdo->beginTransaction();
 
             if ($level == 'box') {
-                // 备份该箱子的产品（包含deleted_at字段）
+                // 软删除该箱子下的所有产品
                 $pdo->exec("
-                    INSERT INTO products_backup 
-                    (original_id, product_code, carton_id, product_name, region, image_url, batch_number, production_date, distributor_id, deleted_at)
-                    SELECT p.id, p.product_code, p.carton_id, p.product_name, p.region, p.image_url, p.batch_number, p.production_date, p.distributor_id, NOW()
-                    FROM products p
+                    UPDATE products p
                     JOIN cartons c ON p.carton_id = c.id
+                    SET p.status = 0
                     WHERE c.box_id = $item_id
                 ");
-
-                // 备份该箱子的盒子（包含deleted_at字段）
-                $pdo->exec("
-                    INSERT INTO cartons_backup 
-                    (original_id, carton_code, box_id, batch_number, production_date, distributor_id, deleted_at)
-                    SELECT id, carton_code, box_id, batch_number, production_date, distributor_id, NOW()
-                    FROM cartons
-                    WHERE box_id = $item_id
-                ");
-
-                // 备份该箱子（包含deleted_at字段）
-                $pdo->exec("
-                    INSERT INTO boxes_backup 
-                    (original_id, box_code, batch_number, production_date, distributor_id, deleted_at)
-                    SELECT id, box_code, batch_number, production_date, distributor_id, NOW()
-                    FROM boxes
-                    WHERE id = $item_id
-                ");
-
-                // 删除关联数据
-                $stmt = $pdo->prepare("SELECT id FROM cartons WHERE box_id = :bid");
-                $stmt->bindParam(':bid', $item_id);
-                $stmt->execute();
-                $cartonIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
-                foreach ($cartonIds as $cartonId) {
-                    batchDelete($pdo, 'products', 1000, "carton_id = $cartonId");
-                }
-                batchDelete($pdo, 'cartons', 1000, "box_id = $item_id");
-                batchDelete($pdo, 'boxes', 1000, "id = $item_id");
                 
-                $success = "箱子【ID:$item_id】已备份并删除（备份日期：" . date('Y-m-d') . "）";
+                // 软删除该箱子下的所有盒子
+                $pdo->exec("UPDATE cartons SET status = 0 WHERE box_id = $item_id");
+                
+                // 软删除该箱子
+                $pdo->exec("UPDATE boxes SET status = 0 WHERE id = $item_id");
+                
+                $success = "箱子【ID:$item_id】及其下属数据已删除";
 
             } elseif ($level == 'carton' && $id > 0) {
-                // 备份该盒子的产品（包含deleted_at字段）
-                $pdo->exec("
-                    INSERT INTO products_backup 
-                    (original_id, product_code, carton_id, product_name, region, image_url, batch_number, production_date, distributor_id, deleted_at)
-                    SELECT id, product_code, carton_id, product_name, region, image_url, batch_number, production_date, distributor_id, NOW()
-                    FROM products
-                    WHERE carton_id = $item_id
-                ");
-
-                // 备份该盒子（包含deleted_at字段）
-                $pdo->exec("
-                    INSERT INTO cartons_backup 
-                    (original_id, carton_code, box_id, batch_number, production_date, distributor_id, deleted_at)
-                    SELECT id, carton_code, box_id, batch_number, production_date, distributor_id, NOW()
-                    FROM cartons
-                    WHERE id = $item_id AND box_id = $id
-                ");
-
-                // 删除关联数据
-                batchDelete($pdo, 'products', 1000, "carton_id = $item_id");
-                batchDelete($pdo, 'cartons', 1000, "id = $item_id AND box_id = $id");
+                // 软删除该盒子下的所有产品
+                $pdo->exec("UPDATE products SET status = 0 WHERE carton_id = $item_id");
                 
-                $success = "盒子【ID:$item_id】已备份并删除（备份日期：" . date('Y-m-d') . "）";
+                // 软删除该盒子
+                $pdo->exec("UPDATE cartons SET status = 0 WHERE id = $item_id AND box_id = $id");
+                
+                $success = "盒子【ID:$item_id】及其下属产品已删除";
 
             } elseif ($level == 'product' && $id > 0) {
-                // 备份该产品（包含deleted_at字段）
-                $pdo->exec("
-                    INSERT INTO products_backup 
-                    (original_id, product_code, carton_id, product_name, region, image_url, batch_number, production_date, distributor_id, deleted_at)
-                    SELECT id, product_code, carton_id, product_name, region, image_url, batch_number, production_date, distributor_id, NOW()
-                    FROM products
-                    WHERE id = $item_id AND carton_id = $id
-                ");
-
-                // 删除该产品
-                batchDelete($pdo, 'products', 1000, "id = $item_id AND carton_id = $id");
+                // 软删除该产品
+                $pdo->exec("UPDATE products SET status = 0 WHERE id = $item_id AND carton_id = $id");
                 
-                $success = "产品【ID:$item_id】已备份并删除（备份日期：" . date('Y-m-d') . "）";
+                $success = "产品【ID:$item_id】已删除";
             }
 
             $pdo->commit();
@@ -159,106 +93,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_single'])) {
 }
 
 
-// 清空（删除）前自动备份
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['clear'])) {
-    try {
-        $pdo->beginTransaction();
+// 【已移除】一键清空功能（设计缺陷，导致数据膨胀）
 
-        if ($level == 'box') {
-            // 备份产品（明确指定字段，包含deleted_at）
-            $pdo->exec("
-                INSERT INTO products_backup 
-                (original_id, product_code, carton_id, product_name, region, image_url, batch_number, production_date, distributor_id, deleted_at)
-                SELECT id, product_code, carton_id, product_name, region, image_url, batch_number, production_date, distributor_id, NOW()
-                FROM products
-            ");
-
-            // 备份盒子（明确指定字段，包含deleted_at）
-            $pdo->exec("
-                INSERT INTO cartons_backup 
-                (original_id, carton_code, box_id, batch_number, production_date, distributor_id, deleted_at)
-                SELECT id, carton_code, box_id, batch_number, production_date, distributor_id, NOW()
-                FROM cartons
-            ");
-
-            // 备份箱子（明确指定字段，包含deleted_at）
-            $pdo->exec("
-                INSERT INTO boxes_backup 
-                (original_id, box_code, batch_number, production_date, distributor_id, deleted_at)
-                SELECT id, box_code, batch_number, production_date, distributor_id, NOW()
-                FROM boxes
-            ");
-
-            // 分批次删除
-            batchDelete($pdo, 'products', 1000);
-            batchDelete($pdo, 'cartons', 1000);
-            batchDelete($pdo, 'boxes', 1000);
-            
-            $success = "所有箱子、盒子、产品已备份并清空（备份日期：" . date('Y-m-d') . "）";
-
-        } elseif ($level == 'carton' && $id > 0) {
-            // 备份当前箱子下的产品（包含deleted_at）
-            $stmt = $pdo->prepare("
-                INSERT INTO products_backup 
-                (original_id, product_code, carton_id, product_name, region, image_url, batch_number, production_date, distributor_id, deleted_at)
-                SELECT p.id, p.product_code, p.carton_id, p.product_name, p.region, p.image_url, p.batch_number, p.production_date, p.distributor_id, NOW()
-                FROM products p
-                JOIN cartons c ON p.carton_id = c.id
-                WHERE c.box_id = :bid
-            ");
-            $stmt->bindParam(':bid', $id);
-            $stmt->execute();
-
-            // 备份当前箱子下的盒子（包含deleted_at）
-            $stmt = $pdo->prepare("
-                INSERT INTO cartons_backup 
-                (original_id, carton_code, box_id, batch_number, production_date, distributor_id, deleted_at)
-                SELECT id, carton_code, box_id, batch_number, production_date, distributor_id, NOW()
-                FROM cartons
-                WHERE box_id = :bid
-            ");
-            $stmt->bindParam(':bid', $id);
-            $stmt->execute();
-
-            // 分批次删除
-            $stmt = $pdo->prepare("SELECT id FROM cartons WHERE box_id = :bid");
-            $stmt->bindParam(':bid', $id);
-            $stmt->execute();
-            $cartonIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
-            
-            foreach ($cartonIds as $cartonId) {
-                batchDelete($pdo, 'products', 1000, "carton_id = $cartonId");
-            }
-            batchDelete($pdo, 'cartons', 1000, "box_id = $id");
-            
-            $success = "箱子【ID:$id】下的盒子、产品已备份并清空（备份日期：" . date('Y-m-d') . "）";
-
-        } elseif ($level == 'product' && $id > 0) {
-            // 备份当前盒子下的产品（包含deleted_at）
-            $stmt = $pdo->prepare("
-                INSERT INTO products_backup 
-                (original_id, product_code, carton_id, product_name, region, image_url, batch_number, production_date, distributor_id, deleted_at)
-                SELECT id, product_code, carton_id, product_name, region, image_url, batch_number, production_date, distributor_id, NOW()
-                FROM products
-                WHERE carton_id = :cid
-            ");
-            $stmt->bindParam(':cid', $id);
-            $stmt->execute();
-
-            // 分批次删除
-            batchDelete($pdo, 'products', 1000, "carton_id = $id");
-            
-            $success = "盒子【ID:$id】下的产品已备份并清空（备份日期：" . date('Y-m-d') . "）";
-        }
-
-        $pdo->commit();
-    } catch (PDOException $e) {
-        $pdo->rollBack();
-        $error = "清空/备份失败: " . $e->getMessage();
-    }
-}
-
-// 批量删除（删除前自动备份选中记录）
+// 批量删除（软删除：UPDATE status=0）
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['batch_delete']) && !empty($_POST['selected_ids'])) {
     try {
         $pdo->beginTransaction();
@@ -267,211 +104,65 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['batch_delete']) && !em
         $idsStr = implode(',', $selectedIds);
 
         if ($level == 'box') {
-            // 备份选中箱子的产品（包含deleted_at）
+            // 软删除选中箱子下的所有产品
             $pdo->exec("
-                INSERT INTO products_backup 
-                (original_id, product_code, carton_id, product_name, region, image_url, batch_number, production_date, distributor_id, deleted_at)
-                SELECT p.id, p.product_code, p.carton_id, p.product_name, p.region, p.image_url, p.batch_number, p.production_date, p.distributor_id, NOW()
-                FROM products p
+                UPDATE products p
                 JOIN cartons c ON p.carton_id = c.id
+                SET p.status = 0
                 WHERE c.box_id IN ($idsStr)
             ");
-
-            // 备份选中箱子的盒子（包含deleted_at）
-            $pdo->exec("
-                INSERT INTO cartons_backup 
-                (original_id, carton_code, box_id, batch_number, production_date, distributor_id, deleted_at)
-                SELECT id, carton_code, box_id, batch_number, production_date, distributor_id, NOW()
-                FROM cartons
-                WHERE box_id IN ($idsStr)
-            ");
-
-            // 备份选中箱子（包含deleted_at）
-            $pdo->exec("
-                INSERT INTO boxes_backup 
-                (original_id, box_code, batch_number, production_date, distributor_id, deleted_at)
-                SELECT id, box_code, batch_number, production_date, distributor_id, NOW()
-                FROM boxes
-                WHERE id IN ($idsStr)
-            ");
-
-            // 分批次删除选中箱子关联的产品、盒子、箱子
-            foreach ($selectedIds as $boxId) {
-                $stmt = $pdo->prepare("SELECT id FROM cartons WHERE box_id = :bid");
-                $stmt->bindParam(':bid', $boxId);
-                $stmt->execute();
-                $cartonIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
-                foreach ($cartonIds as $cartonId) {
-                    batchDelete($pdo, 'products', 1000, "carton_id = $cartonId");
-                }
-                batchDelete($pdo, 'cartons', 1000, "box_id = $boxId");
-            }
-            batchDelete($pdo, 'boxes', 1000, "id IN ($idsStr)");
             
-            $success = "已备份并批量删除选中的" . count($selectedIds) . "个箱子（备份日期：" . date('Y-m-d') . "）";
+            // 软删除选中箱子下的所有盒子
+            $pdo->exec("UPDATE cartons SET status = 0 WHERE box_id IN ($idsStr)");
+            
+            // 软删除选中的箱子
+            $pdo->exec("UPDATE boxes SET status = 0 WHERE id IN ($idsStr)");
+            
+            $success = "已删除选中的" . count($selectedIds) . "个箱子及其下属数据";
 
         } elseif ($level == 'carton' && $id > 0) {
-            // 备份选中盒子的产品（包含deleted_at）
-            $pdo->exec("
-                INSERT INTO products_backup 
-                (original_id, product_code, carton_id, product_name, region, image_url, batch_number, production_date, distributor_id, deleted_at)
-                SELECT p.id, p.product_code, p.carton_id, p.product_name, p.region, p.image_url, p.batch_number, p.production_date, p.distributor_id, NOW()
-                FROM products p
-                WHERE p.carton_id IN ($idsStr)
-            ");
-
-            // 备份选中盒子（包含deleted_at）
-            $pdo->exec("
-                INSERT INTO cartons_backup 
-                (original_id, carton_code, box_id, batch_number, production_date, distributor_id, deleted_at)
-                SELECT id, carton_code, box_id, batch_number, production_date, distributor_id, NOW()
-                FROM cartons
-                WHERE id IN ($idsStr) AND box_id = $id
-            ");
-
-            // 分批次删除选中盒子关联的产品和盒子
-            foreach ($selectedIds as $cartonId) {
-                batchDelete($pdo, 'products', 1000, "carton_id = $cartonId");
-            }
-            batchDelete($pdo, 'cartons', 1000, "id IN ($idsStr) AND box_id = $id");
+            // 软删除选中盒子下的所有产品
+            $pdo->exec("UPDATE products SET status = 0 WHERE carton_id IN ($idsStr)");
             
-            $success = "已备份并批量删除选中的" . count($selectedIds) . "个盒子（备份日期：" . date('Y-m-d') . "）";
+            // 软删除选中的盒子
+            $pdo->exec("UPDATE cartons SET status = 0 WHERE id IN ($idsStr) AND box_id = $id");
+            
+            $success = "已删除选中的" . count($selectedIds) . "个盒子及其下属产品";
 
         } elseif ($level == 'product' && $id > 0) {
-            // 备份选中产品（包含deleted_at）
-            $pdo->exec("
-                INSERT INTO products_backup 
-                (original_id, product_code, carton_id, product_name, region, image_url, batch_number, production_date, distributor_id, deleted_at)
-                SELECT id, product_code, carton_id, product_name, region, image_url, batch_number, production_date, distributor_id, NOW()
-                FROM products
-                WHERE id IN ($idsStr) AND carton_id = $id
-            ");
-
-            // 分批次删除选中产品
-            batchDelete($pdo, 'products', 1000, "id IN ($idsStr) AND carton_id = $id");
+            // 软删除选中的产品
+            $pdo->exec("UPDATE products SET status = 0 WHERE id IN ($idsStr) AND carton_id = $id");
             
-            $success = "已备份并批量删除选中的" . count($selectedIds) . "个产品（备份日期：" . date('Y-m-d') . "）";
+            $success = "已删除选中的" . count($selectedIds) . "个产品";
         }
 
         $pdo->commit();
     } catch (PDOException $e) {
         $pdo->rollBack();
-        $error = "批量删除/备份失败: " . $e->getMessage();
+        $error = "批量删除失败: " . $e->getMessage();
     }
 }
 
 
-// 恢复备份
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restore']) && !empty($selected_backup_date)) {
+// 【已移除】恢复已删除数据（软恢复：UPDATE status=1）
+/*
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restore_deleted'])) {
     try {
         $pdo->beginTransaction();
         
-        $box_id_map = [];
-        $carton_id_map = [];
-
-        // 恢复箱子
-        $stmt = $pdo->prepare("SELECT * FROM boxes_backup WHERE DATE(deleted_at) = :date");
-        $stmt->bindParam(':date', $selected_backup_date);
-        $stmt->execute();
-        $boxes_backup = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        foreach ($boxes_backup as $b) {
-            $check = $pdo->prepare("SELECT id FROM boxes WHERE box_code = :code");
-            $check->bindParam(':code', $b['box_code']);
-            $check->execute();
-            $existing = $check->fetch();
-            
-            if ($existing) {
-                $box_id_map[$b['original_id']] = $existing['id'];
-            } else {
-                $pdo->prepare("
-                    INSERT INTO boxes 
-                    (box_code, batch_number, production_date, distributor_id)
-                    VALUES (:code, :batch, :date, :did)
-                ")->execute([
-                    ':code' => $b['box_code'],
-                    ':batch' => $b['batch_number'],
-                    ':date' => $b['production_date'],
-                    ':did' => $b['distributor_id']
-                ]);
-                $new_id = $pdo->lastInsertId();
-                $box_id_map[$b['original_id']] = $new_id;
-            }
-        }
-
-        // 恢复盒子
-        $stmt = $pdo->prepare("SELECT * FROM cartons_backup WHERE DATE(deleted_at) = :date");
-        $stmt->bindParam(':date', $selected_backup_date);
-        $stmt->execute();
-        $cartons_backup = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        foreach ($cartons_backup as $c) {
-            if (!isset($box_id_map[$c['box_id']])) {
-                throw new Exception("恢复失败：找不到箱子ID为 {$c['box_id']} 的对应记录");
-            }
-            
-            $mapped_box_id = $box_id_map[$c['box_id']];
-            $check = $pdo->prepare("SELECT id FROM cartons WHERE carton_code = :code");
-            $check->bindParam(':code', $c['carton_code']);
-            $check->execute();
-            $existing = $check->fetch();
-            
-            if ($existing) {
-                $carton_id_map[$c['original_id']] = $existing['id'];
-            } else {
-                $pdo->prepare("
-                    INSERT INTO cartons 
-                    (carton_code, box_id, batch_number, production_date, distributor_id)
-                    VALUES (:code, :bid, :batch, :date, :did)
-                ")->execute([
-                    ':code' => $c['carton_code'],
-                    ':bid' => $mapped_box_id,
-                    ':batch' => $c['batch_number'],
-                    ':date' => $c['production_date'],
-                    ':did' => $c['distributor_id']
-                ]);
-                $new_id = $pdo->lastInsertId();
-                $carton_id_map[$c['original_id']] = $new_id;
-            }
-        }
-
-        // 恢复产品
-        $stmt = $pdo->prepare("SELECT * FROM products_backup WHERE DATE(deleted_at) = :date");
-        $stmt->bindParam(':date', $selected_backup_date);
-        $stmt->execute();
-        $products_backup = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        foreach ($products_backup as $p) {
-            if (!isset($carton_id_map[$p['carton_id']])) {
-                throw new Exception("恢复失败：找不到盒子ID为 {$p['carton_id']} 的对应记录");
-            }
-            
-            $mapped_carton_id = $carton_id_map[$p['carton_id']];
-            $check = $pdo->prepare("SELECT id FROM products WHERE product_code = :code");
-            $check->bindParam(':code', $p['product_code']);
-            $check->execute();
-            if (!$check->fetch()) {
-                $pdo->prepare("
-                    INSERT INTO products 
-                    (product_code, carton_id, product_name, region, image_url, batch_number, production_date, distributor_id)
-                    VALUES (:code, :cid, :name, :region, :img, :batch, :date, :did)
-                ")->execute([
-                    ':code' => $p['product_code'],
-                    ':cid' => $mapped_carton_id,
-                    ':name' => $p['product_name'],
-                    ':region' => $p['region'],
-                    ':img' => $p['image_url'],
-                    ':batch' => $p['batch_number'],
-                    ':date' => $p['production_date'],
-                    ':did' => $p['distributor_id']
-                ]);
-            }
-        }
-
+        // 恢复所有已删除的数据
+        $pdo->exec("UPDATE boxes SET status = 1 WHERE status = 0");
+        $pdo->exec("UPDATE cartons SET status = 1 WHERE status = 0");
+        $pdo->exec("UPDATE products SET status = 1 WHERE status = 0");
+        
         $pdo->commit();
-        $success = "已成功恢复【" . $selected_backup_date . "】的备份数据";
-    } catch (Exception $e) {
+        $success = "已恢复所有已删除的数据";
+    } catch (PDOException $e) {
         $pdo->rollBack();
         $error = "恢复失败: " . $e->getMessage();
     }
 }
+*/
 
 
 // 处理导出请求
@@ -710,39 +401,40 @@ try {
         // $breadcrumb[] = ['name' => '箱子列表', 'url' => 'admin_list.php?level=box'];
         
         // 构建查询条件（优化箱子防伪码查询逻辑）
-        $where_clause = '';
+        // 构建查询条件（已优化：只显示status=1的记录）
+        $where_clause = ' WHERE boxes.status = 1';
         $params = [];
         
         if (!empty($box_code)) {
             // 先尝试精确匹配（处理包含特殊字符的完整防伪码）
-            $exactStmt = $pdo->prepare("SELECT COUNT(*) FROM boxes WHERE box_code = :box_code");
+            $exactStmt = $pdo->prepare("SELECT COUNT(*) FROM boxes WHERE box_code = :box_code AND status = 1");
             $exactStmt->bindParam(':box_code', $box_code);
             $exactStmt->execute();
             $exactCount = $exactStmt->fetchColumn();
             
             if ($exactCount > 0) {
-                // 有精确匹配结果，使用精确查询（解决特殊字符匹配问题）
-                $where_clause .= " WHERE box_code = :box_code";
+                // 有精确匹配结果
+                $where_clause .= " AND box_code = :box_code";
                 $params[':box_code'] = $box_code;
             } else {
-                // 无精确匹配，使用模糊查询（支持部分匹配）
-                $where_clause .= " WHERE box_code LIKE :box_code";
+                // 无精确匹配，使用模糊查询
+                $where_clause .= " AND box_code LIKE :box_code";
                 $params[':box_code'] = "%{$box_code}%";
             }
         }
 
         if (!empty($distributor)) {
-            $where_clause .= (empty($where_clause) ? " WHERE" : " AND") . " distributors.name LIKE :distributor";
+            $where_clause .= " AND distributors.name LIKE :distributor";
             $params[':distributor'] = "%{$distributor}%";
         }
         
         if (!empty($batch_number)) {
-            $where_clause .= (empty($where_clause) ? " WHERE" : " AND") . " batch_number LIKE :batch_number";
+            $where_clause .= " AND batch_number LIKE :batch_number";
             $params[':batch_number'] = "%{$batch_number}%";
         }
         
         if (!empty($production_date)) {
-            $where_clause .= (empty($where_clause) ? " WHERE" : " AND") . " DATE(production_date) = :production_date";
+            $where_clause .= " AND DATE(production_date) = :production_date";
             $params[':production_date'] = $production_date;
         }
         
@@ -779,7 +471,7 @@ try {
             $stmt = $pdo->prepare("
                 SELECT box_id, COUNT(*) as count 
                 FROM cartons 
-                WHERE box_id IN ($placeholders) 
+                WHERE box_id IN ($placeholders) AND status = 1 
                 GROUP BY box_id
             ");
             $stmt->execute($boxIds);
@@ -809,7 +501,7 @@ try {
         ];
         
         // 获取总记录数
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM cartons WHERE box_id = :box_id");
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM cartons WHERE box_id = :box_id AND status = 1");
         $stmt->bindParam(':box_id', $id);
         $stmt->execute();
         $total_records = $stmt->fetchColumn();
@@ -819,7 +511,7 @@ try {
             SELECT cartons.*, distributors.name as distributor_name 
             FROM cartons 
             LEFT JOIN distributors ON cartons.distributor_id = distributors.id
-            WHERE box_id = :box_id
+            WHERE box_id = :box_id AND cartons.status = 1
             ORDER BY carton_code ASC
             LIMIT :offset, :page_size
         ");
@@ -838,7 +530,7 @@ try {
             $stmt = $pdo->prepare("
                 SELECT carton_id, COUNT(*) as count 
                 FROM products 
-                WHERE carton_id IN ($placeholders) 
+                WHERE carton_id IN ($placeholders) AND status = 1 
                 GROUP BY carton_id
             ");
             $stmt->execute($cartonIds);
@@ -878,7 +570,7 @@ try {
         ];
         
         // 获取总记录数
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM products WHERE carton_id = :carton_id");
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM products WHERE carton_id = :carton_id AND status = 1");
         $stmt->bindParam(':carton_id', $id);
         $stmt->execute();
         $total_records = $stmt->fetchColumn();
@@ -888,7 +580,7 @@ try {
             SELECT products.*, distributors.name as distributor_name 
             FROM products 
             LEFT JOIN distributors ON products.distributor_id = distributors.id
-            WHERE carton_id = :carton_id
+            WHERE carton_id = :carton_id AND products.status = 1
             ORDER BY product_code ASC
             LIMIT :offset, :page_size
         ");
@@ -1490,29 +1182,7 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
         <div class="section">
             <!-- 清空+恢复功能按钮区 -->
 <div class="content-header" style="display: flex; justify-content: flex-end; margin-bottom: 20px;">
-    <div class="action-buttons">
-        <!-- 清空按钮 -->
-        <form method="post" action="" onsubmit="return confirm('确定要清空吗？数据会自动备份，可后续恢复');" style="float: right; margin-right: 10px;">
-            <input type="hidden" name="level" value="<?php echo $level; ?>">
-            <input type="hidden" name="id" value="<?php echo $id; ?>">
-            <button type="submit" name="clear" class="btn btn-danger">一键清空</button>
-        </form>
-
-        <!-- 恢复功能 -->
-        <form method="post" action="" class="restore-form" onsubmit="return confirm('确定要恢复【<?php echo $selected_backup_date ?: '选中日期'; ?>】的备份吗？');">
-            <select name="backup_date" required style="margin-right: 5px;">
-                <option value="">选择备份日期</option>
-                <?php foreach ($backup_dates as $date): ?>
-                    <option value="<?php echo $date; ?>" <?php echo $selected_backup_date == $date ? 'selected' : ''; ?>>
-                        <?php echo $date; ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-            <button type="submit" name="restore" class="btn btn-restore" <?php echo empty($backup_dates) ? 'disabled' : ''; ?>>
-                恢复选中备份
-            </button>
-        </form>
-    </div>
+    <!-- 功能按钮区已清空 -->
 </div>
 
         <!-- 筛选功能表单 -->
@@ -1614,7 +1284,7 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
     '', '', '',
     <?php echo $item['distributor_id'] ?: '0'; ?> // 传递经销商ID
 )">编辑</button>
-                                    <form method="post" action="" onsubmit="return confirm('确定要删除这个箱子吗？数据会自动备份');" style="display: inline;">
+                                    <form method="post" action="" onsubmit="return confirm('确定要删除这个箱子吗？');" style="display: inline;">
                                         <input type="hidden" name="item_id" value="<?php echo $item['id']; ?>">
                                         <input type="hidden" name="level" value="box">
                                         <button type="submit" name="delete_single" class="btn btn-delete">删除</button>
@@ -1642,7 +1312,7 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
     '', '', '',
     <?php echo $item['distributor_id'] ?: '0'; ?> // 传递经销商ID
 )">编辑</button>
-                                    <form method="post" action="" onsubmit="return confirm('确定要删除这个盒子吗？数据会自动备份');" style="display: inline;">
+                                    <form method="post" action="" onsubmit="return confirm('确定要删除这个盒子吗？');" style="display: inline;">
                                         <input type="hidden" name="item_id" value="<?php echo $item['id']; ?>">
                                         <input type="hidden" name="level" value="carton">
                                         <input type="hidden" name="id" value="<?php echo $id; ?>">
@@ -1667,7 +1337,7 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
                                         '<?php echo addslashes($item['region']); ?>',
                                         '<?php echo addslashes($item['image_url']); ?>'
                                     )">编辑</button>
-                                    <form method="post" action="" onsubmit="return confirm('确定要删除这个产品吗？数据会自动备份');" style="display: inline;">
+                                    <form method="post" action="" onsubmit="return confirm('确定要删除这个产品吗？');" style="display: inline;">
                                         <input type="hidden" name="item_id" value="<?php echo $item['id']; ?>">
                                         <input type="hidden" name="level" value="product">
                                         <input type="hidden" name="id" value="<?php echo $id; ?>">
@@ -1914,8 +1584,8 @@ function openEditModal(id, level, batch = '', date = '', distributorId = '', nam
             var ids = [];
             selectedItems.forEach(item => ids.push(item.value));
             document.getElementById('selectedIds').value = ids.join(',');
-            // 确认备份提示
-            return confirm('确定要删除选中的' + selectedItems.length + '条记录吗？数据会自动备份，可后续恢复');
+            // 确认删除提示
+            return confirm('确定要删除选中的' + selectedItems.length + '条记录吗？');
         }
     </script>
 </body>

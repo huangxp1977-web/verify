@@ -534,10 +534,10 @@ if (isset($_GET['action']) && $_GET['action'] == 'reset_count' && isset($_GET['i
                             <th>ID</th>
                             <th>证书编号</th>
                             <th>证书名称</th>
-                            <th>使用状态</th>
                             <th>查询链接</th>
-                            <th>最后扫码时间</th>
                             <th>创建时间</th>
+                            <th>使用状态</th>
+                            <th>最后扫码时间</th>
                             <th>操作</th>
                         </tr>
                     </thead>
@@ -548,6 +548,15 @@ if (isset($_GET['action']) && $_GET['action'] == 'reset_count' && isset($_GET['i
                                     <td><?php echo $link['id']; ?></td>
                                     <td><?php echo htmlspecialchars($link['cert_no']); ?></td>
                                     <td><?php echo htmlspecialchars($link['cert_name'] ?? '-'); ?></td>
+                                    <td class="url-cell" title="<?php echo htmlspecialchars($link['query_url'] ?? ''); ?>">
+                                        <div class="url-wrapper">
+                                            <span class="url-text"><?php echo htmlspecialchars($link['query_url'] ?? '-'); ?></span>
+                                            <?php if (!empty($link['query_url'])): ?>
+                                                <button type="button" class="btn-copy" onclick="copyToClipboard('<?php echo htmlspecialchars($link['query_url']); ?>')">复制</button>
+                                            <?php endif; ?>
+                                        </div>
+                                    </td>
+                                    <td><?php echo isset($link['create_time']) ? $link['create_time'] : '-'; ?></td>
                                     <td>
                                         <?php 
                                         $qc = isset($link['query_count']) ? intval($link['query_count']) : 0;
@@ -559,16 +568,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'reset_count' && isset($_GET['i
                                             <span class="status-used">● 已失效</span>
                                         <?php endif; ?>
                                     </td>
-                                    <td class="url-cell" title="<?php echo htmlspecialchars($link['query_url'] ?? ''); ?>">
-                                        <div class="url-wrapper">
-                                            <span class="url-text"><?php echo htmlspecialchars($link['query_url'] ?? '-'); ?></span>
-                                            <?php if (!empty($link['query_url'])): ?>
-                                                <button type="button" class="btn-copy" onclick="copyToClipboard('<?php echo htmlspecialchars($link['query_url']); ?>')">复制</button>
-                                            <?php endif; ?>
-                                        </div>
-                                    </td>
                                     <td><?php echo isset($link['last_scan_time']) ? $link['last_scan_time'] : '-'; ?></td>
-                                    <td><?php echo isset($link['create_time']) ? $link['create_time'] : '-'; ?></td>
                                     <td>
                                         <button class="btn btn-secondary" onclick="resetCount(<?php echo $link['id']; ?>)" style="padding: 2px 8px; font-size: 12px; background: #fff; color: #dc3545; border-color: #dc3545;">重置</button>
                                     </td>

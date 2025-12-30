@@ -35,6 +35,16 @@ $slide2Url = getImageUrl('/uploads/banners/8.png');
     <link rel="stylesheet" href="static/css/reset.css">
     <link rel="stylesheet" href="static/css/index.css">
     <style>
+        /* 轮播图限制高度 */
+        .banner {
+            max-height: 40vh;
+            overflow: hidden;
+        }
+        .banner img {
+            width: 100%;
+            height: auto;
+        }
+        
         /* 加载中样式 */
         .loading {
             text-align: center;
@@ -170,16 +180,26 @@ $slide2Url = getImageUrl('/uploads/banners/8.png');
                     <h3>查询结果</h3>
                     <p class="status">该防伪码状态：正品</p>
                     <p class="red">产品防伪码：${code.trim()}</p> <!-- 新增显示查询的防伪码 -->
-                    <p>恭喜您，该产品为${brandName}品牌正品，请放心使用</p>
+                    <p>恭喜您，该产品为正品，请放心使用</p>
                     ${detailHtml}
                 `;
             } else {
-                // 3.4.2 查询失败（未找到防伪码）：提示假冒风险
+                // 3.4.2 查询失败：区分不同错误类型
                 resultContainer.className = 'result error';
-                resultContainer.innerHTML = `
-                    <h3>查询结果</h3>
-                    <p class="status">该防伪码状态：未查询到该讯息</p>
-                `;
+                if (apiResult.code === 403) {
+                    // 防伪码已失效（超过最大查询次数）
+                    resultContainer.innerHTML = `
+                        <h3>查询结果</h3>
+                        <p class="status">该防伪码状态：已失效</p>
+                        <p>${apiResult.message || '该防伪码已达最大查询次数'}</p>
+                    `;
+                } else {
+                    // 未找到防伪码
+                    resultContainer.innerHTML = `
+                        <h3>查询结果</h3>
+                        <p class="status">该防伪码状态：未查询到该讯息</p>
+                    `;
+                }
             }
 
         } catch (error) {
@@ -195,8 +215,10 @@ $slide2Url = getImageUrl('/uploads/banners/8.png');
     }
 
     // 4. 页面加载完成后自动执行查询
-    window.onload = function () {
-        queryTraceCode();
+    window.onload = async function () {
+        await queryTraceCode();
+        // 自动滚动到结果区域
+        document.getElementById('resultContainer').scrollIntoView({ behavior: 'smooth' });
     };
 </script>
 

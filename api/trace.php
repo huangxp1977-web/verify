@@ -31,6 +31,9 @@ if (empty($code)) {
     exit;
 }
 
+// 配置最大有效查询次数（固定为2次）
+define('MAX_QUERY_TIMES', 2);
+
 try {
     // 增加GROUP_CONCAT的长度限制，确保能容纳100个防伪码
     $pdo->exec("SET SESSION group_concat_max_len = 1000000");
@@ -41,13 +44,35 @@ try {
         FROM products p
         JOIN cartons c ON p.carton_id = c.id
         JOIN boxes b ON c.box_id = b.id
-        WHERE p.product_code = :code
+        WHERE p.product_code = :code AND p.status = 1
     ");
     $stmt->bindParam(':code', $code);
     $stmt->execute();
 
     if ($stmt->rowCount() > 0) {
         $productData = $stmt->fetch(PDO::FETCH_ASSOC);
+        $productId = $productData['id'];
+        $currentQueryCount = isset($productData['query_count']) ? intval($productData['query_count']) : 0;
+        
+        // 判断是否已达最大查询次数
+        if ($currentQueryCount >= MAX_QUERY_TIMES) {
+            $response['code'] = 403;
+            $response['message'] = "该防伪码已失效（已达最大" . MAX_QUERY_TIMES . "次有效查询）";
+            echo json_encode($response, JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        
+        // 更新查询次数（自增1）和最后扫码时间
+        $newQueryCount = $currentQueryCount + 1;
+        $updateStmt = $pdo->prepare("
+            UPDATE products 
+            SET query_count = :new_count, last_scan_time = NOW() 
+            WHERE id = :id
+        ");
+        $updateStmt->bindParam(':new_count', $newQueryCount, PDO::PARAM_INT);
+        $updateStmt->bindParam(':id', $productId, PDO::PARAM_INT);
+        $updateStmt->execute();
+        
         // 格式化产品数据（过滤敏感字段、统一格式）
         $response['success'] = true;
         $response['message'] = '查询成功（单支产品）';
@@ -60,7 +85,8 @@ try {
             'region' => htmlspecialchars($productData['region']),
             'production_date' => htmlspecialchars($productData['production_date']),
             'image_url' => !empty($productData['image_url']) ? getImageUrl(htmlspecialchars($productData['image_url'])) : null,
-            'create_time' => htmlspecialchars($productData['create_time']) // 假设表中有创建时间字段
+            'create_time' => htmlspecialchars($productData['create_time']),
+            'query_count' => $newQueryCount  // 返回当前查询次数
         ];
         echo json_encode($response, JSON_UNESCAPED_UNICODE);
         exit;
@@ -69,19 +95,41 @@ try {
     // 2. 若不是产品，查询是否为盒子防伪码
     $stmt = $pdo->prepare("
         SELECT c.*, b.box_code,
-        (SELECT COUNT(*) FROM products WHERE carton_id = c.id) as product_count,
-        (SELECT GROUP_CONCAT(product_code SEPARATOR ', ') FROM products WHERE carton_id = c.id) as product_codes
+        (SELECT COUNT(*) FROM products WHERE carton_id = c.id AND status = 1) as product_count,
+        (SELECT GROUP_CONCAT(product_code SEPARATOR ', ') FROM products WHERE carton_id = c.id AND status = 1) as product_codes
         FROM cartons c
         JOIN boxes b ON c.box_id = b.id
-        WHERE c.carton_code = :code
+        WHERE c.carton_code = :code AND c.status = 1
     ");
     $stmt->bindParam(':code', $code);
     $stmt->execute();
 
     if ($stmt->rowCount() > 0) {
         $cartonData = $stmt->fetch(PDO::FETCH_ASSOC);
+        $cartonId = $cartonData['id'];
+        $currentQueryCount = isset($cartonData['query_count']) ? intval($cartonData['query_count']) : 0;
+        
+        // 判断是否已达最大查询次数
+        if ($currentQueryCount >= MAX_QUERY_TIMES) {
+            $response['code'] = 403;
+            $response['message'] = "该盒子防伪码已失效（已达最大" . MAX_QUERY_TIMES . "次有效查询）";
+            echo json_encode($response, JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        
+        // 更新查询次数和最后扫码时间
+        $newQueryCount = $currentQueryCount + 1;
+        $updateStmt = $pdo->prepare("
+            UPDATE cartons 
+            SET query_count = :new_count, last_scan_time = NOW() 
+            WHERE id = :id
+        ");
+        $updateStmt->bindParam(':new_count', $newQueryCount, PDO::PARAM_INT);
+        $updateStmt->bindParam(':id', $cartonId, PDO::PARAM_INT);
+        $updateStmt->execute();
+        
         // 获取盒子下所有产品详情
-        $stmtProducts = $pdo->prepare("SELECT * FROM products WHERE carton_id = :carton_id");
+        $stmtProducts = $pdo->prepare("SELECT * FROM products WHERE carton_id = :carton_id AND status = 1");
         $stmtProducts->bindParam(':carton_id', $cartonData['id']);
         $stmtProducts->execute();
         $productsList = $stmtProducts->fetchAll(PDO::FETCH_ASSOC);
@@ -108,7 +156,8 @@ try {
             'product_count' => (int)$cartonData['product_count'],
             'product_codes' => $cartonData['product_codes'] ? explode(', ', $cartonData['product_codes']) : [],
             'products' => $formattedProducts,
-            'create_time' => htmlspecialchars($cartonData['create_time'])
+            'create_time' => htmlspecialchars($cartonData['create_time']),
+            'query_count' => $newQueryCount
         ];
         echo json_encode($response, JSON_UNESCAPED_UNICODE);
         exit;
@@ -117,18 +166,40 @@ try {
     // 3. 若不是盒子，查询是否为箱子防伪码
     $stmt = $pdo->prepare("
         SELECT b.*,
-        (SELECT COUNT(*) FROM cartons WHERE box_id = b.id) as carton_count,
-        (SELECT GROUP_CONCAT(carton_code SEPARATOR ', ') FROM cartons WHERE box_id = b.id) as carton_codes
+        (SELECT COUNT(*) FROM cartons WHERE box_id = b.id AND status = 1) as carton_count,
+        (SELECT GROUP_CONCAT(carton_code SEPARATOR ', ') FROM cartons WHERE box_id = b.id AND status = 1) as carton_codes
         FROM boxes b
-        WHERE b.box_code = :code
+        WHERE b.box_code = :code AND b.status = 1
     ");
     $stmt->bindParam(':code', $code);
     $stmt->execute();
 
     if ($stmt->rowCount() > 0) {
         $boxData = $stmt->fetch(PDO::FETCH_ASSOC);
+        $boxId = $boxData['id'];
+        $currentQueryCount = isset($boxData['query_count']) ? intval($boxData['query_count']) : 0;
+        
+        // 判断是否已达最大查询次数
+        if ($currentQueryCount >= MAX_QUERY_TIMES) {
+            $response['code'] = 403;
+            $response['message'] = "该箱子防伪码已失效（已达最大" . MAX_QUERY_TIMES . "次有效查询）";
+            echo json_encode($response, JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        
+        // 更新查询次数和最后扫码时间
+        $newQueryCount = $currentQueryCount + 1;
+        $updateStmt = $pdo->prepare("
+            UPDATE boxes 
+            SET query_count = :new_count, last_scan_time = NOW() 
+            WHERE id = :id
+        ");
+        $updateStmt->bindParam(':new_count', $newQueryCount, PDO::PARAM_INT);
+        $updateStmt->bindParam(':id', $boxId, PDO::PARAM_INT);
+        $updateStmt->execute();
+        
         // 获取箱子下所有盒子详情
-        $stmtCartons = $pdo->prepare("SELECT * FROM cartons WHERE box_id = :box_id");
+        $stmtCartons = $pdo->prepare("SELECT * FROM cartons WHERE box_id = :box_id AND status = 1");
         $stmtCartons->bindParam(':box_id', $boxData['id']);
         $stmtCartons->execute();
         $cartonsList = $stmtCartons->fetchAll(PDO::FETCH_ASSOC);
@@ -152,7 +223,8 @@ try {
             'carton_count' => (int)$boxData['carton_count'],
             'carton_codes' => $boxData['carton_codes'] ? explode(', ', $boxData['carton_codes']) : [],
             'cartons' => $formattedCartons,
-            'create_time' => htmlspecialchars($boxData['create_time'])
+            'create_time' => htmlspecialchars($boxData['create_time']),
+            'query_count' => $newQueryCount
         ];
         echo json_encode($response, JSON_UNESCAPED_UNICODE);
         exit;
