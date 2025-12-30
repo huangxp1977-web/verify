@@ -47,10 +47,10 @@ $scanBgUrl = getImageUrl($scanBgUrl);
 <meta name="browsermode" content="application">
 <meta name="x5-page-mode" content="app">
 <meta name="x5-page-mode" content="default">
-
+<link rel="icon" href="data:image/x-icon;base64,AAABAAEAEBAAAAEAIABoBAAAFgAAACgAAAAQAAAAIAAAAAEAIAAAAAAAAAQAABILAAASCwAAAAAAAAAAAAD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8AfICU/3yAlP98gJT/fICU/////wD///8AfICU/3yAlP98gJT/fICU/////wD///8A////AP///wD///8A////AP///wB8gJT/fICU/3yAlP98gJT/////AP///wB8gJT/fICU/3yAlP98gJT/////AP///wD///8A////AP///wD///8A////AHyAlP98gJT/fICU/3yAlP98gJT/fICU/3yAlP98gJT/fICU/3yAlP////8A////AP///wD///8A////AP///wD///8AfICU/3yAlP98gJT/fICU/3yAlP98gJT/fICU/3yAlP98gJT/fICU/////wD///8A////AP///wD///8A////AP///wB8gJT/fICU/3yAlP98gJT/////AP///wB8gJT/fICU/3yAlP98gJT/////AP///wD///8A////AP///wD///8A////AHyAlP98gJT/fICU/3yAlP////8A////AHyAlP98gJT/fICU/3yAlP////8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A//8AAP//AAD//wAA44cAAOOHAADAAQAAwAEAAMABAADAAQAA44cAAOOHAAD//wAA//8AAP//AAD//wAA//8AAA==">
 <link rel="stylesheet" href="static/css/reset.css">
 <link rel="stylesheet" href="static/css/index.css">
-<script src="http://res.wx.qq.com/open/js/jweixin-1.6.0.js"></script>
+<script src="https://res.wx.qq.com/open/js/jweixin-1.6.0.js"></script>
 <script>
 wx.config({
   debug: false,

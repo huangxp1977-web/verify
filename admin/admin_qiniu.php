@@ -41,7 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $enabled = isset($_POST['enabled']) ? 1 : 0;
     
     // 验证必填项（仅当启用时）
-    if ($enabled && (empty($accessKey) || empty($secretKey) || empty($bucket) || empty($domain))) {
+    if ($enabled && (empty($accessKey) || empty($secretKey) || empty($bucket) || empty($domainHost))) {
         $error = '启用七牛云时，所有配置项都必须填写';
     } else {
         // 保存配置
@@ -449,6 +449,17 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
                         if (data.success) {
                             document.getElementById('fileCount').innerHTML = 
                                 '待同步文件: <strong>' + data.count + '</strong> 个';
+                            // 如果没有待同步文件，禁用按钮
+                            var syncBtn = document.getElementById('syncBtn');
+                            if (data.count === 0) {
+                                syncBtn.disabled = true;
+                                syncBtn.style.backgroundColor = '#ccc';
+                                syncBtn.style.cursor = 'not-allowed';
+                            } else {
+                                syncBtn.disabled = false;
+                                syncBtn.style.backgroundColor = '';
+                                syncBtn.style.cursor = '';
+                            }
                         } else {
                             document.getElementById('fileCount').textContent = '获取失败: ' + data.message;
                         }

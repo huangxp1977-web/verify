@@ -12,17 +12,11 @@ set_time_limit(0);
 // 引入辅助函数
 require_once __DIR__ . '/../includes/qiniu_helper.php';
 
-// 验证七牛云配置
-if (!isQiniuEnabled()) {
-    echo json_encode(['success' => false, 'message' => '七牛云未启用或配置不完整']);
-    exit;
-}
-
 // 获取操作类型
 $action = $_GET['action'] ?? 'sync';
 
 if ($action === 'list') {
-    // 仅列出待同步文件
+    // 列出待同步文件（不需要验证七牛云是否启用）
     $files = scanUploadsDirectory();
     echo json_encode([
         'success' => true,
@@ -33,6 +27,12 @@ if ($action === 'list') {
 }
 
 if ($action === 'sync') {
+    // 验证七牛云配置
+    if (!isQiniuEnabled()) {
+        echo json_encode(['success' => false, 'message' => '七牛云未启用或配置不完整']);
+        exit;
+    }
+    
     // 执行同步
     $files = scanUploadsDirectory();
     $results = [
@@ -42,14 +42,33 @@ if ($action === 'sync') {
         'errors' => []
     ];
     
+    // 读取现有索引
+    $indexFile = __DIR__ . '/../config/qiniu_index.json';
+    $index = [];
+    if (file_exists($indexFile)) {
+        $index = json_decode(file_get_contents($indexFile), true) ?: [];
+    }
+    
     foreach ($files as $file) {
         $localPath = $_SERVER['DOCUMENT_ROOT'] . $file['path'];
         $key = $file['key'];
+        
+        // 获取文件信息（在删除前）
+        $fileSize = file_exists($localPath) ? filesize($localPath) : 0;
+        $fileTime = file_exists($localPath) ? filemtime($localPath) : time();
         
         // 上传到七牛云
         $result = uploadToQiniu($localPath, $key);
         
         if ($result['success']) {
+            // 记录到索引
+            $index[] = [
+                'key' => $key,
+                'size' => $fileSize,
+                'time' => $fileTime,
+                'synced_at' => time()
+            ];
+            
             // 删除本地文件
             if (unlink($localPath)) {
                 $results['success']++;
@@ -68,6 +87,9 @@ if ($action === 'sync') {
             ];
         }
     }
+    
+    // 保存索引文件
+    file_put_contents($indexFile, json_encode($index, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
     
     echo json_encode([
         'success' => true,
