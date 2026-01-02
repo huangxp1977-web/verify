@@ -39,7 +39,26 @@ window.handleScanClick = function() {
     success: function (res) {
       var result = res.resultStr;
       if (result) {
-        window.location.href = result;
+        // 判断扫码结果类型
+        if (result.indexOf('cert/') !== -1 || result.indexOf('cert_no=') !== -1) {
+          // 是证书链接，直接跳转
+          window.location.href = result;
+        } else if (result.indexOf('wx/') !== -1 || 
+                   result.indexOf('PRODUCT') !== -1 || 
+                   result.indexOf('CARTON') !== -1 || 
+                   result.indexOf('BOX') !== -1) {
+          // 是产品溯源链接或溯源码，提示不适用
+          alert('此二维码为产品溯源码，请使用产品溯源入口扫描');
+        } else if (result.indexOf('http') === 0 && result.indexOf('code=') !== -1) {
+          // 是带code参数的URL，可能是产品溯源
+          alert('此二维码不适用于证书查询系统');
+        } else if (result.indexOf('http') === 0) {
+          // 其他URL，尝试跳转（可能是老版本的证书链接）
+          window.location.href = result;
+        } else {
+          // 非URL，不认识的码
+          alert('此二维码不适用于证书查询系统');
+        }
       } else {
         alert('扫码失败，请重试');
       }

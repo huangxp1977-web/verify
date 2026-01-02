@@ -68,10 +68,33 @@ function handleScanClick() {
   // 检查是否在微信环境且 wx.scanQRCode 可用
   if (typeof wx !== 'undefined' && wx.scanQRCode) {
     wx.scanQRCode({
-      needResult: 0,
+      needResult: 1, // 返回扫码结果让JS处理
       scanType: ["qrCode","barCode"],
       success: function (res) {
         var result = res.resultStr;
+        
+        // 判断扫码结果类型
+        if (result.indexOf('cert/') !== -1 || result.indexOf('cert_no=') !== -1) {
+          // 是证书链接，提示不适用
+          alert('此二维码为证书查询码，请使用证书查询入口扫描');
+        } else if (result.indexOf('http') === 0) {
+          // 是URL，检查是否包含产品溯源参数
+          if (result.indexOf('code=') !== -1) {
+            // 提取code参数并跳转到本地fw.php
+            var url = new URL(result);
+            var code = url.searchParams.get('code');
+            if (code) {
+              window.location.href = 'fw.php?code=' + encodeURIComponent(code);
+            } else {
+              alert('无效的二维码');
+            }
+          } else {
+            alert('此二维码不适用于产品溯源系统');
+          }
+        } else {
+          // 不是URL，当作纯防伪码处理
+          window.location.href = 'fw.php?code=' + encodeURIComponent(result);
+        }
       }
     });
   } else {

@@ -27,6 +27,11 @@ function isQiniuEnabled() {
 
 // 获取图片URL（根据配置返回CDN或本地链接）
 function getImageUrl($localPath) {
+    // 如果已经是完整URL，直接返回
+    if (strpos($localPath, 'http://') === 0 || strpos($localPath, 'https://') === 0) {
+        return $localPath;
+    }
+    
     if (!isQiniuEnabled()) {
         return $localPath;
     }
@@ -172,6 +177,59 @@ function uploadToQiniu($localFilePath, $key) {
         return [
             'success' => false,
             'error' => $result['error'] ?? '上传失败',
+            'response' => $response
+        ];
+    }
+}
+
+// 从七牛云删除文件
+function deleteFromQiniu($key) {
+    $config = getQiniuConfig();
+    if (empty($config['access_key']) || empty($config['secret_key']) || empty($config['bucket'])) {
+        return ['success' => false, 'error' => '七牛云配置不完整'];
+    }
+    
+    $accessKey = $config['access_key'];
+    $secretKey = $config['secret_key'];
+    $bucket = $config['bucket'];
+    
+    // 构建删除请求
+    $encodedEntry = base64UrlEncode("$bucket:$key");
+    $path = "/delete/$encodedEntry";
+    $signStr = "$path\n";
+    $sign = hash_hmac('sha1', $signStr, $secretKey, true);
+    $encodedSign = base64UrlEncode($sign);
+    $authorization = "QBox $accessKey:$encodedSign";
+    
+    $url = "https://rs.qbox.me$path";
+    
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        "Authorization: $authorization",
+        "Content-Type: application/x-www-form-urlencoded"
+    ]);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+    
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $error = curl_error($ch);
+    curl_close($ch);
+    
+    if ($error) {
+        return ['success' => false, 'error' => 'cURL错误: ' . $error];
+    }
+    
+    // 200表示成功，612表示文件不存在也算成功
+    if ($httpCode === 200 || $httpCode === 612) {
+        return ['success' => true];
+    } else {
+        $result = json_decode($response, true);
+        return [
+            'success' => false,
+            'error' => $result['error'] ?? "删除失败(HTTP $httpCode)",
             'response' => $response
         ];
     }

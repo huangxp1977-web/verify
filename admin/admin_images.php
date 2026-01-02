@@ -4,13 +4,20 @@ require_once __DIR__ . '/../config/config.php';
 
 // 引入统一域名鉴权
 require_once __DIR__ . '/check_domain.php';
+// 引入七牛云辅助函数
+require_once __DIR__ . '/../includes/qiniu_helper.php';
 // 检查登录状态
 if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
     header('Location: /login.php');
     exit;
 }
 
+// Flash消息处理（从session读取后清除）
 $messages = ['success' => [], 'error' => []];
+if (isset($_SESSION['flash_messages'])) {
+    $messages = $_SESSION['flash_messages'];
+    unset($_SESSION['flash_messages']);
+}
 
 // 分类配置
 $categories = [
@@ -48,6 +55,16 @@ function saveBgConfig($url) {
     global $bgConfigFile;
     $config = ['deoumeiti' => $url, 'updated_at' => date('Y-m-d H:i:s')];
     file_put_contents($bgConfigFile, json_encode($config, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    
+    // 同时更新 scan_layout.json（scan.php 读取的配置文件）
+    $layoutConfigFile = __DIR__ . '/../config/scan_layout.json';
+    if (file_exists($layoutConfigFile)) {
+        $layoutConfig = json_decode(file_get_contents($layoutConfigFile), true) ?: [];
+    } else {
+        $layoutConfig = [];
+    }
+    $layoutConfig['background'] = $url;
+    file_put_contents($layoutConfigFile, json_encode($layoutConfig, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
 }
 
 // 处理设置为扫码背景
@@ -77,6 +94,29 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['image'])) {
             
             if (move_uploaded_file($file['tmp_name'], $destination)) {
                 $messages['success'][] = "图片上传成功：{$filename}";
+                
+                // 如果七牛云开启，自动上传到七牛云
+                if (isQiniuEnabled()) {
+                    $qiniuKey = $catConfig['dir'] . $filename;
+                    $result = uploadToQiniu($destination, $qiniuKey);
+                    if ($result['success']) {
+                        $messages['success'][] = "已同步到七牛云";
+                        // 更新索引文件
+                        $indexFile = __DIR__ . '/../config/qiniu_index.json';
+                        $index = [];
+                        if (file_exists($indexFile)) {
+                            $index = json_decode(file_get_contents($indexFile), true) ?: [];
+                        }
+                        $index[] = [
+                            'key' => $qiniuKey,
+                            'size' => filesize($destination),
+                            'time' => time()
+                        ];
+                        file_put_contents($indexFile, json_encode($index, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+                    } else {
+                        $messages['error'][] = "七牛云同步失败: " . ($result['error'] ?? '未知错误');
+                    }
+                }
             } else {
                 $messages['error'][] = "图片上传失败，请检查目录权限";
             }
@@ -91,51 +131,83 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['file']
     $filename = basename($_GET['file']);
     $filepath = $uploadDir . $filename;
     $imageUrl = '/' . $catConfig['dir'] . $filename;
+    $qiniuKey = $catConfig['dir'] . $filename; // 七牛云的key（不带前导/）
     
-    if (file_exists($filepath) && is_file($filepath)) {
-        $canDelete = true;
-        $reason = '';
-        
-        // 证书图片：检查是否被证书使用
-        if ($currentCat == 'certificates') {
-            $stmt = $pdo->prepare("SELECT COUNT(*) FROM certificates WHERE image_url LIKE ?");
-            $stmt->execute(['%' . $filename]);
-            if ($stmt->fetchColumn() > 0) {
-                $canDelete = false;
-                $reason = "该图片正在被证书使用";
-            }
+    $qiniuEnabled = isQiniuEnabled();
+    $canDelete = true;
+    $reason = '';
+    
+    // 证书图片：检查是否被证书使用
+    if ($currentCat == 'certificates') {
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM certificates WHERE image_url LIKE ?");
+        $stmt->execute(['%' . $filename]);
+        if ($stmt->fetchColumn() > 0) {
+            $canDelete = false;
+            $reason = "该图片正在被证书使用";
         }
-        
-        // 背景图片：检查是否正在使用
-        if ($currentCat == 'backgrounds') {
-            if (getCurrentBg() == $imageUrl) {
-                $canDelete = false;
-                $reason = "该图片正在作为扫码背景使用";
-            }
+    }
+    
+    // 背景图片：检查是否正在使用
+    if ($currentCat == 'backgrounds') {
+        if (getCurrentBg() == $imageUrl) {
+            $canDelete = false;
+            $reason = "该图片正在作为扫码背景使用";
         }
-        
-        // 产品图片：检查是否被产品使用
-        if ($currentCat == 'products') {
-            $stmt = $pdo->prepare("SELECT COUNT(*) FROM products WHERE image LIKE ?");
-            $stmt->execute(['%' . $filename]);
-            if ($stmt->fetchColumn() > 0) {
-                $canDelete = false;
-                $reason = "该图片正在被产品使用";
-            }
+    }
+    
+    // 产品图片：检查是否被产品使用
+    if ($currentCat == 'products') {
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM products WHERE image LIKE ?");
+        $stmt->execute(['%' . $filename]);
+        if ($stmt->fetchColumn() > 0) {
+            $canDelete = false;
+            $reason = "该图片正在被产品使用";
         }
-        
-        if ($canDelete) {
-            if (unlink($filepath)) {
-                $messages['success'][] = "图片删除成功";
+    }
+    
+    if (!$canDelete) {
+        $messages['error'][] = $reason . "，无法删除";
+    } else {
+        // 根据七牛云是否开启决定删除方式
+        if ($qiniuEnabled) {
+            // 七牛云开启：从七牛云删除
+            $result = deleteFromQiniu($qiniuKey);
+            if ($result['success']) {
+                $messages['success'][] = "图片删除成功（七牛云）";
+                // 如果本地也有，顺便删除
+                if (file_exists($filepath)) {
+                    @unlink($filepath);
+                }
+                // 从索引文件中移除该条记录
+                $indexFile = __DIR__ . '/../config/qiniu_index.json';
+                if (file_exists($indexFile)) {
+                    $index = json_decode(file_get_contents($indexFile), true) ?: [];
+                    $index = array_filter($index, function($item) use ($qiniuKey) {
+                        return $item['key'] !== $qiniuKey;
+                    });
+                    file_put_contents($indexFile, json_encode(array_values($index), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+                }
             } else {
-                $messages['error'][] = "图片删除失败";
+                $messages['error'][] = "删除失败: " . ($result['error'] ?? '未知错误');
             }
         } else {
-            $messages['error'][] = $reason . "，无法删除";
+            // 七牛云未开启：从本地删除
+            if (file_exists($filepath) && is_file($filepath)) {
+                if (unlink($filepath)) {
+                    $messages['success'][] = "图片删除成功";
+                } else {
+                    $messages['error'][] = "图片删除失败";
+                }
+            } else {
+                $messages['error'][] = "图片不存在";
+            }
         }
-    } else {
-        $messages['error'][] = "图片不存在";
     }
+    
+    // 保存消息到session并重定向（PRG模式）
+    $_SESSION['flash_messages'] = $messages;
+    header("Location: admin_images.php?cat={$currentCat}");
+    exit;
 }
 
 // 获取当前分类的所有图片
