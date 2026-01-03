@@ -55,8 +55,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_product'])) {
     $brand_id = isset($_POST['brand_id']) && $_POST['brand_id'] !== '' ? intval($_POST['brand_id']) : null;
     $specification = isset($_POST['specification']) ? trim($_POST['specification']) : '';
     
-    if (empty($product_name)) {
-        $error = "产品名称不能为空";
+    if (empty($product_name) || empty($brand_id)) {
+        $error = "产品名称和品牌不能为空";
     } else {
         try {
             $image_url = isset($_POST['image_url']) ? trim($_POST['image_url']) : '';
@@ -78,8 +78,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_product'])) {
     $brand_id = isset($_POST['brand_id']) && $_POST['brand_id'] !== '' ? intval($_POST['brand_id']) : null;
     $specification = isset($_POST['specification']) ? trim($_POST['specification']) : '';
     
-    if (empty($id) || empty($product_name)) {
-        $error = "产品名称不能为空";
+    if (empty($id) || empty($product_name) || empty($brand_id)) {
+        $error = "产品名称和品牌不能为空";
     } else {
         try {
             $image_url = isset($_POST['image_url']) ? trim($_POST['image_url']) : '';
@@ -429,8 +429,8 @@ $activeBrands = getActiveBrands($pdo);
 
                         <div class="form-col">
                             <div class="form-group">
-                                <label for="brand_id">品牌</label>
-                                <select id="brand_id" name="brand_id">
+                                <label for="brand_id">品牌 *</label>
+                                <select id="brand_id" name="brand_id" required>
                                     <option value="">-- 请选择品牌 --</option>
                                     <?php foreach ($activeBrands as $brand): ?>
                                     <option value="<?php echo $brand['id']; ?>" <?php echo ($edit_product && $edit_product['brand_id'] == $brand['id']) ? 'selected' : ''; ?>>
