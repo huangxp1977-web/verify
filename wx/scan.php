@@ -73,27 +73,27 @@ function handleScanClick() {
       success: function (res) {
         var result = res.resultStr;
         
-        // 判断扫码结果类型
-        if (result.indexOf('cert/') !== -1 || result.indexOf('cert_no=') !== -1) {
-          // 是证书链接，提示不适用
-          alert('此二维码为证书查询码，请使用证书查询入口扫描');
-        } else if (result.indexOf('http') === 0) {
-          // 是URL，检查是否包含产品溯源参数
-          if (result.indexOf('code=') !== -1) {
-            // 提取code参数并跳转到本地fw.php
-            var url = new URL(result);
-            var code = url.searchParams.get('code');
-            if (code) {
-              window.location.href = 'fw.php?code=' + encodeURIComponent(code);
-            } else {
-              alert('无效的二维码');
+        if (result) {
+          // 判断是否为有效的溯源链接（排除证书链接）
+          var isCertLink = result.indexOf('cert/') !== -1 || result.indexOf('cert_no=') !== -1;
+          var isTraceLink = result.indexOf('wx/') !== -1 || result.indexOf('code=') !== -1 ||
+              result.indexOf('PRODUCT') !== -1 || result.indexOf('CARTON') !== -1 || result.indexOf('BOX') !== -1;
+          
+          if (!isCertLink && isTraceLink) {
+            // 是溯源链接或溯源码，提取code并跳转
+            var code = result;
+            if (result.indexOf('http') === 0 && result.indexOf('code=') !== -1) {
+              try {
+                code = new URL(result).searchParams.get('code') || result;
+              } catch(e) { }
             }
+            window.location.href = 'fw.php?code=' + encodeURIComponent(code);
           } else {
+            // 其他情况（包括证书链接），提示不适用
             alert('此二维码不适用于产品溯源系统');
           }
         } else {
-          // 不是URL，当作纯防伪码处理
-          window.location.href = 'fw.php?code=' + encodeURIComponent(result);
+          alert('扫码失败，请重试');
         }
       }
     });

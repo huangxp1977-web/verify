@@ -98,8 +98,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['image'])) {
                 // 如果七牛云开启，自动上传到七牛云
                 if (isQiniuEnabled()) {
                     $qiniuKey = $catConfig['dir'] . $filename;
+                    // 获取文件信息（在删除前）
+                    $fileSize = filesize($destination);
+                    $fileTime = time();
+                    
                     $result = uploadToQiniu($destination, $qiniuKey);
                     if ($result['success']) {
+                        // 删除本地文件（与同步逻辑保持一致）
+                        @unlink($destination);
                         $messages['success'][] = "已同步到七牛云";
                         // 更新索引文件
                         $indexFile = __DIR__ . '/../config/qiniu_index.json';
@@ -109,8 +115,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['image'])) {
                         }
                         $index[] = [
                             'key' => $qiniuKey,
-                            'size' => filesize($destination),
-                            'time' => time()
+                            'size' => $fileSize,
+                            'time' => $fileTime
                         ];
                         file_put_contents($indexFile, json_encode($index, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
                     } else {
@@ -124,6 +130,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['image'])) {
     } else {
         $messages['error'][] = "上传出错，错误代码：" . $file['error'];
     }
+    
+    // 保存消息到session并重定向（PRG模式）
+    $_SESSION['flash_messages'] = $messages;
+    header("Location: admin_images.php?cat={$currentCat}");
+    exit;
 }
 
 // 处理图片删除
