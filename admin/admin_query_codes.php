@@ -63,7 +63,7 @@ $totalPages = ceil($totalRecords / $perPage);
 // 查询数据
 $sql = "SELECT cl.*, c.cert_name 
         FROM certificate_links cl 
-        LEFT JOIN certificates c ON cl.cert_no = c.cert_no 
+        LEFT JOIN base_certificates c ON cl.cert_no = c.cert_no 
         {$whereClause} 
         ORDER BY cl.id DESC 
         LIMIT {$offset}, {$perPage}";
@@ -173,7 +173,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'reset_count' && isset($_GET['i
             background-color: #4a3f69;
         }
         .has-submenu.open .submenu {
-            max-height: 200px;
+            max-height: none;
         }
         .submenu li a {
             padding-left: 40px;
@@ -386,15 +386,16 @@ if (isset($_GET['action']) && $_GET['action'] == 'reset_count' && isset($_GET['i
                 <a href="javascript:void(0)" onclick="toggleSubmenu(this)">品牌业务 <span class="arrow">▼</span></a>
                 <ul class="submenu">
                     <li><a href="admin_list.php">溯源数据</a></li>
-                    <li><a href="admin_distributors.php">经销商管理</a></li>
-                    <li><a href="admin_product_library.php">产品管理</a></li>
+                    <li><a href="admin_base_distributors.php">经销商管理</a></li>
+                    <li><a href="admin_base_brands.php">品牌管理</a></li>
+                    <li><a href="admin_base_products.php">产品管理</a></li>
                     <li><a href="admin_warehouse_staff.php">出库人员</a></li>
                 </ul>
             </li>
             <li class="has-submenu open">
                 <a href="javascript:void(0)" onclick="toggleSubmenu(this)">代工业务 <span class="arrow">▼</span></a>
                 <ul class="submenu">
-                    <li><a href="admin_certificates.php">证书管理</a></li>
+                    <li><a href="admin_base_certificates.php">证书管理</a></li>
                     <li><a href="admin_query_codes.php" class="active">查询码管理</a></li>
                 </ul>
             </li>

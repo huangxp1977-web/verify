@@ -150,7 +150,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['file']
     
     // 证书图片：检查是否被证书使用
     if ($currentCat == 'certificates') {
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM certificates WHERE image_url LIKE ?");
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM base_certificates WHERE image_url LIKE ?");
         $stmt->execute(['%' . $filename]);
         if ($stmt->fetchColumn() > 0) {
             $canDelete = false;
@@ -362,15 +362,16 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
                 <a href="javascript:void(0)" onclick="toggleSubmenu(this)">品牌业务 <span class="arrow">▼</span></a>
                 <ul class="submenu">
                     <li><a href="admin_list.php">溯源数据</a></li>
-                    <li><a href="admin_distributors.php">经销商管理</a></li>
-                    <li><a href="admin_product_library.php">产品管理</a></li>
+                    <li><a href="admin_base_distributors.php">经销商管理</a></li>
+                    <li><a href="admin_base_brands.php">品牌管理</a></li>
+                    <li><a href="admin_base_products.php">产品管理</a></li>
                     <li><a href="admin_warehouse_staff.php">出库人员</a></li>
                 </ul>
             </li>
             <li class="has-submenu">
                 <a href="javascript:void(0)" onclick="toggleSubmenu(this)">代工业务 <span class="arrow">▼</span></a>
                 <ul class="submenu">
-                    <li><a href="admin_certificates.php">证书管理</a></li>
+                    <li><a href="admin_base_certificates.php">证书管理</a></li>
                     <li><a href="admin_query_codes.php">查询码管理</a></li>
                 </ul>
             </li>

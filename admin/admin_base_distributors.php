@@ -18,12 +18,22 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
 
 $success = '';
 $error = '';
-$distributors = [];
+$base_distributors = [];
 
-// 获取所有经销商
+// 读取 flash 消息
+if (isset($_SESSION['flash_success'])) {
+    $success = $_SESSION['flash_success'];
+    unset($_SESSION['flash_success']);
+}
+if (isset($_SESSION['flash_error'])) {
+    $error = $_SESSION['flash_error'];
+    unset($_SESSION['flash_error']);
+}
+
+// 获取所有经销商（不显示已删除）
 function getDistributors($pdo) {
     try {
-        $stmt = $pdo->query("SELECT * FROM distributors ORDER BY name ASC");
+        $stmt = $pdo->query("SELECT * FROM base_distributors WHERE status >= 0 ORDER BY name ASC");
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch(PDOException $e) {
         return [];
@@ -42,14 +52,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_distributor'])) {
         $error = "请填写所有必填字段";
     } else {
         try {
-            $stmt = $pdo->prepare("INSERT INTO distributors (name, region, contact_person, phone, address) VALUES (:name, :region, :contact_person, :phone, :address)");
+            $stmt = $pdo->prepare("INSERT INTO base_distributors (name, region, contact_person, phone, address) VALUES (:name, :region, :contact_person, :phone, :address)");
             $stmt->bindParam(':name', $name);
             $stmt->bindParam(':region', $region);
             $stmt->bindParam(':contact_person', $contact_person);
             $stmt->bindParam(':phone', $phone);
             $stmt->bindParam(':address', $address);
             $stmt->execute();
-            $success = "经销商添加成功";
+            $_SESSION['flash_success'] = "经销商添加成功";
+            header("Location: admin_base_distributors.php");
+            exit;
         } catch(PDOException $e) {
             $error = "添加经销商出错: " . $e->getMessage();
         }
@@ -69,7 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_distributor'])) {
         $error = "请填写所有必填字段";
     } else {
         try {
-            $stmt = $pdo->prepare("UPDATE distributors SET name = :name, region = :region, contact_person = :contact_person, phone = :phone, address = :address WHERE id = :id");
+            $stmt = $pdo->prepare("UPDATE base_distributors SET name = :name, region = :region, contact_person = :contact_person, phone = :phone, address = :address WHERE id = :id");
             $stmt->bindParam(':id', $id);
             $stmt->bindParam(':name', $name);
             $stmt->bindParam(':region', $region);
@@ -77,7 +89,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_distributor'])) {
             $stmt->bindParam(':phone', $phone);
             $stmt->bindParam(':address', $address);
             $stmt->execute();
-            $success = "经销商信息更新成功";
+            $_SESSION['flash_success'] = "经销商信息更新成功";
+            header("Location: admin_base_distributors.php");
+            exit;
         } catch(PDOException $e) {
             $error = "更新经销商出错: " . $e->getMessage();
         }
@@ -96,10 +110,11 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id']))
         if ($relatedCount > 0) {
             $error = "该经销商有 {$relatedCount} 条关联数据，无法删除，只能禁用";
         } else {
-            $stmt = $pdo->prepare("DELETE FROM distributors WHERE id = :id");
-            $stmt->bindParam(':id', $id);
-            $stmt->execute();
-            $success = "经销商删除成功";
+            $stmt = $pdo->prepare("UPDATE base_distributors SET status = -1 WHERE id = ?");
+            $stmt->execute([$id]);
+            $_SESSION['flash_success'] = "经销商已删除";
+            header("Location: admin_base_distributors.php");
+            exit;
         }
     } catch(PDOException $e) {
         $error = "删除经销商出错: " . $e->getMessage();
@@ -110,7 +125,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id']))
 if (isset($_GET['action']) && $_GET['action'] == 'toggle_status' && isset($_GET['id'])) {
     $id = intval($_GET['id']);
     try {
-        $stmt = $pdo->prepare("SELECT status, name FROM distributors WHERE id = ?");
+        $stmt = $pdo->prepare("SELECT status, name FROM base_distributors WHERE id = ?");
         $stmt->execute([$id]);
         $dist = $stmt->fetch(PDO::FETCH_ASSOC);
         
@@ -118,11 +133,11 @@ if (isset($_GET['action']) && $_GET['action'] == 'toggle_status' && isset($_GET[
             $newStatus = (isset($dist['status']) && $dist['status'] == 1) ? 0 : 1;
             $statusText = $newStatus == 1 ? '启用' : '禁用';
             
-            $stmt = $pdo->prepare("UPDATE distributors SET status = ? WHERE id = ?");
+            $stmt = $pdo->prepare("UPDATE base_distributors SET status = ? WHERE id = ?");
             $stmt->execute([$newStatus, $id]);
             
-            $success = "经销商【{$dist['name']}】已{$statusText}";
-            header("Location: admin_distributors.php");
+            $_SESSION['flash_success'] = "经销商【{$dist['name']}】已{$statusText}";
+            header("Location: admin_base_distributors.php");
             exit;
         }
     } catch(PDOException $e) {
@@ -135,7 +150,7 @@ $edit_distributor = null;
 if (isset($_GET['action']) && $_GET['action'] == 'edit' && isset($_GET['id'])) {
     $id = intval($_GET['id']);
     try {
-        $stmt = $pdo->prepare("SELECT * FROM distributors WHERE id = :id");
+        $stmt = $pdo->prepare("SELECT * FROM base_distributors WHERE id = :id");
         $stmt->bindParam(':id', $id);
         $stmt->execute();
         $edit_distributor = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -146,7 +161,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'edit' && isset($_GET['id'])) {
 
 // 获取经销商列表
 try {
-    $distributors = getDistributors($pdo);
+    $base_distributors = getDistributors($pdo);
 } catch(PDOException $e) {
     $error = "获取经销商列表出错: " . $e->getMessage();
 }
@@ -240,7 +255,7 @@ try {
             background-color: #4a3f69;
         }
         .has-submenu.open .submenu {
-            max-height: 200px;
+            max-height: none;
         }
         .submenu li a {
             padding-left: 40px;
@@ -463,15 +478,16 @@ try {
                 <a href="javascript:void(0)" onclick="toggleSubmenu(this)">品牌业务 <span class="arrow">▼</span></a>
                 <ul class="submenu">
                     <li><a href="admin_list.php">溯源数据</a></li>
-                    <li><a href="admin_distributors.php" class="active">经销商管理</a></li>
-                    <li><a href="admin_product_library.php">产品管理</a></li>
+                    <li><a href="admin_base_distributors.php" class="active">经销商管理</a></li>
+                    <li><a href="admin_base_brands.php">品牌管理</a></li>
+                    <li><a href="admin_base_products.php">产品管理</a></li>
                     <li><a href="admin_warehouse_staff.php">出库人员</a></li>
                 </ul>
             </li>
             <li class="has-submenu">
                 <a href="javascript:void(0)" onclick="toggleSubmenu(this)">代工业务 <span class="arrow">▼</span></a>
                 <ul class="submenu">
-                    <li><a href="admin_certificates.php">证书管理</a></li>
+                    <li><a href="admin_base_certificates.php">证书管理</a></li>
                     <li><a href="admin_query_codes.php">查询码管理</a></li>
                 </ul>
             </li>
@@ -546,7 +562,7 @@ try {
                 <button type="submit" name="<?php echo $edit_distributor ? 'edit_distributor' : 'add_distributor'; ?>" class="btn"><?php echo $edit_distributor ? '更新经销商' : '添加经销商'; ?></button>
                 
                 <?php if ($edit_distributor): ?>
-                    <a href="admin_distributors.php" class="btn btn-secondary">取消编辑</a>
+                    <a href="admin_base_distributors.php" class="btn btn-secondary">取消编辑</a>
                 <?php endif; ?>
             </form>
         </div>
@@ -597,15 +613,17 @@ try {
                                         <?php if ($hasRelatedData): ?>
                                             <span class="btn" style="background: #ccc; cursor: not-allowed;" title="有关联数据，无法编辑">编辑</span>
                                         <?php else: ?>
-                                            <a href="admin_distributors.php?action=edit&id=<?php echo $distributor['id']; ?>" class="btn btn-secondary">编辑</a>
+                                            <a href="admin_base_distributors.php?action=edit&id=<?php echo $distributor['id']; ?>" class="btn btn-secondary">编辑</a>
                                         <?php endif; ?>
                                         
-                                        <?php if (!$hasRelatedData): ?>
-                                            <a href="admin_distributors.php?action=delete&id=<?php echo $distributor['id']; ?>" class="btn btn-danger" onclick="return confirm('确定要删除这个经销商吗？');">删除</a>
-                                        <?php elseif ($status == 1): ?>
-                                            <a href="admin_distributors.php?action=toggle_status&id=<?php echo $distributor['id']; ?>" class="btn btn-danger" onclick="return confirm('确定要禁用该经销商吗？');">禁用</a>
+                                        <?php if ($hasRelatedData): ?>
+                                            <?php if ($status == 1): ?>
+                                                <a href="admin_base_distributors.php?action=toggle_status&id=<?php echo $distributor['id']; ?>" class="btn btn-danger" onclick="return confirm('确定要禁用该经销商吗？');">禁用</a>
+                                            <?php else: ?>
+                                                <a href="admin_base_distributors.php?action=toggle_status&id=<?php echo $distributor['id']; ?>" class="btn" style="background: #27ae60;" onclick="return confirm('确定要启用该经销商吗？');">启用</a>
+                                            <?php endif; ?>
                                         <?php else: ?>
-                                            <a href="admin_distributors.php?action=toggle_status&id=<?php echo $distributor['id']; ?>" class="btn" style="background: #27ae60;" onclick="return confirm('确定要启用该经销商吗？');">启用</a>
+                                            <a href="admin_base_distributors.php?action=delete&id=<?php echo $distributor['id']; ?>" class="btn btn-danger" onclick="return confirm('确定要删除这个经销商吗？');">删除</a>
                                         <?php endif; ?>
                                     </div>
                                 </td>

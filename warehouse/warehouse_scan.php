@@ -18,12 +18,12 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
 $success = '';
 $error = '';
 $box_info = null;
-$distributors = [];
+$base_distributors = [];
 
 // 获取所有经销商
 function getDistributors($pdo) {
     try {
-        $stmt = $pdo->query("SELECT * FROM distributors ORDER BY name ASC");
+        $stmt = $pdo->query("SELECT * FROM base_distributors ORDER BY name ASC");
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch(PDOException $e) {
         return [];
@@ -33,7 +33,7 @@ function getDistributors($pdo) {
 // 获取箱子信息
 function getBoxInfo($pdo, $code) {
     try {
-        $stmt = $pdo->prepare("SELECT b.*, d.name as distributor_name FROM boxes b LEFT JOIN distributors d ON b.distributor_id = d.id WHERE b.box_code = :code");
+        $stmt = $pdo->prepare("SELECT b.*, d.name as distributor_name FROM boxes b LEFT JOIN base_distributors d ON b.distributor_id = d.id WHERE b.box_code = :code");
         $stmt->bindParam(':code', $code);
         $stmt->execute();
         return $stmt->fetch(PDO::FETCH_ASSOC);
@@ -160,7 +160,7 @@ if (($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['query_box'])) ||
 
 // 获取经销商列表
 try {
-    $distributors = getDistributors($pdo);
+    $base_distributors = getDistributors($pdo);
 } catch(PDOException $e) {
     $error = "获取经销商列表出错: " . $e->getMessage();
 }
@@ -652,8 +652,8 @@ try {
                             <label for="distributor_id">选择经销商：</label>
                             <select id="distributor_id" name="distributor_id" required>
                                 <option value="">请选择经销商</option>
-                                <?php if (count($distributors) > 0): ?>
-                                    <?php foreach ($distributors as $distributor): ?>
+                                <?php if (count($base_distributors) > 0): ?>
+                                    <?php foreach ($base_distributors as $distributor): ?>
                                         <option value="<?php echo $distributor['id']; ?>"<?php echo ($box_info['distributor_id'] == $distributor['id']) ? ' selected' : ''; ?>>
                                             <?php echo htmlspecialchars($distributor['name']); ?>
                                         </option>

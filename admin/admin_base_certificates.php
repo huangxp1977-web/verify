@@ -31,13 +31,19 @@ $messages = [
     'error' => []
 ];
 
+// 读取 flash 消息
+if (isset($_SESSION['flash_messages'])) {
+    $messages = $_SESSION['flash_messages'];
+    unset($_SESSION['flash_messages']);
+}
+
 // 处理证书增删查改
 $certList = [];
 $currentCert = null;
 
-// 获取所有证书
+// 获取所有证书（不显示已删除）
 try {
-    $stmt = $pdo->query("SELECT * FROM certificates ORDER BY create_time DESC");
+    $stmt = $pdo->query("SELECT * FROM base_certificates WHERE status >= 0 ORDER BY create_time DESC");
     $certList = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch(PDOException $e) {
     $messages['error'][] = "获取证书列表出错: " . $e->getMessage();
@@ -108,7 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_cert'])) {
         try {
             // 证书编号唯一性校验（提前拦截重复）
             $stmt = $pdo->prepare("
-                SELECT id FROM certificates 
+                SELECT id FROM base_certificates 
                 WHERE cert_no = ? AND id != ?
             ");
             $stmt->execute([$certNo, $id]);
@@ -128,7 +134,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_cert'])) {
                 if ($id > 0) {
                     // 编辑证书
                     $stmt = $pdo->prepare("
-                        UPDATE certificates 
+                        UPDATE base_certificates 
                         SET cert_name=?, cert_no=?, issuer=?, issue_date=?, expire_date=?, image_url=?, update_time=NOW()
                         WHERE id=?
                     ");
@@ -137,14 +143,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_cert'])) {
                 } else {
                     // 添加新证书
                     $stmt = $pdo->prepare("
-                        INSERT INTO certificates (cert_name, cert_no, issuer, issue_date, expire_date, image_url, create_time, update_time)
+                        INSERT INTO base_certificates (cert_name, cert_no, issuer, issue_date, expire_date, image_url, create_time, update_time)
                         VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())
                     ");
                     $stmt->execute([$certName, $certNo, $issuer, $issueDate, $expireDate, $imageUrl]);
                     $messages['success'][] = "证书添加成功";
                 }
+                // 保存成功消息到session
+                $_SESSION['flash_messages'] = $messages;
                 // 刷新列表
-                header("Location: admin_certificates.php");
+                header("Location: admin_base_certificates.php");
                 exit;
             }
         } catch(PDOException $e) {
@@ -152,7 +160,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_cert'])) {
             if (strpos($e->getMessage(), 'Duplicate entry') !== false && strpos($e->getMessage(), 'cert_no') !== false) {
                 $messages['error'][] = "数据库层面检测到证书编号“{$certNo}”重复！";
                 $messages['error'][] = "请执行以下SQL彻底清理残留数据：";
-                $messages['error'][] = "1. DELETE FROM certificates WHERE cert_no = '{$certNo}';";
+                $messages['error'][] = "1. DELETE FROM base_certificates WHERE cert_no = '{$certNo}';";
                 $messages['error'][] = "2. DELETE FROM certificate_links WHERE cert_no = '{$certNo}';";
             } else {
                 $messages['error'][] = "操作证书出错: " . $e->getMessage();
@@ -166,7 +174,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'toggle_status' && isset($_GET[
     $id = intval($_GET['id']);
     try {
         // 获取当前状态
-        $stmt = $pdo->prepare("SELECT status, cert_name FROM certificates WHERE id=?");
+        $stmt = $pdo->prepare("SELECT status, cert_name FROM base_certificates WHERE id=?");
         $stmt->execute([$id]);
         $cert = $stmt->fetch(PDO::FETCH_ASSOC);
         
@@ -178,11 +186,11 @@ if (isset($_GET['action']) && $_GET['action'] == 'toggle_status' && isset($_GET[
         $newStatus = (isset($cert['status']) && $cert['status'] == 1) ? 0 : 1;
         $statusText = $newStatus == 1 ? '启用' : '禁用';
         
-        $stmt = $pdo->prepare("UPDATE certificates SET status = ? WHERE id = ?");
+        $stmt = $pdo->prepare("UPDATE base_certificates SET status = ? WHERE id = ?");
         $stmt->execute([$newStatus, $id]);
         
         $messages['success'][] = "证书【{$cert['cert_name']}】已{$statusText}";
-        header("Location: admin_certificates.php");
+        header("Location: admin_base_certificates.php");
         exit;
     } catch(PDOException $e) {
         $messages['error'][] = "操作失败: " . $e->getMessage();
@@ -196,7 +204,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id']))
     $id = intval($_GET['id']);
     try {
         // 获取证书信息
-        $stmt = $pdo->prepare("SELECT cert_no, cert_name FROM certificates WHERE id=?");
+        $stmt = $pdo->prepare("SELECT cert_no, cert_name FROM base_certificates WHERE id=?");
         $stmt->execute([$id]);
         $cert = $stmt->fetch(PDO::FETCH_ASSOC);
         
@@ -213,12 +221,12 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id']))
             throw new Exception("该证书已有 {$linkCount} 个查询码，无法删除，只能禁用");
         }
         
-        // 删除证书
-        $stmt = $pdo->prepare("DELETE FROM certificates WHERE id = ?");
+        // 软删除证书
+        $stmt = $pdo->prepare("UPDATE base_certificates SET status = -1 WHERE id = ?");
         $stmt->execute([$id]);
         
-        $messages['success'][] = "证书【{$cert['cert_name']}】已删除";
-        header("Location: admin_certificates.php");
+        $_SESSION['flash_messages'] = ['success' => ["证书【{$cert['cert_name']}】已删除"], 'error' => []];
+        header("Location: admin_base_certificates.php");
         exit;
     } catch(Exception $e) {
         $messages['error'][] = $e->getMessage();
@@ -229,7 +237,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id']))
 if (isset($_GET['action']) && $_GET['action'] == 'edit' && isset($_GET['id'])) {
     $id = intval($_GET['id']);
     try {
-        $stmt = $pdo->prepare("SELECT * FROM certificates WHERE id=?");
+        $stmt = $pdo->prepare("SELECT * FROM base_certificates WHERE id=?");
         $stmt->execute([$id]);
         $currentCert = $stmt->fetch(PDO::FETCH_ASSOC);
     } catch(PDOException $e) {
@@ -242,7 +250,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'export_url' && isset($_GET['id
     $id = intval($_GET['id']);
     try {
         // 获取证书信息
-        $stmt = $pdo->prepare("SELECT * FROM certificates WHERE id=?");
+        $stmt = $pdo->prepare("SELECT * FROM base_certificates WHERE id=?");
         $stmt->execute([$id]);
         $cert = $stmt->fetch(PDO::FETCH_ASSOC);
         
@@ -268,7 +276,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'export_url' && isset($_GET['id
             <body>
                 <div class="input-form">
                     <h3>导出证书查询码 - ' . htmlspecialchars($cert['cert_name']) . '</h3>
-                    <form method="post" action="admin_certificates.php?action=export_url&id=' . $id . '">
+                    <form method="post" action="admin_base_certificates.php?action=export_url&id=' . $id . '">
                         <div class="form-group">
                             <label for="link_count">生成链接数量（1-5000）</label>
                             <input type="number" id="link_count" name="link_count" min="1" max="5000" value="1" required>
@@ -340,7 +348,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_cert_data'])) {
         <body>
             <div class="input-form">
                 <h3>批量导出证书查询码</h3>
-                <form method="post" action="admin_certificates.php">
+                <form method="post" action="admin_base_certificates.php">
                     <div class="format-group">
                         <label>导出格式：</label>
                         <label style="display: inline-block; margin-right: 20px;">
@@ -518,7 +526,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
             background-color: #4a3f69;
         }
         .has-submenu.open .submenu {
-            max-height: 200px;
+            max-height: none;
         }
         .submenu li a {
             padding-left: 40px;
@@ -734,15 +742,16 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
                 <a href="javascript:void(0)" onclick="toggleSubmenu(this)">品牌业务 <span class="arrow">▼</span></a>
                 <ul class="submenu">
                     <li><a href="admin_list.php">溯源数据</a></li>
-                    <li><a href="admin_distributors.php">经销商管理</a></li>
-                    <li><a href="admin_product_library.php">产品管理</a></li>
+                    <li><a href="admin_base_distributors.php">经销商管理</a></li>
+                    <li><a href="admin_base_brands.php">品牌管理</a></li>
+                    <li><a href="admin_base_products.php">产品管理</a></li>
                     <li><a href="admin_warehouse_staff.php">出库人员</a></li>
                 </ul>
             </li>
             <li class="has-submenu open">
                 <a href="javascript:void(0)" onclick="toggleSubmenu(this)">代工业务 <span class="arrow">▼</span></a>
                 <ul class="submenu">
-                    <li><a href="admin_certificates.php" class="active">证书管理</a></li>
+                    <li><a href="admin_base_certificates.php" class="active">证书管理</a></li>
                     <li><a href="admin_query_codes.php">查询码管理</a></li>
                 </ul>
             </li>
@@ -854,7 +863,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
                         <?php echo $currentCert ? '更新证书' : '添加新证书'; ?>
                     </button>
                     <?php if ($currentCert): ?>
-                        <a href="admin_certificates.php" class="btn btn-secondary">取消编辑</a>
+                        <a href="admin_base_certificates.php" class="btn btn-secondary">取消编辑</a>
                     <?php endif; ?>
                 </form>
             </div>
@@ -930,29 +939,31 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
                                         if ($hasLinks): ?>
                                             <span class="btn btn-disabled" title="已有查询码数据，无法编辑">编辑</span>
                                         <?php else: ?>
-                                            <a href="admin_certificates.php?action=edit&id=<?php echo $cert['id']; ?>" class="btn btn-secondary">编辑</a>
+                                            <a href="admin_base_certificates.php?action=edit&id=<?php echo $cert['id']; ?>" class="btn btn-secondary">编辑</a>
                                         <?php endif; ?>
                                         <?php 
                                         $status = isset($cert['status']) ? $cert['status'] : 1;
                                         if ($status == 1): ?>
-                                            <a href="admin_certificates.php?action=export_url&id=<?php echo $cert['id']; ?>" class="btn">生成查询码</a>
+                                            <a href="admin_base_certificates.php?action=export_url&id=<?php echo $cert['id']; ?>" class="btn">生成查询码</a>
                                         <?php else: ?>
                                             <span class="btn btn-disabled" title="证书已禁用，无法生成查询码">生成查询码</span>
                                         <?php endif; ?>
                                         <?php 
                                         // 根据是否有查询码决定显示删除还是禁用/启用
-                                        if (!$hasLinks): ?>
-                                            <a href="admin_certificates.php?action=delete&id=<?php echo $cert['id']; ?>" 
+                                        if ($hasLinks): ?>
+                                            <?php if ($status == 1): ?>
+                                                <a href="admin_base_certificates.php?action=toggle_status&id=<?php echo $cert['id']; ?>" 
+                                                   class="btn btn-danger" 
+                                                   onclick="return confirm('确定要禁用该证书吗？禁用后将无法生成新的编码！')">禁用</a>
+                                            <?php else: ?>
+                                                <a href="admin_base_certificates.php?action=toggle_status&id=<?php echo $cert['id']; ?>" 
+                                                   class="btn" style="background: #27ae60;"
+                                                   onclick="return confirm('确定要启用该证书吗？')">启用</a>
+                                            <?php endif; ?>
+                                        <?php else: ?>
+                                            <a href="admin_base_certificates.php?action=delete&id=<?php echo $cert['id']; ?>" 
                                                class="btn btn-danger" 
                                                onclick="return confirm('确定要删除该证书吗？')">删除</a>
-                                        <?php elseif ($status == 1): ?>
-                                            <a href="admin_certificates.php?action=toggle_status&id=<?php echo $cert['id']; ?>" 
-                                               class="btn btn-danger" 
-                                               onclick="return confirm('确定要禁用该证书吗？禁用后将无法生成新的编码！')">禁用</a>
-                                        <?php else: ?>
-                                            <a href="admin_certificates.php?action=toggle_status&id=<?php echo $cert['id']; ?>" 
-                                               class="btn" style="background: #27ae60;"
-                                               onclick="return confirm('确定要启用该证书吗？')">启用</a>
                                         <?php endif; ?>
                                     </td>
                                 </tr>

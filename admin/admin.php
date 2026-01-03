@@ -41,7 +41,7 @@ try {
     $dates = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
     // 获取产品库数据
-    $stmt = $pdo->query("SELECT * FROM product_library ORDER BY product_name ASC");
+    $stmt = $pdo->query("SELECT * FROM base_products ORDER BY product_name ASC");
     $product_lib = $stmt->fetchAll(PDO::FETCH_ASSOC);
     $product_lib_json = json_encode($product_lib);
 } catch(PDOException $e) {
@@ -737,7 +737,7 @@ $stats = [
     'total_boxes' => 0,
     'total_cartons' => 0,
     'total_products' => 0,
-    'total_distributors' => 0,
+    'total_base_distributors' => 0,
     'total_warehouse_staff' => 0
 ];
 
@@ -752,8 +752,8 @@ try {
     $stats['total_products'] = $stmt->fetchColumn();
     
     // 获取经销商数量
-    $stmt = $pdo->query("SELECT COUNT(*) FROM distributors");
-    $stats['total_distributors'] = $stmt->fetchColumn();
+    $stmt = $pdo->query("SELECT COUNT(*) FROM base_distributors");
+    $stats['total_base_distributors'] = $stmt->fetchColumn();
     
     // 获取出库人员数量
     $stmt = $pdo->query("SELECT COUNT(*) FROM warehouse_staff");
@@ -934,7 +934,7 @@ function exportAsExcel($data, $title) {
             background-color: #4a3f69;
         }
         .has-submenu.open .submenu {
-            max-height: 200px;
+            max-height: none;
         }
         .submenu li a {
             padding-left: 40px;
@@ -1232,15 +1232,16 @@ function exportAsExcel($data, $title) {
                 <a href="javascript:void(0)" onclick="toggleSubmenu(this)">品牌业务 <span class="arrow">▼</span></a>
                 <ul class="submenu">
                     <li><a href="admin_list.php">溯源数据</a></li>
-                    <li><a href="admin_distributors.php">经销商管理</a></li>
-                    <li><a href="admin_product_library.php">产品管理</a></li>
+                    <li><a href="admin_base_distributors.php">经销商管理</a></li>
+                    <li><a href="admin_base_brands.php">品牌管理</a></li>
+                    <li><a href="admin_base_products.php">产品管理</a></li>
                     <li><a href="admin_warehouse_staff.php">出库人员</a></li>
                 </ul>
             </li>
             <li class="has-submenu">
                 <a href="javascript:void(0)" onclick="toggleSubmenu(this)">代工业务 <span class="arrow">▼</span></a>
                 <ul class="submenu">
-                    <li><a href="admin_certificates.php">证书管理</a></li>
+                    <li><a href="admin_base_certificates.php">证书管理</a></li>
                     <li><a href="admin_query_codes.php">查询码管理</a></li>
                 </ul>
             </li>
@@ -1308,7 +1309,7 @@ function exportAsExcel($data, $title) {
                     </div>
                     <div class="stat-box">
                         <h3>经销商总数</h3>
-                        <div class="stat-value"><?php echo $stats['total_distributors']; ?></div>
+                        <div class="stat-value"><?php echo $stats['total_base_distributors']; ?></div>
                     </div>
                     <div class="stat-box">
                         <h3>出库人员数</h3>
@@ -1323,10 +1324,10 @@ function exportAsExcel($data, $title) {
                     <a href="#dcyt3">导出一套三</a>
                     <a href="#dcyt2">导出一套二</a>
                     <a href="admin_list.php">溯源数据</a>
-                    <a href="admin_distributors.php">经销商管理</a>
+                    <a href="admin_base_distributors.php">经销商管理</a>
                     <a href="admin_warehouse_staff.php">出库人员管理</a>
                     <a href="/warehouse/warehouse_scan.php" target="_blank">出库扫码入口</a>
-                    <a href="admin_certificates.php" target="_blank">证书管理</a>
+                    <a href="admin_base_certificates.php" target="_blank">证书管理</a>
                 </div>
         
 <!-- 搜索功能区域 -->
@@ -1380,8 +1381,7 @@ function exportAsExcel($data, $title) {
                     <option value="">-- 请选择产品 --</option>
                     <?php foreach ($product_lib as $p): ?>
                         <option value="<?php echo htmlspecialchars($p['product_name']); ?>" 
-                                data-img="<?php echo htmlspecialchars($p['default_image_url']); ?>"
-                                data-region="<?php echo htmlspecialchars($p['default_region']); ?>">
+                                data-img="<?php echo htmlspecialchars($p['default_image_url']); ?>">
                             <?php echo htmlspecialchars($p['product_name']); ?>
                         </option>
                     <?php endforeach; ?>
@@ -1459,8 +1459,7 @@ function exportAsExcel($data, $title) {
                     <option value="">-- 请选择产品 --</option>
                     <?php foreach ($product_lib as $p): ?>
                         <option value="<?php echo htmlspecialchars($p['product_name']); ?>" 
-                                data-img="<?php echo htmlspecialchars($p['default_image_url']); ?>"
-                                data-region="<?php echo htmlspecialchars($p['default_region']); ?>">
+                                data-img="<?php echo htmlspecialchars($p['default_image_url']); ?>">
                             <?php echo htmlspecialchars($p['product_name']); ?>
                         </option>
                     <?php endforeach; ?>
@@ -1607,33 +1606,13 @@ function exportAsExcel($data, $title) {
                 var val = $(this).val();
                 if (val === 'custom') {
                     $('#product_name_input').show().prop('required', true);
-                    // 清空其他项？或者保留？保留方便
                 } else {
                     $('#product_name_input').hide().prop('required', false);
                     
-                    // 自动填充
+                    // 自动填充图片
                     var option = $(this).find('option:selected');
                     var img = option.data('img');
-                    var region = option.data('region'); // "省 市 区"
-
                     if(img) $('#image_url').val(img);
-                    
-                    if(region) {
-                        var parts = region.split(' ');
-                        var p = parts[0] || '';
-                        var c = parts[1] || '';
-                        var d = parts[2] || '';
-                        
-                        // 销毁并重新初始化 distpicker 以设置值
-                        $('#distpicker1').distpicker('destroy');
-                        $('#distpicker1').distpicker({
-                            province: p,
-                            city: c,
-                            district: d
-                        });
-                        // 也要更新 hidden input
-                        $('#region').val(region);
-                    }
                 }
             });
 
@@ -1647,24 +1626,7 @@ function exportAsExcel($data, $title) {
                     
                     var option = $(this).find('option:selected');
                     var img = option.data('img');
-                    var region = option.data('region');
-
                     if(img) $('#zero_image_url').val(img);
-                    
-                    if(region) {
-                        var parts = region.split(' ');
-                        var p = parts[0] || '';
-                        var c = parts[1] || '';
-                        var d = parts[2] || '';
-                        
-                        $('#distpicker2').distpicker('destroy');
-                        $('#distpicker2').distpicker({
-                            province: p,
-                            city: c,
-                            district: d
-                        });
-                        $('#zero_region').val(region);
-                    }
                 }
             });
         });

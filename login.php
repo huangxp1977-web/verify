@@ -38,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     try {
         // 从数据库查询用户
-        $stmt = $pdo->prepare("SELECT id, username, password_hash, role, status FROM users WHERE username = ?");
+        $stmt = $pdo->prepare("SELECT id, username, password_hash, role, status FROM sys_users WHERE username = ?");
         $stmt->execute([$username]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         
@@ -51,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['admin_role'] = $user['role'];
             
             // 更新最后登录时间
-            $pdo->prepare("UPDATE users SET last_login = NOW() WHERE id = ?")->execute([$user['id']]);
+            $pdo->prepare("UPDATE sys_users SET last_login = NOW() WHERE id = ?")->execute([$user['id']]);
             
             header('Location: admin/admin.php');
             exit;

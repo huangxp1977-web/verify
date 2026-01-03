@@ -37,14 +37,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             // 获取当前用户信息
             $admin_id = $_SESSION['admin_id'] ?? 1; // 默认ID 1，如果session里没存ID
-            $stmt = $pdo->prepare("SELECT password_hash FROM users WHERE id = ?");
+            $stmt = $pdo->prepare("SELECT password_hash FROM sys_users WHERE id = ?");
             $stmt->execute([$admin_id]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
             
             if ($user && password_verify($current_password, $user['password_hash'])) {
                 // 旧密码验证通过，更新密码
                 $new_hash = password_hash($new_password, PASSWORD_BCRYPT);
-                $update = $pdo->prepare("UPDATE users SET password_hash = ? WHERE id = ?");
+                $update = $pdo->prepare("UPDATE sys_users SET password_hash = ? WHERE id = ?");
                 $update->execute([$new_hash, $admin_id]);
                 $success = "密码修改成功！下次登录请使用新密码。";
             } else {
@@ -134,7 +134,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             background-color: #4a3f69;
         }
         .has-submenu.open .submenu {
-            max-height: 200px;
+            max-height: none;
         }
         .submenu li a {
             padding-left: 40px;
@@ -253,15 +253,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <a href="javascript:void(0)" onclick="toggleSubmenu(this)">品牌业务 <span class="arrow">▼</span></a>
                 <ul class="submenu">
                     <li><a href="admin_list.php">溯源数据</a></li>
-                    <li><a href="admin_distributors.php">经销商管理</a></li>
-                    <li><a href="admin_product_library.php">产品管理</a></li>
+                    <li><a href="admin_base_distributors.php">经销商管理</a></li>
+                    <li><a href="admin_base_brands.php">品牌管理</a></li>
+                    <li><a href="admin_base_products.php">产品管理</a></li>
                     <li><a href="admin_warehouse_staff.php">出库人员</a></li>
                 </ul>
             </li>
             <li class="has-submenu">
                 <a href="javascript:void(0)" onclick="toggleSubmenu(this)">代工业务 <span class="arrow">▼</span></a>
                 <ul class="submenu">
-                    <li><a href="admin_certificates.php">证书管理</a></li>
+                    <li><a href="admin_base_certificates.php">证书管理</a></li>
                     <li><a href="admin_query_codes.php">查询码管理</a></li>
                 </ul>
             </li>

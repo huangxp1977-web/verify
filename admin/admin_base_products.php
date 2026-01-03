@@ -19,10 +19,30 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
 $success = '';
 $error = '';
 
-// 获取所有产品
+// 读取 flash 消息
+if (isset($_SESSION['flash_success'])) {
+    $success = $_SESSION['flash_success'];
+    unset($_SESSION['flash_success']);
+}
+if (isset($_SESSION['flash_error'])) {
+    $error = $_SESSION['flash_error'];
+    unset($_SESSION['flash_error']);
+}
+
+// 获取所有产品（带品牌信息，不显示已删除）
 function getProducts($pdo) {
     try {
-        $stmt = $pdo->query("SELECT * FROM product_library ORDER BY product_name ASC");
+        $stmt = $pdo->query("SELECT p.*, b.name_cn as brand_name FROM base_products p LEFT JOIN base_brands b ON p.brand_id = b.id WHERE p.status >= 0 ORDER BY p.product_name ASC");
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch(PDOException $e) {
+        return [];
+    }
+}
+
+// 获取所有启用的品牌（供下拉选择）
+function getActiveBrands($pdo) {
+    try {
+        $stmt = $pdo->query("SELECT id, name_cn, name_en FROM base_brands WHERE status = 1 ORDER BY name_cn ASC");
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch(PDOException $e) {
         return [];
@@ -32,16 +52,18 @@ function getProducts($pdo) {
 // 处理添加产品
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_product'])) {
     $product_name = isset($_POST['product_name']) ? trim($_POST['product_name']) : '';
-    $region = isset($_POST['region']) ? trim($_POST['region']) : '';
-    $default_image_url = isset($_POST['default_image_url']) ? trim($_POST['default_image_url']) : '';
+    $brand_id = isset($_POST['brand_id']) && $_POST['brand_id'] !== '' ? intval($_POST['brand_id']) : null;
+    $specification = isset($_POST['specification']) ? trim($_POST['specification']) : '';
     
     if (empty($product_name)) {
         $error = "产品名称不能为空";
     } else {
         try {
-            $stmt = $pdo->prepare("INSERT INTO product_library (product_name, default_region, default_image_url) VALUES (?, ?, ?)");
-            $stmt->execute([$product_name, $region, $default_image_url]);
-            $success = "产品添加成功";
+            $stmt = $pdo->prepare("INSERT INTO base_products (product_name, brand_id, specification) VALUES (?, ?, ?)");
+            $stmt->execute([$product_name, $brand_id, $specification]);
+            $_SESSION['flash_success'] = "产品添加成功";
+            header("Location: admin_base_products.php");
+            exit;
         } catch(PDOException $e) {
             $error = "添加产品出错: " . $e->getMessage();
         }
@@ -52,16 +74,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_product'])) {
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_product'])) {
     $id = isset($_POST['id']) ? intval($_POST['id']) : 0;
     $product_name = isset($_POST['product_name']) ? trim($_POST['product_name']) : '';
-    $region = isset($_POST['region']) ? trim($_POST['region']) : '';
-    $default_image_url = isset($_POST['default_image_url']) ? trim($_POST['default_image_url']) : '';
+    $brand_id = isset($_POST['brand_id']) && $_POST['brand_id'] !== '' ? intval($_POST['brand_id']) : null;
+    $specification = isset($_POST['specification']) ? trim($_POST['specification']) : '';
     
     if (empty($id) || empty($product_name)) {
         $error = "产品名称不能为空";
     } else {
         try {
-            $stmt = $pdo->prepare("UPDATE product_library SET product_name = ?, default_region = ?, default_image_url = ? WHERE id = ?");
-            $stmt->execute([$product_name, $region, $default_image_url, $id]);
-            $success = "产品信息更新成功";
+            $stmt = $pdo->prepare("UPDATE base_products SET product_name = ?, brand_id = ?, specification = ? WHERE id = ?");
+            $stmt->execute([$product_name, $brand_id, $specification, $id]);
+            $_SESSION['flash_success'] = "产品信息更新成功";
+            header("Location: admin_base_products.php");
+            exit;
         } catch(PDOException $e) {
             $error = "更新产品出错: " . $e->getMessage();
         }
@@ -73,16 +97,18 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id']))
     $id = intval($_GET['id']);
     try {
         // 检查是否有关联的溯源数据
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM products WHERE product_name COLLATE utf8mb4_general_ci = (SELECT product_name FROM product_library WHERE id = ?)");
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM products WHERE product_name COLLATE utf8mb4_general_ci = (SELECT product_name FROM base_products WHERE id = ?)");
         $stmt->execute([$id]);
         $relatedCount = $stmt->fetchColumn();
         
         if ($relatedCount > 0) {
             $error = "该产品有 {$relatedCount} 条关联数据，无法删除，只能禁用";
         } else {
-            $stmt = $pdo->prepare("DELETE FROM product_library WHERE id = ?");
+            $stmt = $pdo->prepare("UPDATE base_products SET status = -1 WHERE id = ?");
             $stmt->execute([$id]);
-            $success = "产品删除成功";
+            $_SESSION['flash_success'] = "产品已删除";
+            header("Location: admin_base_products.php");
+            exit;
         }
     } catch(PDOException $e) {
         $error = "删除产品出错: " . $e->getMessage();
@@ -93,7 +119,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id']))
 if (isset($_GET['action']) && $_GET['action'] == 'toggle_status' && isset($_GET['id'])) {
     $id = intval($_GET['id']);
     try {
-        $stmt = $pdo->prepare("SELECT status, product_name FROM product_library WHERE id = ?");
+        $stmt = $pdo->prepare("SELECT status, product_name FROM base_products WHERE id = ?");
         $stmt->execute([$id]);
         $prod = $stmt->fetch(PDO::FETCH_ASSOC);
         
@@ -101,11 +127,11 @@ if (isset($_GET['action']) && $_GET['action'] == 'toggle_status' && isset($_GET[
             $newStatus = (isset($prod['status']) && $prod['status'] == 1) ? 0 : 1;
             $statusText = $newStatus == 1 ? '启用' : '禁用';
             
-            $stmt = $pdo->prepare("UPDATE product_library SET status = ? WHERE id = ?");
+            $stmt = $pdo->prepare("UPDATE base_products SET status = ? WHERE id = ?");
             $stmt->execute([$newStatus, $id]);
             
-            $success = "产品【{$prod['product_name']}】已{$statusText}";
-            header("Location: admin_product_library.php");
+            $_SESSION['flash_success'] = "产品【{$prod['product_name']}】已{$statusText}";
+            header("Location: admin_base_products.php");
             exit;
         }
     } catch(PDOException $e) {
@@ -117,12 +143,13 @@ if (isset($_GET['action']) && $_GET['action'] == 'toggle_status' && isset($_GET[
 $edit_product = null;
 if (isset($_GET['action']) && $_GET['action'] == 'edit' && isset($_GET['id'])) {
     $id = intval($_GET['id']);
-    $stmt = $pdo->prepare("SELECT * FROM product_library WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT * FROM base_products WHERE id = ?");
     $stmt->execute([$id]);
     $edit_product = $stmt->fetch(PDO::FETCH_ASSOC);
 }
 
 $products = getProducts($pdo);
+$activeBrands = getActiveBrands($pdo);
 ?>
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -204,7 +231,7 @@ $products = getProducts($pdo);
             background-color: #4a3f69;
         }
         .has-submenu.open .submenu {
-            max-height: 200px;
+            max-height: none;
         }
         .submenu li a {
             padding-left: 40px;
@@ -298,15 +325,16 @@ $products = getProducts($pdo);
                 <a href="javascript:void(0)" onclick="toggleSubmenu(this)">品牌业务 <span class="arrow">▼</span></a>
                 <ul class="submenu">
                     <li><a href="admin_list.php">溯源数据</a></li>
-                    <li><a href="admin_distributors.php">经销商管理</a></li>
-                    <li><a href="admin_product_library.php" class="active">产品管理</a></li>
+                    <li><a href="admin_base_distributors.php">经销商管理</a></li>
+                    <li><a href="admin_base_brands.php">品牌管理</a></li>
+                    <li><a href="admin_base_products.php" class="active">产品管理</a></li>
                     <li><a href="admin_warehouse_staff.php">出库人员</a></li>
                 </ul>
             </li>
             <li class="has-submenu">
                 <a href="javascript:void(0)" onclick="toggleSubmenu(this)">代工业务 <span class="arrow">▼</span></a>
                 <ul class="submenu">
-                    <li><a href="admin_certificates.php">证书管理</a></li>
+                    <li><a href="admin_base_certificates.php">证书管理</a></li>
                     <li><a href="admin_query_codes.php">查询码管理</a></li>
                 </ul>
             </li>
@@ -347,7 +375,7 @@ $products = getProducts($pdo);
             <!-- 添加/编辑产品表单 -->
             <div class="section">
                 <h2><?php echo $edit_product ? '编辑产品' : '添加新产品'; ?></h2>
-                <form method="post" action="admin_product_library.php">
+                <form method="post" action="admin_base_products.php">
                     <?php if ($edit_product): ?>
                         <input type="hidden" name="id" value="<?php echo $edit_product['id']; ?>">
                         <input type="hidden" name="edit_product" value="1">
@@ -362,39 +390,27 @@ $products = getProducts($pdo);
                     </div>
 
                     <div class="form-group">
-                        <label for="region">默认生产地区</label>
-                        <input type="hidden" id="region" name="region" 
-                               value="<?php echo $edit_product ? htmlspecialchars($edit_product['default_region']) : ''; ?>">
-                        
-                        <div id="distpicker" class="distpicker-wrap">
-                            <select id="province" data-province="<?php echo $edit_product ? explode(' ', $edit_product['default_region'])[0] : ''; ?>"></select>
-                            <select id="city" data-city="<?php echo $edit_product ? explode(' ', $edit_product['default_region'])[1] ?? '' : ''; ?>"></select>
-                            <select id="district" data-district="<?php echo $edit_product ? explode(' ', $edit_product['default_region'])[2] ?? '' : ''; ?>"></select>
-                        </div>
+                        <label for="brand_id">品牌</label>
+                        <select id="brand_id" name="brand_id">
+                            <option value="">-- 请选择品牌 --</option>
+                            <?php foreach ($activeBrands as $brand): ?>
+                            <option value="<?php echo $brand['id']; ?>" <?php echo ($edit_product && $edit_product['brand_id'] == $brand['id']) ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($brand['name_cn']); ?>
+                                <?php if ($brand['name_en']): ?>(<?php echo htmlspecialchars($brand['name_en']); ?>)<?php endif; ?>
+                            </option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
 
                     <div class="form-group">
-                        <label>产品图片</label>
-                        <div id="imagePreview" style="margin-bottom: 10px; position: relative; display: inline-block;">
-                            <?php if ($edit_product && $edit_product['default_image_url']): ?>
-                                <img src="<?php echo htmlspecialchars($edit_product['default_image_url']); ?>" 
-                                     class="image-preview" 
-                                     alt="产品图片">
-                                <span class="clear-image" onclick="clearImage()" title="清除图片">&times;</span>
-                            <?php else: ?>
-                                <span style="color: #999;">未选择图片</span>
-                            <?php endif; ?>
-                        </div>
-                        <div>
-                            <input type="hidden" id="default_image_url" name="default_image_url" 
-                                   value="<?php echo $edit_product ? htmlspecialchars($edit_product['default_image_url']) : ''; ?>">
-                            <button type="button" class="btn btn-secondary" onclick="openImagePicker()">从图片库选择</button>
-                        </div>
+                        <label for="specification">规格</label>
+                        <input type="text" id="specification" name="specification" placeholder="如：50ml / 100粒"
+                               value="<?php echo $edit_product ? htmlspecialchars($edit_product['specification'] ?? '') : ''; ?>">
                     </div>
 
                     <button type="submit" class="btn"><?php echo $edit_product ? '更新产品' : '添加产品'; ?></button>
                     <?php if ($edit_product): ?>
-                        <a href="admin_product_library.php" class="btn btn-secondary">取消编辑</a>
+                        <a href="admin_base_products.php" class="btn btn-secondary">取消编辑</a>
                     <?php endif; ?>
                 </form>
             </div>
@@ -405,8 +421,8 @@ $products = getProducts($pdo);
                     <tr>
                         <th>ID</th>
                         <th>产品名称</th>
-                        <th>默认地区</th>
-                        <th>图片URL</th>
+                        <th>品牌</th>
+                        <th>规格</th>
                         <th>状态</th>
                         <th>操作</th>
                     </tr>
@@ -423,14 +439,8 @@ $products = getProducts($pdo);
                     <tr>
                         <td><?php echo $prod['id']; ?></td>
                         <td><?php echo htmlspecialchars($prod['product_name']); ?></td>
-                        <td><?php echo htmlspecialchars($prod['default_region']); ?></td>
-                        <td>
-                            <?php if($prod['default_image_url']): ?>
-                                <a href="<?php echo htmlspecialchars($prod['default_image_url']); ?>" target="_blank" title="查看图片">查看</a>
-                            <?php else: ?>
-                                无
-                            <?php endif; ?>
-                        </td>
+                        <td><?php echo htmlspecialchars($prod['brand_name'] ?? '未设置'); ?></td>
+                        <td><?php echo htmlspecialchars($prod['specification'] ?? ''); ?></td>
                         <td>
                             <?php if ($status == 1): ?>
                                 <span style="color: #27ae60;">✓ 启用</span>
@@ -445,12 +455,14 @@ $products = getProducts($pdo);
                                 <a href="?action=edit&id=<?php echo $prod['id']; ?>" class="btn btn-secondary" style="padding: 5px 10px; font-size: 12px;">编辑</a>
                             <?php endif; ?>
                             
-                            <?php if (!$hasRelatedData): ?>
-                                <a href="?action=delete&id=<?php echo $prod['id']; ?>" class="btn btn-danger" style="padding: 5px 10px; font-size: 12px;" onclick="return confirm('确定要删除这个产品吗？');">删除</a>
-                            <?php elseif ($status == 1): ?>
-                                <a href="?action=toggle_status&id=<?php echo $prod['id']; ?>" class="btn btn-danger" style="padding: 5px 10px; font-size: 12px;" onclick="return confirm('确定要禁用该产品吗？');">禁用</a>
+                            <?php if ($hasRelatedData): ?>
+                                <?php if ($status == 1): ?>
+                                    <a href="?action=toggle_status&id=<?php echo $prod['id']; ?>" class="btn btn-danger" style="padding: 5px 10px; font-size: 12px;" onclick="return confirm('确定要禁用该产品吗？');">禁用</a>
+                                <?php else: ?>
+                                    <a href="?action=toggle_status&id=<?php echo $prod['id']; ?>" class="btn" style="background: #27ae60; padding: 5px 10px; font-size: 12px;" onclick="return confirm('确定要启用该产品吗？');">启用</a>
+                                <?php endif; ?>
                             <?php else: ?>
-                                <a href="?action=toggle_status&id=<?php echo $prod['id']; ?>" class="btn" style="background: #27ae60; padding: 5px 10px; font-size: 12px;" onclick="return confirm('确定要启用该产品吗？');">启用</a>
+                                <a href="?action=delete&id=<?php echo $prod['id']; ?>" class="btn btn-danger" style="padding: 5px 10px; font-size: 12px;" onclick="return confirm('确定要删除这个产品吗？');">删除</a>
                             <?php endif; ?>
                         </td>
                     </tr>

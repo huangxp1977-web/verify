@@ -20,10 +20,20 @@ $success = '';
 $error = '';
 $staff = [];
 
-// 获取所有出库人员
+// 读取 flash 消息
+if (isset($_SESSION['flash_success'])) {
+    $success = $_SESSION['flash_success'];
+    unset($_SESSION['flash_success']);
+}
+if (isset($_SESSION['flash_error'])) {
+    $error = $_SESSION['flash_error'];
+    unset($_SESSION['flash_error']);
+}
+
+// 获取所有出库人员（不显示已删除）
 function getWarehouseStaff($pdo) {
     try {
-        $stmt = $pdo->query("SELECT * FROM warehouse_staff ORDER BY username ASC");
+        $stmt = $pdo->query("SELECT * FROM warehouse_staff WHERE status >= 0 ORDER BY username ASC");
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch(PDOException $e) {
         return [];
@@ -59,7 +69,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_staff'])) {
                 $stmt->bindParam(':phone', $phone);
                 $stmt->bindParam(':status', $status);
                 $stmt->execute();
-                $success = "出库人员添加成功";
+                $_SESSION['flash_success'] = "出库人员添加成功";
+                header("Location: admin_warehouse_staff.php");
+                exit;
             }
         } catch(PDOException $e) {
             $error = "添加出库人员出错: " . $e->getMessage();
@@ -105,7 +117,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_staff'])) {
                 $stmt->bindParam(':phone', $phone);
                 $stmt->bindParam(':status', $status);
                 $stmt->execute();
-                $success = "出库人员信息更新成功";
+                $_SESSION['flash_success'] = "出库人员信息更新成功";
+                header("Location: admin_warehouse_staff.php");
+                exit;
             }
         } catch(PDOException $e) {
             $error = "更新出库人员出错: " . $e->getMessage();
@@ -117,10 +131,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_staff'])) {
 if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id'])) {
     $id = intval($_GET['id']);
     try {
-        $stmt = $pdo->prepare("DELETE FROM warehouse_staff WHERE id = :id");
-        $stmt->bindParam(':id', $id);
-        $stmt->execute();
-        $success = "出库人员删除成功";
+        $stmt = $pdo->prepare("UPDATE warehouse_staff SET status = -1 WHERE id = ?");
+        $stmt->execute([$id]);
+        $_SESSION['flash_success'] = "出库人员已删除";
+        header("Location: admin_warehouse_staff.php");
+        exit;
     } catch(PDOException $e) {
         $error = "删除出库人员出错: " . $e->getMessage();
     }
@@ -141,7 +156,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'toggle_status' && isset($_GET[
             $stmt = $pdo->prepare("UPDATE warehouse_staff SET status = ? WHERE id = ?");
             $stmt->execute([$newStatus, $id]);
             
-            $success = "出库人员【{$staff['full_name']}】已{$statusText}";
+            $_SESSION['flash_success'] = "出库人员【{$staff['full_name']}】已{$statusText}";
             header("Location: admin_warehouse_staff.php");
             exit;
         }
@@ -260,7 +275,7 @@ try {
             background-color: #4a3f69;
         }
         .has-submenu.open .submenu {
-            max-height: 200px;
+            max-height: none;
         }
         .submenu li a {
             padding-left: 40px;
@@ -456,15 +471,16 @@ try {
                 <a href="javascript:void(0)" onclick="toggleSubmenu(this)">品牌业务 <span class="arrow">▼</span></a>
                 <ul class="submenu">
                     <li><a href="admin_list.php">溯源数据</a></li>
-                    <li><a href="admin_distributors.php">经销商管理</a></li>
-                    <li><a href="admin_product_library.php">产品管理</a></li>
+                    <li><a href="admin_base_distributors.php">经销商管理</a></li>
+                    <li><a href="admin_base_brands.php">品牌管理</a></li>
+                    <li><a href="admin_base_products.php">产品管理</a></li>
                     <li><a href="admin_warehouse_staff.php" class="active">出库人员</a></li>
                 </ul>
             </li>
             <li class="has-submenu">
                 <a href="javascript:void(0)" onclick="toggleSubmenu(this)">代工业务 <span class="arrow">▼</span></a>
                 <ul class="submenu">
-                    <li><a href="admin_certificates.php">证书管理</a></li>
+                    <li><a href="admin_base_certificates.php">证书管理</a></li>
                     <li><a href="admin_query_codes.php">查询码管理</a></li>
                 </ul>
             </li>
@@ -584,7 +600,11 @@ try {
                                     <div class="action-buttons">
                                         <a href="admin_warehouse_staff.php?action=edit&id=<?php echo $s['id']; ?>" class="btn btn-secondary">编辑</a>
                                         <?php if (!$isAdmin): ?>
-                                            <a href="admin_warehouse_staff.php?action=delete&id=<?php echo $s['id']; ?>" class="btn btn-danger" onclick="return confirm('确定要删除这个出库人员吗？');">删除</a>
+                                            <?php if ($status == 1): ?>
+                                                <a href="admin_warehouse_staff.php?action=toggle_status&id=<?php echo $s['id']; ?>" class="btn btn-danger" onclick="return confirm('确定要禁用该出库人员吗？');">禁用</a>
+                                            <?php else: ?>
+                                                <a href="admin_warehouse_staff.php?action=toggle_status&id=<?php echo $s['id']; ?>" class="btn" style="background: #27ae60;" onclick="return confirm('确定要启用该出库人员吗？');">启用</a>
+                                            <?php endif; ?>
                                         <?php endif; ?>
                                     </div>
                                 </td>

@@ -86,7 +86,7 @@ try {
     // 4. 查询证书详情（包含状态检查）
     $certStmt = $pdo->prepare("
         SELECT cert_name, cert_no, issuer, issue_date, expire_date, image_url, status, create_time, update_time 
-        FROM certificates 
+        FROM base_certificates 
         WHERE cert_no = :cert_no 
         LIMIT 1
     ");

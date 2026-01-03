@@ -31,9 +31,9 @@ $title = '';
 $parent_id = 0;
 $parent_data = [];
 $backup_dates = [];
-$distributors = [];
-$stmt = $pdo->query("SELECT id, name FROM distributors ORDER BY name ASC");
-$distributors = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$base_distributors = [];
+$stmt = $pdo->query("SELECT id, name FROM base_distributors ORDER BY name ASC");
+$base_distributors = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // 存储计数缓存，避免重复查询
 $box_carton_counts = [];  // 箱子ID => 盒子数量
@@ -195,7 +195,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export'])) {
             }
 
             if (!empty($distributor)) {
-                $where_clause .= (empty($where_clause) ? " WHERE" : " AND") . " distributors.name LIKE :distributor";
+                $where_clause .= (empty($where_clause) ? " WHERE" : " AND") . " base_distributors.name LIKE :distributor";
                 $params[':distributor'] = "%{$distributor}%";
             }
 
@@ -212,7 +212,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export'])) {
             $stmt = $pdo->prepare("
                 SELECT box_code, batch_number, DATE(production_date) as production_date 
                 FROM boxes 
-                LEFT JOIN distributors ON boxes.distributor_id = distributors.id
+                LEFT JOIN base_distributors ON boxes.distributor_id = base_distributors.id
                 $where_clause
                 ORDER BY production_date DESC, box_code ASC
             ");
@@ -424,7 +424,7 @@ try {
         }
 
         if (!empty($distributor)) {
-            $where_clause .= " AND distributors.name LIKE :distributor";
+            $where_clause .= " AND base_distributors.name LIKE :distributor";
             $params[':distributor'] = "%{$distributor}%";
         }
         
@@ -439,7 +439,7 @@ try {
         }
         
         // 获取总记录数
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM boxes LEFT JOIN distributors ON boxes.distributor_id = distributors.id" . $where_clause);
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM boxes LEFT JOIN base_distributors ON boxes.distributor_id = base_distributors.id" . $where_clause);
         foreach ($params as $key => $value) {
             $stmt->bindValue($key, $value);
         }
@@ -448,9 +448,9 @@ try {
         
         // 获取箱子数据
         $stmt = $pdo->prepare("        
-            SELECT boxes.*, distributors.name as distributor_name 
+            SELECT boxes.*, base_distributors.name as distributor_name 
             FROM boxes 
-            LEFT JOIN distributors ON boxes.distributor_id = distributors.id" . $where_clause . "
+            LEFT JOIN base_distributors ON boxes.distributor_id = base_distributors.id" . $where_clause . "
             ORDER BY production_date DESC, box_code ASC
             LIMIT :offset, :page_size
         ");
@@ -508,9 +508,9 @@ try {
         
         // 获取盒子数据
         $stmt = $pdo->prepare("            
-            SELECT cartons.*, distributors.name as distributor_name 
+            SELECT cartons.*, base_distributors.name as distributor_name 
             FROM cartons 
-            LEFT JOIN distributors ON cartons.distributor_id = distributors.id
+            LEFT JOIN base_distributors ON cartons.distributor_id = base_distributors.id
             WHERE box_id = :box_id AND cartons.status = 1
             ORDER BY carton_code ASC
             LIMIT :offset, :page_size
@@ -577,9 +577,9 @@ try {
         
         // 获取产品数据
         $stmt = $pdo->prepare("            
-            SELECT products.*, distributors.name as distributor_name 
+            SELECT products.*, base_distributors.name as distributor_name 
             FROM products 
-            LEFT JOIN distributors ON products.distributor_id = distributors.id
+            LEFT JOIN base_distributors ON products.distributor_id = base_distributors.id
             WHERE carton_id = :carton_id AND products.status = 1
             ORDER BY product_code ASC
             LIMIT :offset, :page_size
@@ -1038,7 +1038,7 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
             background-color: #4a3f69;
         }
         .has-submenu.open .submenu {
-            max-height: 200px;
+            max-height: none;
         }
         .submenu li a {
             padding-left: 40px;
@@ -1122,15 +1122,16 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
                 <a href="javascript:void(0)" onclick="toggleSubmenu(this)">品牌业务 <span class="arrow">▼</span></a>
                 <ul class="submenu">
                     <li><a href="admin_list.php" class="active">溯源数据</a></li>
-                    <li><a href="admin_distributors.php">经销商管理</a></li>
-                    <li><a href="admin_product_library.php">产品管理</a></li>
+                    <li><a href="admin_base_distributors.php">经销商管理</a></li>
+                    <li><a href="admin_base_brands.php">品牌管理</a></li>
+                    <li><a href="admin_base_products.php">产品管理</a></li>
                     <li><a href="admin_warehouse_staff.php">出库人员</a></li>
                 </ul>
             </li>
             <li class="has-submenu">
                 <a href="javascript:void(0)" onclick="toggleSubmenu(this)">代工业务 <span class="arrow">▼</span></a>
                 <ul class="submenu">
-                    <li><a href="admin_certificates.php">证书管理</a></li>
+                    <li><a href="admin_base_certificates.php">证书管理</a></li>
                     <li><a href="admin_query_codes.php">查询码管理</a></li>
                 </ul>
             </li>
@@ -1383,7 +1384,7 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
         <label for="distributor_id">指定经销商</label>
         <select id="distributor_id" name="distributor_id" required>
             <option value="">选择经销商</option>
-            <?php foreach ($distributors as $dist): ?>
+            <?php foreach ($base_distributors as $dist): ?>
                 <option value="<?php echo $dist['id']; ?>">
                     <?php echo htmlspecialchars($dist['name']); ?>
                 </option>
