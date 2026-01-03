@@ -1053,47 +1053,29 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
     }
     
     function loadImages() {
-        // 通过AJAX加载图片列表
-        fetch('admin_images.php?action=list&format=json')
-            .then(response => response.text())
-            .then(html => {
-                // 简单方式：直接请求图片目录
-                loadImagesFromDir();
-            })
-            .catch(() => loadImagesFromDir());
-    }
-    
-    function loadImagesFromDir() {
-        // 直接扫描uploads目录
         var content = document.getElementById('imagePickerContent');
-        var xhr = new XMLHttpRequest();
-        xhr.open('GET', 'get_images.php', true);
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === 4) {
-                if (xhr.status === 200) {
-                    try {
-                        var images = JSON.parse(xhr.responseText);
-                        if (images.length > 0) {
-                            var html = '<div class="picker-grid">';
-                            images.forEach(function(img) {
-                                html += '<div class="picker-item" onclick="selectImage(\'' + img.url + '\')">';
-                                html += '<img src="' + img.url + '" alt="' + img.name + '">';
-                                html += '</div>';
-                            });
-                            html += '</div>';
-                            content.innerHTML = html;
-                        } else {
-                            content.innerHTML = '<div class="picker-empty">暂无图片，请先在"图片素材"页面上传图片</div>';
-                        }
-                    } catch(e) {
-                        content.innerHTML = '<div class="picker-empty">加载失败，请刷新重试</div>';
-                    }
+        content.innerHTML = '<div style="text-align: center; padding: 40px; color: #999;">加载中...</div>';
+        
+        fetch('get_images.php?cat=certificates')
+            .then(response => response.json())
+            .then(images => {
+                if (images.length > 0) {
+                    var html = '<div class="picker-grid">';
+                    images.forEach(function(img) {
+                        html += '<div class="picker-item" onclick="selectImage(\'' + img.url + '\')">';
+                        html += '<img src="' + img.url + '" alt="' + img.name + '">';
+                        html += '</div>';
+                    });
+                    html += '</div>';
+                    content.innerHTML = html;
                 } else {
-                    content.innerHTML = '<div class="picker-empty">加载失败</div>';
+                    content.innerHTML = '<div class="picker-empty">暂无证书图片，请先在<a href="admin_images.php?cat=certificates">图片素材</a>上传</div>';
                 }
-            }
-        };
-        xhr.send();
+            })
+            .catch(err => {
+                console.error('加载图片失败:', err);
+                content.innerHTML = '<div class="picker-empty">加载失败，请刷新重试</div>';
+            });
     }
     
     function selectImage(url) {

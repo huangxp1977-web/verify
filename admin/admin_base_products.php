@@ -59,8 +59,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_product'])) {
         $error = "产品名称不能为空";
     } else {
         try {
-            $stmt = $pdo->prepare("INSERT INTO base_products (product_name, brand_id, specification) VALUES (?, ?, ?)");
-            $stmt->execute([$product_name, $brand_id, $specification]);
+            $image_url = isset($_POST['image_url']) ? trim($_POST['image_url']) : '';
+            $stmt = $pdo->prepare("INSERT INTO base_products (product_name, brand_id, specification, image_url) VALUES (?, ?, ?, ?)");
+            $stmt->execute([$product_name, $brand_id, $specification, $image_url]);
             $_SESSION['flash_success'] = "产品添加成功";
             header("Location: admin_base_products.php");
             exit;
@@ -81,13 +82,32 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_product'])) {
         $error = "产品名称不能为空";
     } else {
         try {
-            $stmt = $pdo->prepare("UPDATE base_products SET product_name = ?, brand_id = ?, specification = ? WHERE id = ?");
-            $stmt->execute([$product_name, $brand_id, $specification, $id]);
+            $image_url = isset($_POST['image_url']) ? trim($_POST['image_url']) : '';
+            $stmt = $pdo->prepare("UPDATE base_products SET product_name = ?, brand_id = ?, specification = ?, image_url = ? WHERE id = ?");
+            $stmt->execute([$product_name, $brand_id, $specification, $image_url, $id]);
             $_SESSION['flash_success'] = "产品信息更新成功";
             header("Location: admin_base_products.php");
             exit;
         } catch(PDOException $e) {
             $error = "更新产品出错: " . $e->getMessage();
+        }
+    }
+}
+
+// 处理仅更新图片
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_image_only'])) {
+    $id = isset($_POST['id']) ? intval($_POST['id']) : 0;
+    $image_url = isset($_POST['image_url']) ? trim($_POST['image_url']) : '';
+    
+    if ($id > 0) {
+        try {
+            $stmt = $pdo->prepare("UPDATE base_products SET image_url = ? WHERE id = ?");
+            $stmt->execute([$image_url, $id]);
+            $_SESSION['flash_success'] = "产品图片已更新";
+            header("Location: admin_base_products.php");
+            exit;
+        } catch(PDOException $e) {
+            $error = "更新图片出错: " . $e->getMessage();
         }
     }
 }
@@ -312,6 +332,21 @@ $activeBrands = getActiveBrands($pdo);
         th { background-color: #f2f2f2; font-weight: bold; }
         .success { background: #dff0d8; color: #3c763d; padding: 15px; margin-bottom: 20px; border-radius: 4px; }
         .error { background: #f2dede; color: #a94442; padding: 15px; margin-bottom: 20px; border-radius: 4px; }
+        
+        .form-row {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 15px;
+        }
+        .form-col {
+            flex: 1;
+        }
+        @media (max-width: 768px) {
+            .form-row {
+                flex-direction: column;
+                gap: 0;
+            }
+        }
     </style>
 </head>
 <body>
@@ -383,29 +418,53 @@ $activeBrands = getActiveBrands($pdo);
                         <input type="hidden" name="add_product" value="1">
                     <?php endif; ?>
                     
-                    <div class="form-group">
-                        <label for="product_name">产品名称 *</label>
-                        <input type="text" id="product_name" name="product_name" required
-                               value="<?php echo $edit_product ? htmlspecialchars($edit_product['product_name']) : ''; ?>">
+                    <div class="form-row">
+                        <div class="form-col">
+                            <div class="form-group">
+                                <label for="product_name">产品名称 *</label>
+                                <input type="text" id="product_name" name="product_name" required
+                                       value="<?php echo $edit_product ? htmlspecialchars($edit_product['product_name']) : ''; ?>">
+                            </div>
+                        </div>
+
+                        <div class="form-col">
+                            <div class="form-group">
+                                <label for="brand_id">品牌</label>
+                                <select id="brand_id" name="brand_id">
+                                    <option value="">-- 请选择品牌 --</option>
+                                    <?php foreach ($activeBrands as $brand): ?>
+                                    <option value="<?php echo $brand['id']; ?>" <?php echo ($edit_product && $edit_product['brand_id'] == $brand['id']) ? 'selected' : ''; ?>>
+                                        <?php echo htmlspecialchars($brand['name_cn']); ?>
+                                        <?php if ($brand['name_en']): ?>(<?php echo htmlspecialchars($brand['name_en']); ?>)<?php endif; ?>
+                                    </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-col">
+                            <div class="form-group">
+                                <label for="specification">规格</label>
+                                <input type="text" id="specification" name="specification" placeholder="如：1ml / 5支"
+                                       value="<?php echo $edit_product ? htmlspecialchars($edit_product['specification'] ?? '') : ''; ?>">
+                            </div>
+                        </div>
                     </div>
 
                     <div class="form-group">
-                        <label for="brand_id">品牌</label>
-                        <select id="brand_id" name="brand_id">
-                            <option value="">-- 请选择品牌 --</option>
-                            <?php foreach ($activeBrands as $brand): ?>
-                            <option value="<?php echo $brand['id']; ?>" <?php echo ($edit_product && $edit_product['brand_id'] == $brand['id']) ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($brand['name_cn']); ?>
-                                <?php if ($brand['name_en']): ?>(<?php echo htmlspecialchars($brand['name_en']); ?>)<?php endif; ?>
-                            </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="specification">规格</label>
-                        <input type="text" id="specification" name="specification" placeholder="如：50ml / 100粒"
-                               value="<?php echo $edit_product ? htmlspecialchars($edit_product['specification'] ?? '') : ''; ?>">
+                        <label>产品图片</label>
+                        <div id="imagePreview" style="margin-bottom: 10px;">
+                            <?php if ($edit_product && !empty($edit_product['image_url'])): ?>
+                                <img src="<?php echo htmlspecialchars($edit_product['image_url']); ?>" class="image-preview" alt="产品图片">
+                                <span class="clear-image" onclick="clearImage()" title="清除图片">&times;</span>
+                            <?php else: ?>
+                                <span style="color:#999;">未选择图片</span>
+                            <?php endif; ?>
+                        </div>
+                        <input type="hidden" id="default_image_url" name="image_url" value="<?php echo $edit_product ? htmlspecialchars($edit_product['image_url'] ?? '') : ''; ?>">
+                        <div>
+                            <button type="button" class="btn btn-secondary" onclick="openImagePicker()">从图片库选择</button>
+                        </div>
                     </div>
 
                     <button type="submit" class="btn"><?php echo $edit_product ? '更新产品' : '添加产品'; ?></button>
@@ -451,6 +510,7 @@ $activeBrands = getActiveBrands($pdo);
                         <td>
                             <?php if ($hasRelatedData): ?>
                                 <span class="btn" style="background: #ccc; cursor: not-allowed; padding: 5px 10px; font-size: 12px;" title="有关联数据，无法编辑">编辑</span>
+                                <button type="button" class="btn" style="background: #3498db; padding: 5px 10px; font-size: 12px; margin-left: 5px;" onclick="openQuickUpdateImage(<?php echo $prod['id']; ?>, '<?php echo htmlspecialchars($prod['image_url'] ?? ''); ?>', '<?php echo htmlspecialchars($prod['product_name']); ?>')">修改图片</button>
                             <?php else: ?>
                                 <a href="?action=edit&id=<?php echo $prod['id']; ?>" class="btn btn-secondary" style="padding: 5px 10px; font-size: 12px;">编辑</a>
                             <?php endif; ?>
@@ -492,8 +552,11 @@ $activeBrands = getActiveBrands($pdo);
             $('#distpicker select').change(updateRegion);
         });
         
+        var currentPickerTarget = 'form'; // 'form' or 'quick'
+        
         // 图片选择器功能
-        function openImagePicker() {
+        function openImagePicker(target) {
+            currentPickerTarget = target || 'form';
             document.getElementById('imagePickerModal').style.display = 'flex';
             loadProductImages();
         }
@@ -526,8 +589,13 @@ $activeBrands = getActiveBrands($pdo);
         }
         
         function selectImage(url) {
-            document.getElementById('default_image_url').value = url;
-            document.getElementById('imagePreview').innerHTML = '<img src="' + url + '" class="image-preview" alt="产品图片"><span class="clear-image" onclick="clearImage()" title="清除图片">&times;</span>';
+            if (currentPickerTarget === 'quick') {
+                document.getElementById('quick_image_url').value = url;
+                document.getElementById('quickImagePreview').innerHTML = '<img src="' + url + '" class="image-preview" alt="产品图片"><span class="clear-image" onclick="clearQuickImage()" title="清除图片">&times;</span>';
+            } else {
+                document.getElementById('default_image_url').value = url;
+                document.getElementById('imagePreview').innerHTML = '<img src="' + url + '" class="image-preview" alt="产品图片"><span class="clear-image" onclick="clearImage()" title="清除图片">&times;</span>';
+            }
             closeImagePicker();
         }
         
@@ -535,10 +603,34 @@ $activeBrands = getActiveBrands($pdo);
             document.getElementById('default_image_url').value = '';
             document.getElementById('imagePreview').innerHTML = '<span style="color:#999;">未选择图片</span>';
         }
+
+        // 快速修改图片功能
+        function openQuickUpdateImage(id, url, name) {
+            document.getElementById('quick_product_id').value = id;
+            document.getElementById('quick_product_name').textContent = name;
+            document.getElementById('quick_image_url').value = url;
+            
+            if (url) {
+                document.getElementById('quickImagePreview').innerHTML = '<img src="' + url + '" class="image-preview" alt="产品图片"><span class="clear-image" onclick="clearQuickImage()" title="清除图片">&times;</span>';
+            } else {
+                document.getElementById('quickImagePreview').innerHTML = '<span style="color:#999;">未选择图片</span>';
+            }
+            
+            document.getElementById('quickUpdateImageModal').style.display = 'flex';
+        }
+        
+        function closeQuickUpdateImage() {
+            document.getElementById('quickUpdateImageModal').style.display = 'none';
+        }
+        
+        function clearQuickImage() {
+            document.getElementById('quick_image_url').value = '';
+            document.getElementById('quickImagePreview').innerHTML = '<span style="color:#999;">未选择图片</span>';
+        }
     </script>
     
     <!-- 图片选择器模态框 -->
-    <div id="imagePickerModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; overflow: auto;">
+    <div id="imagePickerModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1200; overflow: auto;">
         <div style="background: white; margin: 50px auto; max-width: 900px; border-radius: 8px; max-height: 80vh; display: flex; flex-direction: column;">
             <div style="padding: 15px 20px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
                 <h3 style="margin: 0; color: #4a3f69;">选择产品图片</h3>
@@ -547,6 +639,34 @@ $activeBrands = getActiveBrands($pdo);
             <div id="imagePickerGrid" style="padding: 20px; overflow-y: auto; flex: 1;">
                 <div style="text-align: center; padding: 40px; color: #999;">加载中...</div>
             </div>
+        </div>
+    </div>
+
+    <!-- 快速修改图片模态框 -->
+    <div id="quickUpdateImageModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1100; justify-content: center; align-items: center;">
+        <div style="background: white; padding: 30px; border-radius: 8px; width: 500px; max-width: 90%;">
+            <h3 style="margin-top:0; color:#4a3f69;">修改产品图片</h3>
+            <p style="margin-bottom: 20px; color: #666;">产品名称：<strong id="quick_product_name" style="color: #333;"></strong></p>
+            <form method="post" action="admin_base_products.php">
+                <input type="hidden" name="update_image_only" value="1">
+                <input type="hidden" id="quick_product_id" name="id" value="">
+                
+                <div class="form-group">
+                    <label>产品图片</label>
+                    <div id="quickImagePreview" style="margin-bottom: 10px; border: 1px dashed #ddd; padding: 10px; text-align: center; min-height: 100px; display: flex; align-items: center; justify-content: center;">
+                        <!-- Preview -->
+                    </div>
+                    <input type="hidden" id="quick_image_url" name="image_url" value="">
+                    <div>
+                        <button type="button" class="btn btn-secondary" onclick="openImagePicker('quick')">从图片库选择</button>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 30px; text-align: right; border-top: 1px solid #eee; padding-top: 20px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeQuickUpdateImage()">取消</button>
+                    <button type="submit" class="btn" style="margin-left: 10px;">保存修改</button>
+                </div>
+            </form>
         </div>
     </div>
     

@@ -168,7 +168,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['file']
     
     // 产品图片：检查是否被产品使用
     if ($currentCat == 'products') {
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM products WHERE image LIKE ?");
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM base_products WHERE image_url LIKE ?");
         $stmt->execute(['%' . $filename]);
         if ($stmt->fetchColumn() > 0) {
             $canDelete = false;

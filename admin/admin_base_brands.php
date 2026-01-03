@@ -302,6 +302,21 @@ $base_brands = getBrands($pdo, true); // 获取所有品牌（包括禁用的）
         th { background-color: #f2f2f2; font-weight: bold; }
         .success { background: #dff0d8; color: #3c763d; padding: 15px; margin-bottom: 20px; border-radius: 4px; }
         .error { background: #f2dede; color: #a94442; padding: 15px; margin-bottom: 20px; border-radius: 4px; }
+        
+        .form-row {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 15px;
+        }
+        .form-col {
+            flex: 1;
+        }
+        @media (max-width: 768px) {
+            .form-row {
+                flex-direction: column;
+                gap: 0;
+            }
+        }
     </style>
 </head>
 <body>
@@ -372,16 +387,22 @@ $base_brands = getBrands($pdo, true); // 获取所有品牌（包括禁用的）
                         <input type="hidden" name="add_brand" value="1">
                     <?php endif; ?>
                     
-                    <div class="form-group">
-                        <label for="name_cn">中文名称 *</label>
-                        <input type="text" id="name_cn" name="name_cn" required
-                               value="<?php echo $edit_brand ? htmlspecialchars($edit_brand['name_cn']) : ''; ?>">
-                    </div>
+                    <div class="form-row">
+                        <div class="form-col">
+                            <div class="form-group">
+                                <label for="name_cn">中文名称 *</label>
+                                <input type="text" id="name_cn" name="name_cn" required
+                                       value="<?php echo $edit_brand ? htmlspecialchars($edit_brand['name_cn']) : ''; ?>">
+                            </div>
+                        </div>
 
-                    <div class="form-group">
-                        <label for="name_en">英文名称</label>
-                        <input type="text" id="name_en" name="name_en"
-                               value="<?php echo $edit_brand ? htmlspecialchars($edit_brand['name_en']) : ''; ?>">
+                        <div class="form-col">
+                            <div class="form-group">
+                                <label for="name_en">英文名称</label>
+                                <input type="text" id="name_en" name="name_en"
+                                       value="<?php echo $edit_brand ? htmlspecialchars($edit_brand['name_en']) : ''; ?>">
+                            </div>
+                        </div>
                     </div>
 
                     <button type="submit" class="btn"><?php echo $edit_brand ? '更新品牌' : '添加品牌'; ?></button>
@@ -422,7 +443,11 @@ $base_brands = getBrands($pdo, true); // 获取所有品牌（包括禁用的）
                             <?php endif; ?>
                         </td>
                         <td>
-                            <a href="?action=edit&id=<?php echo $brand['id']; ?>" class="btn btn-secondary" style="padding: 5px 10px; font-size: 12px;">编辑</a>
+                            <?php if ($hasRelatedData): ?>
+                                <span class="btn" style="background: #ccc; cursor: not-allowed; padding: 5px 10px; font-size: 12px;" title="有关联产品，无法编辑">编辑</span>
+                            <?php else: ?>
+                                <a href="?action=edit&id=<?php echo $brand['id']; ?>" class="btn btn-secondary" style="padding: 5px 10px; font-size: 12px;">编辑</a>
+                            <?php endif; ?>
                             
                             <?php if ($hasRelatedData): ?>
                                 <?php if ($brand['status'] == 1): ?>
