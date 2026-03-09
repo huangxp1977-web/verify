@@ -91,7 +91,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'reset_count' && isset($_GET['i
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>查询码管理 - 产品溯源系统</title>
+    <title>产品溯源系统 - 查询码管理</title>
     <style>
         body {
             font-family: "Microsoft YaHei", Arial, sans-serif;
@@ -202,9 +202,11 @@ if (isset($_GET['action']) && $_GET['action'] == 'reset_count' && isset($_GET['i
         }
         h1 {
             color: #4a3f69;
+            font-size: 28px;
+            font-weight: bold;
             border-bottom: 2px solid #4a3f69;
             padding-bottom: 10px;
-            margin-top: 0;
+            margin: 0 0 20px 0;
         }
         /* 搜索区域 */
         .search-box {
@@ -245,6 +247,9 @@ if (isset($_GET['action']) && $_GET['action'] == 'reset_count' && isset($_GET['i
             font-size: 14px;
             text-decoration: none;
             display: inline-block;
+            line-height: 1.2;
+            box-sizing: border-box;
+            vertical-align: middle;
         }
         .btn:hover {
             background: #3a3154;

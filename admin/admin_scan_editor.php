@@ -71,7 +71,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>扫码页编辑器 - 产品溯源系统</title>
+    <title>产品溯源系统 - 背景设计</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: Arial, sans-serif; background: #f4f4f4; display: flex; min-height: 100vh; }
@@ -126,8 +126,23 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
         .prop-row label { width: 30px; font-size: 12px; color: #999; line-height: 28px; }
         .prop-row input { flex: 1; padding: 5px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; }
         
-        .btn { padding: 12px 24px; background: #4a3f69; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; width: 100%; }
-        .btn:hover { background: #3a2f59; }
+        /* 标准按钮样式 */
+        .btn {
+            padding: 8px 16px;
+            background: #4a3f69;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            text-decoration: none;
+            display: inline-block;
+            line-height: 1.2;
+            box-sizing: border-box;
+            vertical-align: middle;
+            width: 100%;
+        }
+        .btn:hover { background: #3a3154; }
         .btn-reset { background: #6c757d; margin-top: 10px; }
     </style>
 </head>

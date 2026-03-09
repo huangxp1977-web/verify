@@ -83,7 +83,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>七牛云接口配置 - 产品溯源系统</title>
+    <title>产品溯源系统 - 七牛云接口</title>
     <style>
         body {
             font-family: "Microsoft YaHei", Arial, sans-serif;

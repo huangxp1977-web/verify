@@ -556,9 +556,12 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
         h1 {
             color: #4a3f69;
             font-size: 28px;
-            margin: 0;
-            text-align: center;
             font-weight: bold;
+            border-bottom: 2px solid #4a3f69;
+            padding-bottom: 10px;
+            margin: 0 0 20px 0;
+            text-align: left;
+            width: 100%;
         }
         .header h1 {
             text-align: left;
@@ -574,19 +577,17 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
             color: #4a3f69;
         }
         .section {
-            background: #f5f3fa;
-            border: 1px solid #d4cce8;
+            padding: 15px;
             border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 30px;
+            background: #f5f3fa;
+            margin-bottom: 20px;
+            /* border: 1px solid #d4cce8; 移除边框 */
         }
         .header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 30px;
-            border-bottom: 2px solid #8b7aa8;
-            padding-bottom: 20px;
+            /* 移除 border-bottom 和 padding-bottom */
         }
         .form-group {
             margin-bottom: 20px;
@@ -611,22 +612,23 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
             border-color: #4a3f69;
             outline: none;
         }
+        /* 标准按钮样式 */
         .btn {
-            padding: 10px 20px;
+            padding: 8px 16px;
             background: #4a3f69;
             color: white;
             border: none;
             border-radius: 4px;
             cursor: pointer;
-            font-size: 16px;
+            font-size: 14px;
             text-decoration: none;
             display: inline-block;
-            transition: background-color 0.3s;
+            line-height: 1.2;
+            box-sizing: border-box;
+            vertical-align: middle;
             margin-right: 10px;
         }
-        .btn:hover {
-            background: #3a3154;
-        }
+        .btn:hover { background: #3a3154; }
         .btn-secondary {
             background: #fff;
             color: #4a3f69;
@@ -727,6 +729,37 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
                 flex-direction: column;
                 gap: 0;
             }
+        }
+        
+        /* 标准表格样式 */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+            background: white;
+            margin-bottom: 20px;
+        }
+        th {
+            background-color: #4a3f69;   /* 深紫色背景 */
+            color: white;                /* 白色文字 */
+            font-weight: normal;         /* 正常字重 */
+            padding: 10px 12px;          /* 内边距 */
+            text-align: center;          /* 居中对齐 */
+            border-bottom: 1px solid #eee;
+        }
+        tr:nth-child(odd) {
+            background-color: #fff;      /* 奇数行白色 */
+        }
+        tr:nth-child(even) {
+            background-color: #f5f3fa;   /* 偶数行浅紫色 */
+        }
+        tr:hover {
+            background-color: #f5f5f5;   /* 悬停效果 */
+        }
+        td {
+            padding: 10px 12px;
+            text-align: center;
+            border-bottom: 1px solid #eee;
         }
     </style>
 </head>

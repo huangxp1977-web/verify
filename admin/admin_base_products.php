@@ -176,7 +176,7 @@ $activeBrands = getActiveBrands($pdo);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>产品管理 - 产品溯源系统</title>
+    <title>产品溯源系统 - 产品管理</title>
     <script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <script src="https://cdn.bootcdn.net/ajax/libs/distpicker/2.0.7/distpicker.min.js"></script>
     <style>
@@ -282,38 +282,50 @@ $activeBrands = getActiveBrands($pdo);
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 30px;
-            border-bottom: 2px solid #8b7aa8;
-            padding-bottom: 20px;
+            /* 移除 border-bottom 和 padding-bottom */
         }
         h1 {
             color: #4a3f69;
             font-size: 28px;
-            margin: 0;
             font-weight: bold;
+            border-bottom: 2px solid #4a3f69;
+            padding-bottom: 10px;
+            margin: 0 0 20px 0;
+            width: 100%;
+            text-align: left;
         }
+        /* 标准按钮样式 */
         .btn {
-            padding: 10px 20px;
+            padding: 8px 16px;
             background: #4a3f69;
             color: white;
             border: none;
             border-radius: 4px;
             cursor: pointer;
+            font-size: 14px;
             text-decoration: none;
             display: inline-block;
+            line-height: 1.2;
+            box-sizing: border-box;
+            vertical-align: middle;
         }
         .btn:hover { background: #3a3154; }
-        .btn-secondary { background: #fff; color: #4a3f69; border: 1px solid #4a3f69; }
+        
+        .btn-secondary {
+            background: #fff;
+            color: #4a3f69;
+            border: 1px solid #4a3f69;
+        }
         .btn-secondary:hover { background: #f5f3fa; }
         .btn-danger { background: #fdf0f0; color: #e74c3c; border: 1px solid #e74c3c; }
         .btn-danger:hover { background: #fce4e4; color: #c0392b; border-color: #c0392b; }
         
         .section {
-            padding: 20px;
-            border: 1px solid #eee;
+            padding: 15px;
             border-radius: 8px;
             background: #f5f3fa;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
+            /* border: 1px solid #eee; 移除边框 */
         }
         .form-group { margin-bottom: 15px; }
         label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; }
@@ -327,9 +339,36 @@ $activeBrands = getActiveBrands($pdo);
         .distpicker-wrap { display: flex; gap: 10px; }
         .distpicker-wrap select { flex: 1; }
         
-        table { width: 100%; border-collapse: collapse; background: white; }
-        th, td { padding: 12px; border: 1px solid #ddd; text-align: left; }
-        th { background-color: #f2f2f2; font-weight: bold; }
+        /* 标准表格样式 */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+            background: white;
+            margin-bottom: 20px;
+        }
+        th {
+            background-color: #4a3f69;   /* 深紫色背景 */
+            color: white;                /* 白色文字 */
+            font-weight: normal;         /* 正常字重 */
+            padding: 10px 12px;          /* 内边距 */
+            text-align: center;          /* 居中对齐 */
+            border-bottom: 1px solid #eee;
+        }
+        tr:nth-child(odd) {
+            background-color: #fff;      /* 奇数行白色 */
+        }
+        tr:nth-child(even) {
+            background-color: #f5f3fa;   /* 偶数行浅紫色 */
+        }
+        tr:hover {
+            background-color: #f5f5f5;   /* 悬停效果 */
+        }
+        td {
+            padding: 10px 12px;
+            text-align: center;
+            border-bottom: 1px solid #eee;
+        }
         .success { background: #dff0d8; color: #3c763d; padding: 15px; margin-bottom: 20px; border-radius: 4px; }
         .error { background: #f2dede; color: #a94442; padding: 15px; margin-bottom: 20px; border-radius: 4px; }
         
@@ -396,7 +435,7 @@ $activeBrands = getActiveBrands($pdo);
     <div class="main-content">
         <div class="container">
             <div class="header">
-                <h1>产品库管理</h1>
+                <h1>产品管理</h1>
                 <a href="/warehouse/warehouse_scan.php" target="_blank" class="btn">出库扫码</a>
             </div>
 

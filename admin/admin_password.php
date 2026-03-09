@@ -61,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>修改密码 - 产品溯源系统</title>
+    <title>产品溯源系统 - 修改密码</title>
     <style>
         body {
             font-family: Arial, sans-serif;

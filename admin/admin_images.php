@@ -292,7 +292,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>图片素材 - 产品溯源系统</title>
+    <title>产品溯源系统 - 图片素材</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: Arial, sans-serif; background: #f4f4f4; display: flex; min-height: 100vh; }
@@ -310,7 +310,15 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
         .has-submenu.open .arrow { transform: rotate(180deg); }
         .main-content { margin-left: 200px; padding: 20px; flex: 1; }
         .container { max-width: 1200px; margin: 0 auto; }
-        h1 { color: #333; margin-bottom: 20px; }
+        h1 {
+            color: #4a3f69;
+            font-size: 28px;
+            font-weight: bold;
+            border-bottom: 2px solid #4a3f69;
+            padding-bottom: 10px;
+            margin: 0 0 20px 0;
+            text-align: left;
+        }
         .success { background: #d4edda; color: #155724; padding: 10px 15px; border-radius: 4px; margin-bottom: 15px; }
         .error { background: #f8d7da; color: #721c24; padding: 10px 15px; border-radius: 4px; margin-bottom: 15px; }
         
@@ -320,12 +328,32 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
         .cat-tab:hover { background: #f5f3fa; }
         .cat-tab.active { background: #4a3f69; color: white; border-color: #4a3f69; }
         
-        .upload-section { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .upload-section {
+            padding: 15px;
+            border-radius: 8px;
+            background: #f5f3fa;
+            margin-bottom: 20px;
+            /* border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); */
+        }
         .upload-section h3 { margin-bottom: 15px; color: #4a3f69; }
         .upload-form { display: flex; gap: 10px; align-items: center; }
         .upload-form input[type="file"] { flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
-        .btn { padding: 10px 20px; background: #4a3f69; color: white; border: none; border-radius: 4px; cursor: pointer; text-decoration: none; display: inline-block; font-size: 14px; }
-        .btn:hover { background: #3a2f59; }
+        /* 标准按钮样式 */
+        .btn {
+            padding: 8px 16px;
+            background: #4a3f69;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            text-decoration: none;
+            display: inline-block;
+            line-height: 1.2;
+            box-sizing: border-box;
+            vertical-align: middle;
+        }
+        .btn:hover { background: #3a3154; }
         .btn-sm { padding: 6px 12px; font-size: 12px; }
         .btn-danger { background: #fdf0f0; color: #e74c3c; border: 1px solid #e74c3c; }
         .btn-danger:hover { background: #fce4e4; }

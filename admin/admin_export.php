@@ -167,7 +167,7 @@ try {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>导出防伪码信息</title>
+    <title>产品溯源系统 - 导出防伪码</title>
     <style>
         body {
             font-family: Arial, sans-serif;

@@ -739,7 +739,7 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo $title; ?> - 产品溯源管理系统</title>
+    <title>产品溯源系统 - 溯源数据</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -774,9 +774,9 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 30px;
-            padding-bottom: 20px;
-            border-bottom: 2px solid #8b7aa8;
+            margin-bottom: 21px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #4a3f69;
         }
         .breadcrumb {
             margin: 0 0 20px 0;
@@ -816,30 +816,40 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 20px;
+            font-size: 14px;
         }
         th, td {
-            padding: 12px 15px;
-            text-align: left;
+            padding: 10px 12px;
+            text-align: center;
             border-bottom: 1px solid #eee;
         }
         th {
+            background-color: #4a3f69;
+            color: white;
+            font-weight: normal;
+        }
+        tr:nth-child(odd) {
+            background-color: #fff;
+        }
+        tr:nth-child(even) {
             background-color: #f5f3fa;
-            font-weight: bold;
         }
         tr:hover {
             background-color: #f5f5f5;
         }
         .btn {
-            padding: 10px 20px;
+            padding: 8px 16px;
             background: #4a3f69;
             color: white;
             border: none;
             border-radius: 4px;
             cursor: pointer;
-            font-size: 16px;
+            font-size: 14px;
             text-decoration: none;
             display: inline-block;
-            transition: background-color 0.3s;
+            line-height: 1.2;
+            box-sizing: border-box;
+            vertical-align: middle;
         }
         .btn:hover {
             background: #3a3154;
@@ -868,11 +878,16 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
         .btn-delete:hover {
             background: #fce4e4;
         }
+        /* 表格内紧凑按钮样式 */
+        .actions .btn {
+            padding: 2px 8px;
+            font-size: 12px;
+        }
         .section {
-            padding: 20px;
-            border: 1px solid #eee;
-            border-radius: 8px;
-            background: #f5f3fa;
+            padding: 0 20px 20px 20px;
+            border: none;
+            border-radius: 0;
+            background: #fff;
             margin-bottom: 20px;
         }
         .btn-back {
@@ -1092,10 +1107,10 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
             cursor: pointer;
         }
         .batch-actions {
-            margin: 15px 0;
-            padding: 10px;
-            background-color: #f5f3fa;
-            border-radius: 4px;
+            margin: 0;
+            padding: 0;
+            background-color: transparent;
+            border-radius: 0;
         }
         /* 筛选表单响应式优化 */
         @media (max-width: 768px) {
@@ -1180,45 +1195,41 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
             <div class="error"><?php echo $error; ?></div>
         <?php endif; ?>
         
-        <div class="section">
-            <!-- 清空+恢复功能按钮区 -->
-<div class="content-header" style="display: flex; justify-content: flex-end; margin-bottom: 20px;">
-    <!-- 功能按钮区已清空 -->
-</div>
-
+        
         <!-- 筛选功能表单 -->
         <?php if ($level == 'box'): ?>
-        <div class="filter-form" style="margin-bottom: 20px; padding: 15px; border-bottom: 1px solid #eee;">
-            <h3>快速筛选</h3>
-            <form method="get" action="" style="display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap;">
-                <div style="flex: 1; min-width: 150px;">
-                    <label for="box_code">箱子防伪码：</label>
-                    <input type="text" id="box_code" name="box_code" value="<?php echo htmlspecialchars($box_code); ?>" placeholder="支持精确匹配和模糊查询">
+        <div class="filter-form" style="background: #f5f3fa; padding: 15px; border-radius: 8px; margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 15px; align-items: center;">
+            <form method="get" action="" style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap; width: 100%;">
+                <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
+                    <label for="box_code" style="white-space: nowrap;">箱子防伪码：</label>
+                    <input type="text" id="box_code" name="box_code" value="<?php echo htmlspecialchars($box_code); ?>" placeholder="支持精确匹配和模糊查询" style="width: 150px; padding: 8px 12px;">
                 </div>
-                <div style="flex: 1; min-width: 150px;">
-                    <label for="distributor">经销商：</label>
-                    <input type="text" id="distributor" name="distributor" value="<?php echo htmlspecialchars($distributor); ?>" placeholder="支持模糊查询">
+                <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
+                    <label for="distributor" style="white-space: nowrap;">经销商：</label>
+                    <input type="text" id="distributor" name="distributor" value="<?php echo htmlspecialchars($distributor); ?>" placeholder="支持模糊查询" style="width: 150px; padding: 8px 12px;">
                 </div>
-                <div style="flex: 1; min-width: 150px;">
-                    <label for="filter_batch_number">批号：</label>
-                    <input type="text" id="filter_batch_number" name="batch_number" value="<?php echo htmlspecialchars($batch_number); ?>" placeholder="支持模糊查询">
+                <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
+                    <label for="filter_batch_number" style="white-space: nowrap;">批号：</label>
+                    <input type="text" id="filter_batch_number" name="batch_number" value="<?php echo htmlspecialchars($batch_number); ?>" placeholder="支持模糊查询" style="width: 150px; padding: 8px 12px;">
                 </div>
-                <div style="flex: 1; min-width: 150px;">
-                    <label for="filter_production_date">生产日期：</label>
-                    <input type="date" id="filter_production_date" name="production_date" value="<?php echo htmlspecialchars($production_date); ?>">
+                <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
+                    <label for="filter_production_date" style="white-space: nowrap;">生产日期：</label>
+                    <input type="date" id="filter_production_date" name="production_date" value="<?php echo htmlspecialchars($production_date); ?>" style="padding: 8px 12px;">
                 </div>
-                <div style="margin-bottom: 8px;">
-                    <input type="hidden" name="level" value="box">
-                    <button type="submit" class="btn btn-secondary">筛选</button>
-                    <a href="admin_list.php?level=box" class="btn btn-back">重置</a>
-                </div>
+                <input type="hidden" name="level" value="box">
+                <button type="submit" class="btn">筛选</button>
+                <a href="admin_list.php?level=box" class="btn btn-secondary">重置</a>
             </form>
         </div>
         <?php endif; ?>
 
-        <!-- 批量删除按钮区域（筛选框下方） -->
+        <div class="section">
+        <!-- 统计信息和批量删除按钮区域 -->
         <?php if ($data): ?>
-        <div class="batch-actions">
+        <div class="batch-actions" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <div class="stats" style="color: #666;">
+                共 <strong><?php echo $total_records; ?></strong> 条记录，当前第 <strong><?php echo $page; ?></strong> / <strong><?php echo max(1, $total_pages); ?></strong> 页
+            </div>
             <form method="post" action="" onsubmit="return confirmBatchDelete();" style="display: inline-block;">
                 <input type="hidden" name="level" value="<?php echo $level; ?>">
                 <input type="hidden" name="id" value="<?php echo $id; ?>">
@@ -1233,7 +1244,7 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
                 <thead>
                     <tr>
                         <?php if ($level == 'box'): ?>
-                            <th><input type="checkbox" id="selectAll" class="select-checkbox"> 全选</th>
+                            <th style="vertical-align: middle;"><div style="display: flex; flex-direction: column; align-items: center; gap: 4px;"><span>全选</span><input type="checkbox" id="selectAll" class="select-checkbox"></div></th>
                             <th>箱子防伪码</th>
                             <th>批号</th>
                             <th>生产日期</th>
@@ -1241,7 +1252,7 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
                             <th>盒子数量</th>
                             <th>操作</th>
                         <?php elseif ($level == 'carton'): ?>
-                            <th><input type="checkbox" id="selectAll" class="select-checkbox"> 全选</th>
+                            <th style="vertical-align: middle;"><div style="display: flex; flex-direction: column; align-items: center; gap: 4px;"><span>全选</span><input type="checkbox" id="selectAll" class="select-checkbox"></div></th>
                             <th>盒子防伪码</th>
                             <th>批号</th>
                             <th>生产日期</th>
@@ -1249,7 +1260,7 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
                             <th>产品数量</th>
                             <th>操作</th>
                         <?php elseif ($level == 'product'): ?>
-                            <th><input type="checkbox" id="selectAll" class="select-checkbox"> 全选</th>
+                            <th style="vertical-align: middle;"><div style="display: flex; flex-direction: column; align-items: center; gap: 4px;"><span>全选</span><input type="checkbox" id="selectAll" class="select-checkbox"></div></th>
                             <th>产品防伪码</th>
                             <th>产品名称</th>
                             <th>生产地区</th>

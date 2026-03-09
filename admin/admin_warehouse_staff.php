@@ -192,7 +192,7 @@ try {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>出库人员管理 - 产品溯源系统</title>
+    <title>产品溯源系统 - 出库人员管理</title>
     <style>
         body {
             font-family: "Microsoft YaHei", Arial, sans-serif;
@@ -307,16 +307,17 @@ try {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 30px;
-            padding-bottom: 20px;
-            border-bottom: 2px solid #8b7aa8;
+            /* 移除 border-bottom 和 padding-bottom */
         }
         h1 {
             color: #4a3f69;
             font-size: 28px;
-            margin: 0;
-            text-align: center;
             font-weight: bold;
+            border-bottom: 2px solid #4a3f69;
+            padding-bottom: 10px;
+            margin: 0 0 20px 0;
+            text-align: left;
+            width: 100%;
         }
         .header h1 {
             text-align: left;
@@ -328,29 +329,29 @@ try {
             padding-bottom: 10px;
             margin-bottom: 20px;
         }
+        /* 标准按钮样式 */
         .btn {
-            padding: 10px 20px;
+            padding: 8px 16px;
             background: #4a3f69;
             color: white;
             border: none;
             border-radius: 4px;
             cursor: pointer;
-            font-size: 16px;
+            font-size: 14px;
             text-decoration: none;
             display: inline-block;
-            transition: background-color 0.3s;
+            line-height: 1.2;
+            box-sizing: border-box;
+            vertical-align: middle;
         }
-        .btn:hover {
-            background: #3a3154;
-        }
+        .btn:hover { background: #3a3154; }
+        
         .btn-secondary {
             background: #fff;
             color: #4a3f69;
             border: 1px solid #4a3f69;
         }
-        .btn-secondary:hover {
-            background: #f5f3fa;
-        }
+        .btn-secondary:hover { background: #f5f3fa; }
         .btn-danger {
             background: #fdf0f0;
             color: #e74c3c;
@@ -368,11 +369,11 @@ try {
             background: #c0392b;
         }
         .section {
-            margin-bottom: 30px;
-            padding: 20px;
-            border: 1px solid #eee;
+            padding: 15px;
             border-radius: 8px;
-            background-color: #f5f3fa;
+            background: #f5f3fa;
+            margin-bottom: 20px;
+            /* border: 1px solid #eee; 移除边框 */
         }
         .form-group {
             margin-bottom: 15px;
@@ -405,27 +406,35 @@ try {
             margin-bottom: 20px;
             border-radius: 4px;
         }
+        /* 标准表格样式 */
         table {
             width: 100%;
             border-collapse: collapse;
+            font-size: 14px;
+            background: white;
             margin-bottom: 20px;
-            background-color: white;
-        }
-        th, td {
-            padding: 12px 15px;
-            text-align: left;
-            border-bottom: 1px solid #eee;
         }
         th {
-            background-color: #4a3f69;
-            color: white;
-            font-weight: bold;
+            background-color: #4a3f69;   /* 深紫色背景 */
+            color: white;                /* 白色文字 */
+            font-weight: normal;         /* 正常字重 */
+            padding: 10px 12px;          /* 内边距 */
+            text-align: center;          /* 居中对齐 */
+            border-bottom: 1px solid #eee;
+        }
+        tr:nth-child(odd) {
+            background-color: #fff;      /* 奇数行白色 */
         }
         tr:nth-child(even) {
-            background-color: #f5f3fa;
+            background-color: #f5f3fa;   /* 偶数行浅紫色 */
         }
         tr:hover {
-            background-color: #f5f5f5;
+            background-color: #f5f5f5;   /* 悬停效果 */
+        }
+        td {
+            padding: 10px 12px;
+            text-align: center;
+            border-bottom: 1px solid #eee;
         }
         .action-buttons {
             display: flex;
