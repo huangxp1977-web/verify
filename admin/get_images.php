@@ -60,7 +60,7 @@ if (isQiniuEnabled()) {
                 if (!isset($localFiles[$fileName])) {
                     $images[] = [
                         'name' => $fileName,
-                        'url' => $domain . '/' . $item['key'],
+                        'url' => '/' . $item['key'],
                         'size' => $item['size'] ?? 0,
                         'time' => $item['time'] ?? 0,
                         'source' => 'qiniu'

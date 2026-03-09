@@ -5,6 +5,7 @@ error_reporting(E_ALL);
 
 session_start();
 require __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../includes/qiniu_helper.php';
 require_once __DIR__ . '/check_domain.php';
 
 // 通用工具函数
@@ -875,7 +876,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
                                 <label>证书图片</label>
                                 <div id="selectedImagePreview" style="margin-bottom: 10px; position: relative; display: inline-block;">
                                     <?php if ($currentCert && !empty($currentCert['image_url'])): ?>
-                                        <img src="<?php echo htmlspecialchars($currentCert['image_url']); ?>" 
+                                        <img src="<?php echo htmlspecialchars(getImageUrl($currentCert['image_url'])); ?>" 
                                              class="image-preview" 
                                              alt="<?php echo htmlspecialchars($currentCert['cert_name']); ?>">
                                         <span class="clear-image" onclick="clearSelectedImage()" title="清除图片">&times;</span>
@@ -956,7 +957,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
                                     </td>
                                     <td>
                                         <?php if (!empty($cert['image_url'])): ?>
-                                            <img src="<?php echo htmlspecialchars($cert['image_url']); ?>" 
+                                            <img src="<?php echo htmlspecialchars(getImageUrl($cert['image_url'])); ?>" 
                                                  class="image-preview" 
                                                  alt="<?php echo htmlspecialchars($cert['cert_name']); ?>">
                                         <?php else: ?>
