@@ -370,10 +370,47 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
         .image-item-actions form { margin: 0; }
         
         /* 图片放大 */
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center; }
+        .modal { 
+            display: none; 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            background: rgba(0,0,0,0.8); 
+            z-index: 1000; 
+            justify-content: center; 
+            align-items: center; 
+            overflow: hidden; /* 防止缩放时出现滚动条 */
+            user-select: none;
+        }
         .modal.active { display: flex; }
-        .modal img { max-width: 90%; max-height: 90%; }
-        .modal-close { position: absolute; top: 20px; right: 30px; color: white; font-size: 30px; cursor: pointer; }
+        .modal img { 
+            max-width: 90%; 
+            max-height: 90%; 
+            transition: transform 0.1s ease-out; /* 平滑缩放 */
+            cursor: zoom-in;
+            transform-origin: center center;
+        }
+        .modal img.zoomed {
+            cursor: grab;
+        }
+        .modal img.zoomed:active {
+            cursor: grabbing;
+        }
+        .modal-close { position: absolute; top: 20px; right: 30px; color: white; font-size: 30px; cursor: pointer; z-index: 1010; }
+        .zoom-tip {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255,255,255,0.7);
+            background: rgba(0,0,0,0.5);
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            pointer-events: none;
+        }
         
         /* 当前背景提示 */
         .current-bg-label { background: #28a745; color: white; padding: 2px 8px; border-radius: 3px; font-size: 11px; margin-left: 5px; }
@@ -509,19 +546,92 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
     </div>
     
     <!-- 图片放大模态框 -->
-    <div class="modal" id="imageModal" onclick="hideModal()">
-        <span class="modal-close">&times;</span>
-        <img src="" id="modalImage">
+    <div class="modal" id="imageModal">
+        <span class="modal-close" onclick="hideModal()">&times;</span>
+        <img src="" id="modalImage" onmousedown="startDrag(event)">
+        <div class="zoom-tip">滚轮缩放 | 拖拽移动 | 双击重置</div>
     </div>
     
     <script>
+    var scale = 1;
+    var translateX = 0;
+    var translateY = 0;
+    var isDragging = false;
+    var startX, startY;
+    var modalImg = document.getElementById('modalImage');
+    var modal = document.getElementById('imageModal');
+
     function showModal(src) {
-        document.getElementById('modalImage').src = src;
-        document.getElementById('imageModal').classList.add('active');
+        scale = 1;
+        translateX = 0;
+        translateY = 0;
+        updateTransform();
+        modalImg.src = src;
+        modal.classList.add('active');
+        modalImg.classList.remove('zoomed');
     }
+
     function hideModal() {
-        document.getElementById('imageModal').classList.remove('active');
+        modal.classList.remove('active');
     }
+
+    // 更新变换效果
+    function updateTransform() {
+        modalImg.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+        if (scale > 1) {
+            modalImg.classList.add('zoomed');
+        } else {
+            modalImg.classList.remove('zoomed');
+        }
+    }
+
+    // 滚轮缩放事件
+    modal.addEventListener('wheel', function(e) {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+        const newScale = Math.min(Math.max(0.5, scale + delta), 5); // 限制缩放范围 0.5x - 5x
+        
+        if (newScale !== scale) {
+            scale = newScale;
+            updateTransform();
+        }
+    }, { passive: false });
+
+    // 拖拽逻辑
+    function startDrag(e) {
+        if (scale <= 1) return;
+        isDragging = true;
+        startX = e.clientX - translateX;
+        startY = e.clientY - translateY;
+        e.preventDefault();
+    }
+
+    window.addEventListener('mousemove', function(e) {
+        if (!isDragging) return;
+        translateX = e.clientX - startX;
+        translateY = e.clientY - startY;
+        updateTransform();
+    });
+
+    window.addEventListener('mouseup', function() {
+        isDragging = false;
+    });
+
+    // 双击重置
+    modalImg.addEventListener('dblclick', function() {
+        scale = 1;
+        translateX = 0;
+        translateY = 0;
+        updateTransform();
+    });
+
+    // 点击背景关闭 (仅当未缩放或点击边距时)
+    modal.addEventListener('mousedown', function(e) {
+        if (e.target === modal || e.target === document.querySelector('.modal-close')) {
+            hideModal();
+        }
+    });
+
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') hideModal();
     });

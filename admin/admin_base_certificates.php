@@ -711,6 +711,46 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
             margin-top: 10px;
             border: 1px solid #eee;
             border-radius: 4px;
+            cursor: zoom-in;
+        }
+        
+        /* 图片放大模态框样式 */
+        .modal { 
+            display: none; 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            background: rgba(0,0,0,0.8); 
+            z-index: 2000; 
+            justify-content: center; 
+            align-items: center; 
+            overflow: hidden;
+            user-select: none;
+        }
+        .modal.active { display: flex; }
+        .modal img { 
+            max-width: 90%; 
+            max-height: 90%; 
+            transition: transform 0.1s ease-out;
+            cursor: zoom-in;
+            transform-origin: center center;
+        }
+        .modal img.zoomed { cursor: grab; }
+        .modal img.zoomed:active { cursor: grabbing; }
+        .modal-close { position: absolute; top: 20px; right: 30px; color: white; font-size: 30px; cursor: pointer; z-index: 2010; }
+        .zoom-tip {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255,255,255,0.7);
+            background: rgba(0,0,0,0.5);
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            pointer-events: none;
         }
         .format-group {
             margin-top: 10px;
@@ -878,7 +918,8 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
                                     <?php if ($currentCert && !empty($currentCert['image_url'])): ?>
                                         <img src="<?php echo htmlspecialchars(getImageUrl($currentCert['image_url'])); ?>" 
                                              class="image-preview" 
-                                             alt="<?php echo htmlspecialchars($currentCert['cert_name']); ?>">
+                                             alt="<?php echo htmlspecialchars($currentCert['cert_name']); ?>"
+                                             onclick="showModal(this.src)">
                                         <span class="clear-image" onclick="clearSelectedImage()" title="清除图片">&times;</span>
                                     <?php else: ?>
                                         <span style="color: #999;">未选择图片</span>
@@ -959,7 +1000,8 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
                                         <?php if (!empty($cert['image_url'])): ?>
                                             <img src="<?php echo htmlspecialchars(getImageUrl($cert['image_url'])); ?>" 
                                                  class="image-preview" 
-                                                 alt="<?php echo htmlspecialchars($cert['cert_name']); ?>">
+                                                 alt="<?php echo htmlspecialchars($cert['cert_name']); ?>"
+                                                 onclick="showModal(this.src)">
                                         <?php else: ?>
                                             无图片
                                         <?php endif; ?>
@@ -1076,7 +1118,87 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
         }
     </style>
     
+    <!-- 图片放大模态框 -->
+    <div class="modal" id="imageModal">
+        <span class="modal-close" onclick="hideModal()">&times;</span>
+        <img src="" id="modalImage" onmousedown="startDrag(event)">
+        <div class="zoom-tip">滚轮缩放 | 拖拽移动 | 双击重置</div>
+    </div>
+    
     <script>
+    var scale = 1;
+    var translateX = 0;
+    var translateY = 0;
+    var isDragging = false;
+    var startX, startY;
+    var modalImg = document.getElementById('modalImage');
+    var modal = document.getElementById('imageModal');
+
+    function showModal(src) {
+        scale = 1;
+        translateX = 0;
+        translateY = 0;
+        updateTransform();
+        modalImg.src = src;
+        modal.classList.add('active');
+        modalImg.classList.remove('zoomed');
+    }
+
+    function hideModal() {
+        modal.classList.remove('active');
+    }
+
+    function updateTransform() {
+        modalImg.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+        if (scale > 1) {
+            modalImg.classList.add('zoomed');
+        } else {
+            modalImg.classList.remove('zoomed');
+        }
+    }
+
+    modal.addEventListener('wheel', function(e) {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+        const newScale = Math.min(Math.max(0.5, scale + delta), 5);
+        if (newScale !== scale) {
+            scale = newScale;
+            updateTransform();
+        }
+    }, { passive: false });
+
+    function startDrag(e) {
+        if (scale <= 1) return;
+        isDragging = true;
+        startX = e.clientX - translateX;
+        startY = e.clientY - translateY;
+        e.preventDefault();
+    }
+
+    window.addEventListener('mousemove', function(e) {
+        if (!isDragging) return;
+        translateX = e.clientX - startX;
+        translateY = e.clientY - startY;
+        updateTransform();
+    });
+
+    window.addEventListener('mouseup', function() {
+        isDragging = false;
+    });
+
+    modalImg.addEventListener('dblclick', function() {
+        scale = 1;
+        translateX = 0;
+        translateY = 0;
+        updateTransform();
+    });
+
+    modal.addEventListener('mousedown', function(e) {
+        if (e.target === modal || e.target === document.querySelector('.modal-close')) {
+            hideModal();
+        }
+    });
+
     function openImagePicker() {
         document.getElementById('imagePickerModal').style.display = 'block';
         loadImages();
