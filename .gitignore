@@ -1,3 +1,6 @@
 # 日志文件
 proxy-*.log
 
+# Claude Code
+CLAUDE.md
+.claude/

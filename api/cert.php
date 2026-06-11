@@ -42,29 +42,29 @@ if (empty($uniqueCode)) {
 }
 
 try {
-    // 1. 查询链接详情（包含查询次数）
+    // 1. 先通过 unique_code 查找防伪码记录（获取 cert_id），不依赖 URL 中的 cert_no
+    //    这样即使二维码已印刷（URL 中 cert_no 是旧的），记录过户后仍能正确关联到新证书
     $linkStmt = $pdo->prepare("
-        SELECT id, query_count FROM certificate_links 
-        WHERE cert_no = :cert_no 
-          AND unique_code = :code 
+        SELECT id, cert_id, query_count FROM certificate_links 
+        WHERE unique_code = :code 
         LIMIT 1
     ");
-    $linkStmt->bindParam(':cert_no', $certNo);
     $linkStmt->bindParam(':code', $uniqueCode);
     $linkStmt->execute();
 
     $link = $linkStmt->fetch(PDO::FETCH_ASSOC);
     if (!$link) {
         $response['code'] = 403;
-        $response['message'] = '该查询链接不存在';
+        $response['message'] = '该防伪标签异常或查无此码，谨防假冒';
         echo json_encode($response, JSON_UNESCAPED_UNICODE);
         exit;
     }
 
     $linkId = $link['id'];
     $currentQueryCount = $link['query_count'];
+    $certId = $link['cert_id'];  // 以记录中实际绑定的 cert_id 为准
 
-    // 2. 判断是否已达最大查询次数（提示语改为“最大2次”）
+    // 2. 判断是否已达最大查询次数
     if ($currentQueryCount >= MAX_QUERY_TIMES) {
         $response['code'] = 403;
         $response['message'] = "该查询链接已失效（已达最大2次有效查询）";
@@ -72,7 +72,34 @@ try {
         exit;
     }
 
-    // 3. 更新查询次数（自增1）
+    // 3. 通过 cert_id 反查证书详情
+    $certStmt = $pdo->prepare("
+        SELECT cert_name, cert_no, issuer, issue_date, expire_date, image_url, status, create_time, update_time 
+        FROM base_certificates 
+        WHERE id = :cert_id 
+        LIMIT 1
+    ");
+    $certStmt->bindParam(':cert_id', $certId, PDO::PARAM_INT);
+    $certStmt->execute();
+
+    $certData = $certStmt->fetch(PDO::FETCH_ASSOC);
+    if (!$certData) {
+        $response['code'] = 404;
+        $response['message'] = '证书记录异常，请联系客服核实';
+        echo json_encode($response, JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    // 检查证书状态（status为0表示禁用）
+    $certStatus = isset($certData['status']) ? $certData['status'] : 1;
+    if ($certStatus == 0) {
+        $response['code'] = 403;
+        $response['message'] = '该证书已停用，暂不支持查询';
+        echo json_encode($response, JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    // 4. 更新查询次数（自增1）并更新时间
     $newQueryCount = $currentQueryCount + 1;
     $updateStmt = $pdo->prepare("
         UPDATE certificate_links 
@@ -80,61 +107,34 @@ try {
         WHERE id = :id
     ");
     $updateStmt->bindParam(':new_count', $newQueryCount, PDO::PARAM_INT);
-    $updateStmt->bindParam(':id', $linkId);
+    $updateStmt->bindParam(':id', $linkId, PDO::PARAM_INT);
     $updateStmt->execute();
 
-    // 4. 查询证书详情（包含状态检查）
-    $certStmt = $pdo->prepare("
-        SELECT cert_name, cert_no, issuer, issue_date, expire_date, image_url, status, create_time, update_time 
-        FROM base_certificates 
-        WHERE cert_no = :cert_no 
-        LIMIT 1
-    ");
-    $certStmt->bindParam(':cert_no', $certNo);
-    $certStmt->execute();
-
-    if ($certStmt->rowCount() > 0) {
-        $certData = $certStmt->fetch(PDO::FETCH_ASSOC);
-        
-        // 检查证书状态（status为0表示禁用）
-        $certStatus = isset($certData['status']) ? $certData['status'] : 1;
-        if ($certStatus == 0) {
-            $response['code'] = 403;
-            $response['message'] = '该证书已停用，暂不支持查询';
-            echo json_encode($response, JSON_UNESCAPED_UNICODE);
-            exit;
-        }
-        
-        $response['success'] = true;
-        $remainingTimes = MAX_QUERY_TIMES - $newQueryCount;
-        if ($remainingTimes > 0) {
-            // 提示语保持“剩余1次”，与最大2次对应
-            $response['message'] = "查询成功（当前第{$newQueryCount}次查询，剩余{$remainingTimes}次有效查询）";
-        } else {
-            // 提示语改为“已达最大2次”
-            $response['message'] = "查询成功（已达最大2次查询，链接后续将失效）";
-        }
-        $response['data'] = [
-            'cert_name' => htmlspecialchars($certData['cert_name']),
-            'cert_no' => htmlspecialchars($certData['cert_no']),
-            'issuer' => htmlspecialchars($certData['issuer'] ?? ''),
-            'issue_date' => htmlspecialchars($certData['issue_date']),
-            'expire_date' => htmlspecialchars($certData['expire_date'] ?? ''),
-            'image_url' => !empty($certData['image_url']) ? getImageUrl(htmlspecialchars($certData['image_url'])) : null,
-            'create_time' => htmlspecialchars($certData['create_time']),
-            'update_time' => htmlspecialchars($certData['update_time'])
-        ];
+    // 5. 整理数据组装成功应答
+    $response['success'] = true;
+    $remainingTimes = MAX_QUERY_TIMES - $newQueryCount;
+    if ($remainingTimes > 0) {
+        $response['message'] = "查询成功（当前第{$newQueryCount}次查询，剩余{$remainingTimes}次有效查询）";
     } else {
-        $response['code'] = 404;
-        $response['message'] = '证书不存在，请查证';
+        $response['message'] = "查询成功（已达最大2次查询，链接后续将失效）";
     }
+    $response['data'] = [
+        'cert_name' => htmlspecialchars($certData['cert_name']),
+        'cert_no' => htmlspecialchars($certData['cert_no']),
+        'issuer' => htmlspecialchars($certData['issuer'] ?? ''),
+        'issue_date' => htmlspecialchars($certData['issue_date']),
+        'expire_date' => htmlspecialchars($certData['expire_date'] ?? ''),
+        'image_url' => !empty($certData['image_url']) ? getImageUrl(htmlspecialchars($certData['image_url'])) : null,
+        'create_time' => htmlspecialchars($certData['create_time']),
+        'update_time' => htmlspecialchars($certData['update_time'])
+    ];
+
 } catch (PDOException $e) {
     $response['code'] = 500;
     $response['message'] = '服务器查询错误，请稍后重试';
     // 输出详细错误日志（方便排查）
     error_log(
         '证书查询数据库错误: ' . $e->getMessage() . 
-        ' | SQL语句: ' . ($updateStmt->queryString ?? $linkStmt->queryString ?? $certStmt->queryString) .
         ' | 参数: cert_no=' . $certNo . ', code=' . $uniqueCode
     );
 }

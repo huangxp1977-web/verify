@@ -24,7 +24,8 @@ $where = [];
 $params = [];
 
 if (!empty($searchCertNo)) {
-    $where[] = "cl.cert_no LIKE ?";
+    // 改为匹配主表的 cert_no
+    $where[] = "c.cert_no LIKE ?";
     $params[] = "%{$searchCertNo}%";
 }
 
@@ -53,17 +54,17 @@ if ($searchQueryCount !== '') {
 
 $whereClause = count($where) > 0 ? "WHERE " . implode(" AND ", $where) : "";
 
-// 查询总数
-$countSql = "SELECT COUNT(*) FROM certificate_links cl {$whereClause}";
+// 查询总数（为了支持 c.cert_no 的搜索，必须引入 JOIN）
+$countSql = "SELECT COUNT(*) FROM certificate_links cl LEFT JOIN base_certificates c ON cl.cert_id = c.id {$whereClause}";
 $countStmt = $pdo->prepare($countSql);
 $countStmt->execute($params);
 $totalRecords = $countStmt->fetchColumn();
 $totalPages = ceil($totalRecords / $perPage);
 
-// 查询数据
-$sql = "SELECT cl.*, c.cert_name 
+// 查询数据，增加查出 c.cert_no
+$sql = "SELECT cl.*, c.cert_name, c.cert_no 
         FROM certificate_links cl 
-        LEFT JOIN base_certificates c ON cl.cert_no = c.cert_no 
+        LEFT JOIN base_certificates c ON cl.cert_id = c.id 
         {$whereClause} 
         ORDER BY cl.id DESC 
         LIMIT {$offset}, {$perPage}";

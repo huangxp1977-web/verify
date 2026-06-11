@@ -121,16 +121,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_cert'])) {
             $stmt->execute([$certNo, $id]);
             if ($stmt->fetch()) {
                 $messages['error'][] = "证书编号“{$certNo}”已存在，请更换编号！";
-                $messages['error'][] = "提示：若该编号已删除但仍报错，可执行SQL清理残留：DELETE FROM certificate_links WHERE cert_no = '{$certNo}'";
             } else {
-                // 检查关联表certificate_links是否有残留（避免关联表唯一约束冲突）
-                $stmt = $pdo->prepare("SELECT id FROM certificate_links WHERE cert_no = ?");
-                $stmt->execute([$certNo]);
-                if ($stmt->fetch()) {
-                    $messages['error'][] = "发现关联表中存在该编号残留数据，已自动清理！";
-                    // 自动清理关联表残留
-                    $pdo->prepare("DELETE FROM certificate_links WHERE cert_no = ?")->execute([$certNo]);
-                }
 
                 if ($id > 0) {
                     // 编辑证书
@@ -162,7 +153,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_cert'])) {
                 $messages['error'][] = "数据库层面检测到证书编号“{$certNo}”重复！";
                 $messages['error'][] = "请执行以下SQL彻底清理残留数据：";
                 $messages['error'][] = "1. DELETE FROM base_certificates WHERE cert_no = '{$certNo}';";
-                $messages['error'][] = "2. DELETE FROM certificate_links WHERE cert_no = '{$certNo}';";
+                $messages['error'][] = "2. DELETE FROM certificate_links WHERE cert_id = {$id};";
             } else {
                 $messages['error'][] = "操作证书出错: " . $e->getMessage();
             }
@@ -214,8 +205,8 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id']))
         }
         
         // 检查是否有关联的查询码
-        $linkStmt = $pdo->prepare("SELECT COUNT(*) FROM certificate_links WHERE cert_no = ?");
-        $linkStmt->execute([$cert['cert_no']]);
+        $linkStmt = $pdo->prepare("SELECT COUNT(*) FROM certificate_links WHERE cert_id = ?");
+        $linkStmt->execute([$id]);
         $linkCount = $linkStmt->fetchColumn();
         
         if ($linkCount > 0) {
@@ -308,8 +299,8 @@ if (isset($_GET['action']) && $_GET['action'] == 'export_url' && isset($_GET['id
             $queryUrl = generateCertQueryUrl($cert['cert_no'], $uniqueCode);
             
             // 入库记录
-            $stmt = $pdo->prepare("INSERT INTO certificate_links (cert_id, cert_no, unique_code, query_url) VALUES (?, ?, ?, ?)");
-            $stmt->execute([$cert['id'], $cert['cert_no'], $uniqueCode, $queryUrl]);
+            $stmt = $pdo->prepare("INSERT INTO certificate_links (cert_id, unique_code, query_url) VALUES (?, ?, ?)");
+            $stmt->execute([$cert['id'], $uniqueCode, $queryUrl]);
             
             $content .= $i . "\t" . $queryUrl . "\n";
         }
@@ -406,8 +397,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_cert_data'])) {
                 $queryUrl = generateCertQueryUrl($cert['cert_no'], $uniqueCode);
                 
                 // 入库记录
-                $stmt = $pdo->prepare("INSERT INTO certificate_links (cert_id, cert_no, unique_code, query_url) VALUES (?, ?, ?, ?)");
-                $stmt->execute([$cert['id'], $cert['cert_no'], $uniqueCode, $queryUrl]);
+                $stmt = $pdo->prepare("INSERT INTO certificate_links (cert_id, unique_code, query_url) VALUES (?, ?, ?)");
+                $stmt->execute([$cert['id'], $uniqueCode, $queryUrl]);
 
                 $data = [
                     $cert['id'],
@@ -1009,8 +1000,8 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
                                     <td class="action-buttons">
                                         <?php 
                                         // 检查是否有关联的查询码
-                                        $linkCheckStmt = $pdo->prepare("SELECT COUNT(*) FROM certificate_links WHERE cert_no = ?");
-                                        $linkCheckStmt->execute([$cert['cert_no']]);
+                                        $linkCheckStmt = $pdo->prepare("SELECT COUNT(*) FROM certificate_links WHERE cert_id = ?");
+                                        $linkCheckStmt->execute([$cert['id']]);
                                         $hasLinks = $linkCheckStmt->fetchColumn() > 0;
                                         if ($hasLinks): ?>
                                             <span class="btn btn-disabled" title="已有查询码数据，无法编辑">编辑</span>
