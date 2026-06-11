@@ -1,9 +1,10 @@
 <?php
 // 抑制本地开发环境的错误显示
 error_reporting(0);
+require_once __DIR__ . '/../config/config.php';
 require_once "jssdk.php";
 try {
-    $jssdk = new JSSDK("wx28d06b295bc4c379", "47f846d74f6bf7e638de23685aad8c28");
+    $jssdk = new JSSDK(WX_APP_ID, WX_APP_SECRET);
     $signPackage = $jssdk->GetSignPackage();
 } catch (Exception $e) {
     // 本地开发或非微信环境，使用空配置

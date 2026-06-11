@@ -12,10 +12,7 @@ if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== tru
 $success = '';
 $error = '';
 
-// 七牛云配置文件路径
-$qiniuConfigFile = __DIR__ . '/../config/qiniu_config.php';
-
-// 读取现有配置
+// 读取现有七牛配置（从 secrets.php 常量读取）
 $qiniuConfig = [
     'access_key' => '',
     'secret_key' => '',
@@ -24,11 +21,14 @@ $qiniuConfig = [
     'enabled' => 0
 ];
 
-if (file_exists($qiniuConfigFile)) {
-    include $qiniuConfigFile;
-    if (isset($qiniu)) {
-        $qiniuConfig = array_merge($qiniuConfig, $qiniu);
-    }
+if (defined('QINIU_ACCESS_KEY')) {
+    $qiniuConfig = [
+        'access_key' => QINIU_ACCESS_KEY,
+        'secret_key' => QINIU_SECRET_KEY,
+        'bucket'     => QINIU_BUCKET,
+        'domain'     => QINIU_DOMAIN,
+        'enabled'    => QINIU_ENABLED ? 1 : 0,
+    ];
 }
 
 // 处理表单提交
@@ -44,29 +44,33 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if ($enabled && (empty($accessKey) || empty($secretKey) || empty($bucket) || empty($domainHost))) {
         $error = '启用七牛云时，所有配置项都必须填写';
     } else {
-        // 保存配置
-        $configContent = "<?php\n";
-        $configContent .= "// 七牛云配置文件 - 自动生成，请勿手动修改\n";
-        $configContent .= "\$qiniu = [\n";
-        $configContent .= "    'access_key' => '" . addslashes($accessKey) . "',\n";
-        $configContent .= "    'secret_key' => '" . addslashes($secretKey) . "',\n";
-        $configContent .= "    'bucket' => '" . addslashes($bucket) . "',\n";
-        $configContent .= "    'domain' => '" . addslashes($domain) . "',\n";
-        $configContent .= "    'enabled' => " . $enabled . "\n";
-        $configContent .= "];\n";
-        
-        if (file_put_contents($qiniuConfigFile, $configContent)) {
-            $success = '七牛云配置保存成功！';
-            // 重新加载配置
-            $qiniuConfig = [
-                'access_key' => $accessKey,
-                'secret_key' => $secretKey,
-                'bucket' => $bucket,
-                'domain' => $domain,
-                'enabled' => $enabled
-            ];
+        // 保存配置到 secrets.php
+        $secretsFile = __DIR__ . '/../config/secrets.php';
+        if (!file_exists($secretsFile)) {
+            $error = '配置文件 config/secrets.php 不存在，请先创建';
         } else {
-            $error = '配置保存失败，请检查文件权限';
+            $secrets = require $secretsFile;
+            $secrets['QINIU_ACCESS_KEY'] = $accessKey;
+            $secrets['QINIU_SECRET_KEY'] = $secretKey;
+            $secrets['QINIU_BUCKET']     = $bucket;
+            $secrets['QINIU_DOMAIN']     = $domain;
+            $secrets['QINIU_ENABLED']    = $enabled ? true : false;
+
+            $exported = var_export($secrets, true);
+            $content = "<?php\nreturn " . $exported . ";\n";
+
+            if (file_put_contents($secretsFile, $content, LOCK_EX)) {
+                $success = '七牛云配置保存成功！';
+                $qiniuConfig = [
+                    'access_key' => $accessKey,
+                    'secret_key' => $secretKey,
+                    'bucket' => $bucket,
+                    'domain' => $domain,
+                    'enabled' => $enabled
+                ];
+            } else {
+                $error = '配置保存失败，请检查文件权限';
+            }
         }
     }
 }

@@ -4,14 +4,18 @@
  * 提供上传、删除、URL获取等功能
  */
 
-// 获取七牛云配置
+// 获取七牛云配置（从 secrets.php 常量读取）
 function getQiniuConfig() {
     static $config = null;
     if ($config === null) {
-        $configFile = __DIR__ . '/../config/qiniu_config.php';
-        if (file_exists($configFile)) {
-            include $configFile;
-            $config = $qiniu ?? [];
+        if (defined('QINIU_ACCESS_KEY') && QINIU_ACCESS_KEY !== '') {
+            $config = [
+                'access_key' => QINIU_ACCESS_KEY,
+                'secret_key' => QINIU_SECRET_KEY,
+                'bucket'     => QINIU_BUCKET,
+                'domain'     => QINIU_DOMAIN,
+                'enabled'    => QINIU_ENABLED,
+            ];
         } else {
             $config = [];
         }

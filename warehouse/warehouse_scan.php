@@ -127,7 +127,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['assign_distributor']))
             }
         } catch(PDOException $e) {
             $pdo->rollBack();
-            $error = "分配经销商出错: " . $e->getMessage();
+            error_log('分配经销商错误: ' . $e->getMessage());
+            $error = "分配失败，请稍后重试";
         }
     }
 }
@@ -162,7 +163,8 @@ if (($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['query_box'])) ||
 try {
     $base_distributors = getDistributors($pdo);
 } catch(PDOException $e) {
-    $error = "获取经销商列表出错: " . $e->getMessage();
+    error_log('获取经销商列表错误: ' . $e->getMessage());
+    $error = "获取经销商列表失败，请刷新重试";
 }
 
 ?>

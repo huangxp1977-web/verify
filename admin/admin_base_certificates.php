@@ -1,7 +1,9 @@
 <?php
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
+if (in_array($_SERVER['HTTP_HOST'] ?? '', ['localhost', '127.0.0.1', 'verify.local'])) {
+    ini_set('display_errors', 1);
+    ini_set('display_startup_errors', 1);
+}
 
 session_start();
 require __DIR__ . '/../config/config.php';
@@ -148,14 +150,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_cert'])) {
                 exit;
             }
         } catch(PDOException $e) {
-            // 捕获数据库层面的唯一约束错误（双重保障）
+            error_log('证书操作数据库错误: ' . $e->getMessage());
             if (strpos($e->getMessage(), 'Duplicate entry') !== false && strpos($e->getMessage(), 'cert_no') !== false) {
-                $messages['error'][] = "数据库层面检测到证书编号“{$certNo}”重复！";
-                $messages['error'][] = "请执行以下SQL彻底清理残留数据：";
-                $messages['error'][] = "1. DELETE FROM base_certificates WHERE cert_no = '{$certNo}';";
-                $messages['error'][] = "2. DELETE FROM certificate_links WHERE cert_id = {$id};";
+                $messages['error'][] = "证书编号“{$certNo}”已存在，请更换编号后重试";
             } else {
-                $messages['error'][] = "操作证书出错: " . $e->getMessage();
+                $messages['error'][] = "操作失败，请稍后重试";
             }
         }
     }

@@ -1,6 +1,7 @@
 <?php
+require_once __DIR__ . '/../config/config.php';
 require_once "jssdk.php";
-$jssdk = new JSSDK("wx69fb91383bbdc4a7", "145fbc04fce84da651f8583cef0fb673");
+$jssdk = new JSSDK(CERT_APP_ID, CERT_APP_SECRET);
 $signPackage = $jssdk->GetSignPackage();
 ?>
 <!DOCTYPE html>

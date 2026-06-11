@@ -1,5 +1,14 @@
-# 日志文件
-proxy-*.log
+# 敏感配置
+config/secrets.php
+
+# 运行时缓存（微信 token）
+wx/access_token.php
+wx/jsapi_ticket.php
+cert/access_token.php
+cert/jsapi_ticket.php
+
+# 日志
+*.log
 
 # Claude Code
 CLAUDE.md

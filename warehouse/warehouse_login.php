@@ -38,7 +38,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $error = "用户名或密码错误，或账号已被禁用";
             }
         } catch(PDOException $e) {
-            $error = "登录出错: " . $e->getMessage();
+            error_log('仓库登录数据库错误: ' . $e->getMessage());
+            $error = "系统错误，请稍后重试";
         }
     }
 }

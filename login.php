@@ -58,16 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($user && $user['status'] == 0) {
             $error = '账号已被禁用，请联系管理员';
         } else {
-            // 本地调试：显示详细信息
-            if (strpos($_SERVER['HTTP_HOST'], 'verify.local') !== false || strpos($_SERVER['HTTP_HOST'], 'localhost') !== false) {
-                $error = '调试：用户=' . ($user ? '找到' : '未找到');
-                if ($user) {
-                    $error .= ' | Hash前20字符=' . substr($user['password_hash'], 0, 20);
-                    $error .= ' | 验证结果=' . (password_verify($password, $user['password_hash']) ? '通过' : '失败');
-                }
-            } else {
-                $error = '用户名或密码不正确';
-            }
+            $error = '用户名或密码不正确';
         }
     } catch (PDOException $e) {
         $error = '系统错误，请联系管理员';

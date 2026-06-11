@@ -1,1 +1,0 @@
-<?php exit();?>{"expire_time":0}

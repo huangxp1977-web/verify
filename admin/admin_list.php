@@ -53,33 +53,34 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_single'])) {
 
             if ($level == 'box') {
                 // 软删除该箱子下的所有产品
-                $pdo->exec("
-                    UPDATE products p
-                    JOIN cartons c ON p.carton_id = c.id
-                    SET p.status = 0
-                    WHERE c.box_id = $item_id
-                ");
-                
+                $stmt = $pdo->prepare("UPDATE products p JOIN cartons c ON p.carton_id = c.id SET p.status = 0 WHERE c.box_id = ?");
+                $stmt->execute([$item_id]);
+
                 // 软删除该箱子下的所有盒子
-                $pdo->exec("UPDATE cartons SET status = 0 WHERE box_id = $item_id");
-                
+                $stmt = $pdo->prepare("UPDATE cartons SET status = 0 WHERE box_id = ?");
+                $stmt->execute([$item_id]);
+
                 // 软删除该箱子
-                $pdo->exec("UPDATE boxes SET status = 0 WHERE id = $item_id");
+                $stmt = $pdo->prepare("UPDATE boxes SET status = 0 WHERE id = ?");
+                $stmt->execute([$item_id]);
                 
                 $success = "箱子【ID:$item_id】及其下属数据已删除";
 
             } elseif ($level == 'carton' && $id > 0) {
                 // 软删除该盒子下的所有产品
-                $pdo->exec("UPDATE products SET status = 0 WHERE carton_id = $item_id");
-                
+                $stmt = $pdo->prepare("UPDATE products SET status = 0 WHERE carton_id = ?");
+                $stmt->execute([$item_id]);
+
                 // 软删除该盒子
-                $pdo->exec("UPDATE cartons SET status = 0 WHERE id = $item_id AND box_id = $id");
+                $stmt = $pdo->prepare("UPDATE cartons SET status = 0 WHERE id = ? AND box_id = ?");
+                $stmt->execute([$item_id, $id]);
                 
                 $success = "盒子【ID:$item_id】及其下属产品已删除";
 
             } elseif ($level == 'product' && $id > 0) {
                 // 软删除该产品
-                $pdo->exec("UPDATE products SET status = 0 WHERE id = $item_id AND carton_id = $id");
+                $stmt = $pdo->prepare("UPDATE products SET status = 0 WHERE id = ? AND carton_id = ?");
+                $stmt->execute([$item_id, $id]);
                 
                 $success = "产品【ID:$item_id】已删除";
             }

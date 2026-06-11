@@ -88,7 +88,7 @@ class JSSDK {
   private function httpGet($url) {
     $curl = curl_init();
     curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($curl, CURLOPT_TIMEOUT, 500);
+    curl_setopt($curl, CURLOPT_TIMEOUT, 5);
     // 为保证第三方服务器与微信服务器之间数据传输的安全性，所有微信接口采用https方式调用，必须使用下面2行代码打开ssl安全校验。
     // 如果在部署过程中代码在此处验证失败，请到 http://curl.haxx.se/ca/cacert.pem 下载新的证书判别文件。
     curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, true);
@@ -102,10 +102,15 @@ class JSSDK {
   }
 
   private function get_php_file($filename) {
-    return trim(substr(file_get_contents($filename), 15));
+    $filepath = __DIR__ . '/' . $filename;
+    if (file_exists($filepath)) {
+      return trim(substr(file_get_contents($filepath), 15));
+    }
+    return '{"expire_time":0}';
   }
   private function set_php_file($filename, $content) {
-    $fp = fopen($filename, "w");
+    $filepath = __DIR__ . '/' . $filename;
+    $fp = fopen($filepath, "w");
     fwrite($fp, "<?php exit();?>" . $content);
     fclose($fp);
   }

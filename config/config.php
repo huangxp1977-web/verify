@@ -1,19 +1,32 @@
 <?php
-// 数据库配置
-$host = 'localhost';
-$dbname = 'verify';
-$username = 'verify';
-$password = '123456';
+// 加载敏感配置
+$secretsFile = __DIR__ . '/secrets.php';
+if (!file_exists($secretsFile)) {
+    // setup.php 不需要 config，直接跳过
+    if (strpos($_SERVER['SCRIPT_NAME'] ?? '', 'setup.php') !== false) {
+        return;
+    }
+    header('Location: /config/setup.php');
+    exit;
+}
+$secrets = require $secretsFile;
+if (!is_array($secrets)) {
+    die('配置文件无效：config/secrets.php 必须返回数组');
+}
+
+// 定义常量供全局使用
+foreach ($secrets as $key => $value) {
+    if (!defined($key)) {
+        define($key, $value);
+    }
+}
 
 try {
-    // 创建PDO连接
-    $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8", $username, $password);
-    // 设置错误模式为异常
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    // 设置默认获取模式为关联数组
-    $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
-} catch(PDOException $e) {
-    // 连接失败时显示错误信息
-    die("数据库连接失败: " . $e->getMessage());
+    $pdo = new PDO(
+        "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8",
+        DB_USER, DB_PASS,
+        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]
+    );
+} catch (PDOException $e) {
+    die('数据库连接失败，请检查 config/secrets.php 配置');
 }
-?>

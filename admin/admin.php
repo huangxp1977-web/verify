@@ -1,7 +1,9 @@
 <?php
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
+if (in_array($_SERVER['HTTP_HOST'] ?? '', ['localhost', '127.0.0.1', 'verify.local'])) {
+    ini_set('display_errors', 1);
+    ini_set('display_startup_errors', 1);
+}
 
 
 session_start();
@@ -91,7 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_products'])) 
                 $pdo->beginTransaction();
 
                 // 批量生成箱子数据
-                $box_values = [];
+                $box_params = [];
                 $box_codes = [];
 
                 for ($b = 1; $b <= $batch_size; $b++) {
@@ -103,14 +105,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_products'])) 
                         $stmt->execute([$box_code]);
                         $exists = $stmt->fetchColumn();
                     } while ($exists);
-                    
+
                     $box_codes[] = $box_code;
-                    $box_values[] = "('$box_code', '$production_date', '$batch_number')";
+                    $box_params[] = [$box_code, $production_date, $batch_number];
                 }
 
-                // 批量插入箱子
-                $box_sql = "INSERT INTO boxes (box_code, production_date, batch_number) VALUES " . implode(', ', $box_values);
-                $pdo->exec($box_sql);
+                // 批量插入箱子（使用预处理语句）
+                $placeholders = implode(',', array_fill(0, count($box_params), '(?,?,?)'));
+                $stmt = $pdo->prepare("INSERT INTO boxes (box_code, production_date, batch_number) VALUES $placeholders");
+                $flat = [];
+                foreach ($box_params as $row) { $flat = array_merge($flat, $row); }
+                $stmt->execute($flat);
 
                 // 获取新插入的箱子ID和对应的box_code
                 $stmt = $pdo->prepare("SELECT id, box_code FROM boxes WHERE box_code IN (" . implode(',', array_fill(0, count($box_codes), '?')) . ")");
@@ -127,7 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_products'])) 
                 }
 
                 // 批量生成盒子数据
-                $carton_values = [];
+                $carton_params = [];
                 $carton_codes = [];
                 $carton_box_mapping = []; // 记录盒子与箱子的对应关系
 
@@ -145,15 +150,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_products'])) 
                             $exists = $stmt->fetchColumn();
                         } while ($exists);
                         
-                        $carton_values[] = "('$carton_code', $box_id, '$production_date', '$batch_number')";
+                        $carton_params[] = [$carton_code, $box_id, $production_date, $batch_number];
                         $carton_codes[] = $carton_code;
                         $carton_box_mapping[$carton_code] = $box_id;
                     }
                 }
 
-                // 批量插入盒子
-                $carton_sql = "INSERT INTO cartons (carton_code, box_id, production_date, batch_number) VALUES " . implode(', ', $carton_values);
-                $pdo->exec($carton_sql);
+                // 批量插入盒子（使用预处理语句，分批执行避免参数过多）
+                $batch_insert = function($table, $columns, $rows, $pdo) {
+                    $col_count = count($columns);
+                    $cols = implode(', ', $columns);
+                    foreach (array_chunk($rows, 500) as $chunk) {
+                        $placeholders = implode(',', array_fill(0, count($chunk), '(' . implode(',', array_fill(0, $col_count, '?')) . ')'));
+                        $stmt = $pdo->prepare("INSERT INTO $table ($cols) VALUES $placeholders");
+                        $flat = [];
+                        foreach ($chunk as $row) { $flat = array_merge($flat, $row); }
+                        $stmt->execute($flat);
+                    }
+                };
+                $batch_insert('cartons', ['carton_code', 'box_id', 'production_date', 'batch_number'], $carton_params, $pdo);
 
                 // 获取新插入的盒子ID和对应的carton_code
                 $stmt = $pdo->prepare("SELECT id, carton_code FROM cartons WHERE carton_code IN (" . implode(',', array_fill(0, count($carton_codes), '?')) . ")");
@@ -170,9 +185,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_products'])) 
                 }
 
                 // 批量生成产品数据
-                $product_values = [];
-                $products_per_batch = 10000; // 每批次插入的产品数量
-                $product_batches = [];
+                $product_params = [];
 
                 $product_index = $processed_boxes * 100 * 5; // 每个箱子100盒，每盒5支产品
                 $carton_index = 0;
@@ -191,34 +204,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_products'])) 
                                 $stmt->execute([$product_code]);
                                 $exists = $stmt->fetchColumn();
                             } while ($exists);
-                            
-                            $product_values[] = "('$product_code', $carton_id, '$product_name', '$region', '$production_date', '$image_url', '$batch_number')";
 
-                            // 当达到每批次数量时，添加到批次数组
-                            if (count($product_values) >= $products_per_batch) {
-                                $product_batches[] = implode(', ', $product_values);
-                                $product_values = [];
-                            }
+                            $product_params[] = [$product_code, $carton_id, $product_name, $region, $production_date, $image_url, $batch_number];
                         }
                     }
                 }
 
-                // 处理剩余的产品
-                if (!empty($product_values)) {
-                    $product_batches[] = implode(', ', $product_values);
-                }
-
-                // 分批插入产品
-                foreach ($product_batches as $product_batch) {
-                    $product_sql = "INSERT INTO products (product_code, carton_id, product_name, region, production_date, image_url, batch_number) VALUES " . $product_batch;
-                    $pdo->exec($product_sql);
-                }
+                // 分批插入产品（使用预处理语句）
+                $batch_insert('products', ['product_code', 'carton_id', 'product_name', 'region', 'production_date', 'image_url', 'batch_number'], $product_params, $pdo);
 
                 $pdo->commit();
                 $processed_boxes += $batch_size;
 
                 // 性能优化：释放内存
-                unset($box_values, $carton_values, $product_values, $product_batches);
+                unset($box_params, $carton_params, $product_params);
 
                 ob_flush();
                 flush();
