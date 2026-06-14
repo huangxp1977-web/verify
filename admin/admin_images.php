@@ -1,6 +1,9 @@
 <?php
 session_start();
 require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/tenant.php';
+resolveTenant($pdo);
 
 // 引入统一域名鉴权
 require_once __DIR__ . '/check_domain.php';
@@ -148,10 +151,11 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['file']
     $canDelete = true;
     $reason = '';
     
-    // 证书图片：检查是否被证书使用
+    // 证书图片：检查是否被证书使用（全局检查，防止跨租户误删）
     if ($currentCat == 'certificates') {
+        $certParams = ['%' . $filename];
         $stmt = $pdo->prepare("SELECT COUNT(*) FROM base_certificates WHERE image_url LIKE ?");
-        $stmt->execute(['%' . $filename]);
+        $stmt->execute($certParams);
         if ($stmt->fetchColumn() > 0) {
             $canDelete = false;
             $reason = "该图片正在被证书使用";
@@ -166,10 +170,11 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['file']
         }
     }
     
-    // 产品图片：检查是否被产品使用
+    // 产品图片：检查是否被产品使用（全局检查，防止跨租户误删）
     if ($currentCat == 'products') {
+        $prodParams = ['%' . $filename];
         $stmt = $pdo->prepare("SELECT COUNT(*) FROM base_products WHERE image_url LIKE ?");
-        $stmt->execute(['%' . $filename]);
+        $stmt->execute($prodParams);
         if ($stmt->fetchColumn() > 0) {
             $canDelete = false;
             $reason = "该图片正在被产品使用";
@@ -418,48 +423,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
     </style>
 </head>
 <body>
-    <div class="sidebar">
-        <div class="sidebar-header">
-            <h2>产品溯源系统</h2>
-        </div>
-        <ul class="sidebar-menu">
-            <li><a href="admin.php">系统首页</a></li>
-            <li class="has-submenu">
-                <a href="javascript:void(0)" onclick="toggleSubmenu(this)">品牌业务 <span class="arrow">▼</span></a>
-                <ul class="submenu">
-                    <li><a href="admin_list.php">溯源数据</a></li>
-                    <li><a href="admin_base_distributors.php">经销商管理</a></li>
-                    <li><a href="admin_base_brands.php">品牌管理</a></li>
-                    <li><a href="admin_base_products.php">产品管理</a></li>
-                    <li><a href="admin_warehouse_staff.php">出库人员</a></li>
-                </ul>
-            </li>
-            <li class="has-submenu">
-                <a href="javascript:void(0)" onclick="toggleSubmenu(this)">代工业务 <span class="arrow">▼</span></a>
-                <ul class="submenu">
-                    <li><a href="admin_base_certificates.php">证书管理</a></li>
-                    <li><a href="admin_query_codes.php">查询码管理</a></li>
-                </ul>
-            </li>
-            <li class="has-submenu open">
-                <a href="javascript:void(0)" onclick="toggleSubmenu(this)">系统设置 <span class="arrow">▼</span></a>
-                <ul class="submenu">
-                    <li><a href="admin_password.php">修改密码</a></li>
-                    <li><a href="admin_images.php" class="active">图片素材</a></li>
-                    <li><a href="admin_scan_editor.php">背景设计</a></li>
-                    <li><a href="admin_qiniu.php">七牛云接口</a></li>
-                </ul>
-            </li>
-            <li><a href="?action=logout">退出登录</a></li>
-        </ul>
-    </div>
-    
-    <script>
-    function toggleSubmenu(el) {
-        var parent = el.parentElement;
-        parent.classList.toggle('open');
-    }
-    </script>
+    <?php $activePage = 'admin_images.php'; include __DIR__ . '/sidebar.php'; ?>
     
     <div class="main-content">
         <div class="container">

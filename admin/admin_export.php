@@ -1,6 +1,9 @@
 <?php
 session_start();
 require __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/tenant.php';
+resolveTenant($pdo);
 require_once __DIR__ . '/check_domain.php';
 
 // 检查管理员是否登录
@@ -17,24 +20,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['export'])) {
     $productionDate = $_POST['production_date'];
     
     try {
-        // 构建查询条件
+        // 构建查询条件（统一使用位置占位符）
         $whereClauses = [];
         $params = [];
-        
+
         if (!empty($batchNumber)) {
-            $whereClauses[] = "batch_number = :batch";
-            $params[':batch'] = $batchNumber;
+            $whereClauses[] = "batch_number = ?";
+            $params[] = $batchNumber;
         }
-        
+
         if (!empty($productionDate)) {
-            $whereClauses[] = "production_date = :date";
-            $params[':date'] = $productionDate;
+            $whereClauses[] = "production_date = ?";
+            $params[] = $productionDate;
         }
-        
-        $whereSql = "";
+
+        $whereSql = "WHERE 1=1";
         if (!empty($whereClauses)) {
-            $whereSql = "WHERE " . implode(" AND ", $whereClauses);
+            $whereSql .= " AND " . implode(" AND ", $whereClauses);
         }
+        $whereSql .= tenantWhere($params);
         
         $data = [];
         $queryUrl = "http://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . "/index.php?code=";
@@ -147,7 +151,10 @@ function exportAsExcel($data, $type) {
 // 获取所有批号用于筛选
 $batches = [];
 try {
-    $stmt = $pdo->query("SELECT DISTINCT batch_number FROM boxes ORDER BY batch_number DESC");
+    $batchParams = [];
+    $batchWhere = tenantWhere($batchParams);
+    $stmt = $pdo->prepare("SELECT DISTINCT batch_number FROM boxes WHERE 1=1{$batchWhere} ORDER BY batch_number DESC");
+    $stmt->execute($batchParams);
     $batches = $stmt->fetchAll(PDO::FETCH_COLUMN);
 } catch(PDOException $e) {
     $error = "获取批号列表出错: " . $e->getMessage();
@@ -156,7 +163,10 @@ try {
 // 获取所有生产日期用于筛选
 $dates = [];
 try {
-    $stmt = $pdo->query("SELECT DISTINCT production_date FROM boxes ORDER BY production_date DESC");
+    $dateParams = [];
+    $dateWhere = tenantWhere($dateParams);
+    $stmt = $pdo->prepare("SELECT DISTINCT production_date FROM boxes WHERE 1=1{$dateWhere} ORDER BY production_date DESC");
+    $stmt->execute($dateParams);
     $dates = $stmt->fetchAll(PDO::FETCH_COLUMN);
 } catch(PDOException $e) {
     $error = "获取日期列表出错: " . $e->getMessage();
@@ -234,7 +244,7 @@ try {
         <h1>导出防伪码信息</h1>
         
         <?php if (isset($error)): ?>
-            <div class="error"><?php echo $error; ?></div>
+            <div class="error"><?php echo htmlspecialchars($error); ?></div>
         <?php endif; ?>
         
         <form method="post" action="">

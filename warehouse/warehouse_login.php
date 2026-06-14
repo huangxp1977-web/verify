@@ -1,6 +1,9 @@
 <?php
 session_start();
 require __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/tenant.php';
+resolveTenant($pdo);
 
 // 检查是否已登录
 if (isset($_SESSION['warehouse_staff_logged_in']) && $_SESSION['warehouse_staff_logged_in'] === true) {
@@ -19,8 +22,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $error = "请输入用户名和密码";
     } else {
         try {
-            // 从数据库查询出库人员信息
-            $stmt = $pdo->prepare("SELECT * FROM warehouse_staff WHERE username = :username AND status = 1");
+            // 从数据库查询出库人员信息（校验租户归属）
+            $tenantId = $_SESSION['resolved_tenant_id'] ?? 0;
+            if ($tenantId > 0) {
+                $stmt = $pdo->prepare("SELECT * FROM warehouse_staff WHERE username = :username AND status = 1 AND tenant_id = :tenant_id");
+                $stmt->bindParam(':tenant_id', $tenantId, PDO::PARAM_INT);
+            } else {
+                $stmt = $pdo->prepare("SELECT * FROM warehouse_staff WHERE username = :username AND status = 1");
+            }
             $stmt->bindParam(':username', $username);
             $stmt->execute();
             $staff = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -155,7 +164,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         </div>
         
         <?php if (!empty($error)): ?>
-            <div class="error"><?php echo $error; ?></div>
+            <div class="error"><?php echo htmlspecialchars($error); ?></div>
         <?php endif; ?>
         
         <form method="post" action="">

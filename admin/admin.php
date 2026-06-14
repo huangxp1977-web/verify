@@ -8,6 +8,9 @@ if (in_array($_SERVER['HTTP_HOST'] ?? '', ['localhost', '127.0.0.1', 'verify.loc
 
 session_start();
 require __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/tenant.php';
+resolveTenant($pdo);
 
 // 引入统一域名鉴权
 require_once __DIR__ . '/check_domain.php';
@@ -36,14 +39,18 @@ $batches = [];
 $dates = [];
 try {
     // 获取所有批号
-    $stmt = $pdo->query("SELECT DISTINCT batch_number FROM boxes ORDER BY batch_number DESC");
+    $params = [];
+    $stmt = $pdo->prepare("SELECT DISTINCT batch_number FROM boxes WHERE 1=1" . tenantWhere($params) . " ORDER BY batch_number DESC");
+    $stmt->execute($params);
     $batches = $stmt->fetchAll(PDO::FETCH_COLUMN);
-    
+
     // 获取所有生产日期（格式化为Y-m-d）
     $dates = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
     // 获取产品库数据
-    $stmt = $pdo->query("SELECT * FROM base_products ORDER BY product_name ASC");
+    $params = [];
+    $stmt = $pdo->prepare("SELECT * FROM base_products WHERE 1=1" . tenantWhere($params) . " ORDER BY product_name ASC");
+    $stmt->execute($params);
     $product_lib = $stmt->fetchAll(PDO::FETCH_ASSOC);
     $product_lib_json = json_encode($product_lib);
 } catch(PDOException $e) {
@@ -111,10 +118,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_products'])) 
                 }
 
                 // 批量插入箱子（使用预处理语句）
-                $placeholders = implode(',', array_fill(0, count($box_params), '(?,?,?)'));
-                $stmt = $pdo->prepare("INSERT INTO boxes (box_code, production_date, batch_number) VALUES $placeholders");
+                $tenantId = getCurrentTenantId();
+                $placeholders = implode(',', array_fill(0, count($box_params), '(?,?,?,?)'));
+                $stmt = $pdo->prepare("INSERT INTO boxes (box_code, production_date, batch_number, tenant_id) VALUES $placeholders");
                 $flat = [];
-                foreach ($box_params as $row) { $flat = array_merge($flat, $row); }
+                foreach ($box_params as $row) { $row[] = $tenantId; $flat = array_merge($flat, $row); }
                 $stmt->execute($flat);
 
                 // 获取新插入的箱子ID和对应的box_code
@@ -168,7 +176,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_products'])) 
                         $stmt->execute($flat);
                     }
                 };
-                $batch_insert('cartons', ['carton_code', 'box_id', 'production_date', 'batch_number'], $carton_params, $pdo);
+                $batch_insert('cartons', ['carton_code', 'box_id', 'production_date', 'batch_number', 'tenant_id'], array_map(function($row) use ($tenantId) { $row[] = $tenantId; return $row; }, $carton_params), $pdo);
 
                 // 获取新插入的盒子ID和对应的carton_code
                 $stmt = $pdo->prepare("SELECT id, carton_code FROM cartons WHERE carton_code IN (" . implode(',', array_fill(0, count($carton_codes), '?')) . ")");
@@ -211,7 +219,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_products'])) 
                 }
 
                 // 分批插入产品（使用预处理语句）
-                $batch_insert('products', ['product_code', 'carton_id', 'product_name', 'region', 'production_date', 'image_url', 'batch_number'], $product_params, $pdo);
+                $batch_insert('products', ['product_code', 'carton_id', 'product_name', 'region', 'production_date', 'image_url', 'batch_number', 'tenant_id'], array_map(function($row) use ($tenantId) { $row[] = $tenantId; return $row; }, $product_params), $pdo);
 
                 $pdo->commit();
                 $processed_boxes += $batch_size;
@@ -273,13 +281,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_data'])) {
     } else {
         try {
             // 构建查询条件
-            $whereClauses = [];
             $params = [];
+            $whereExtra = "";
             if (!empty($batch_filter)) {
-                $whereClauses[] = "b.batch_number = :batch";
-                $params[':batch'] = $batch_filter;
+                $whereExtra .= " AND b.batch_number = ?";
+                $params[] = $batch_filter;
             }
-            $whereSql = empty($whereClauses) ? "" : "WHERE " . implode(" AND ", $whereClauses);
+            $whereExtra .= tenantWhere($params, 'b');
 
             // 防伪码查询网址 (自动识别当前协议和域名)
             $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || $_SERVER['SERVER_PORT'] == 443) ? "https://" : "http://";
@@ -290,7 +298,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_data'])) {
             $boxStmt = $pdo->prepare("
                 SELECT b.id AS box_id, b.box_code, b.batch_number, DATE(b.production_date) AS production_date
                 FROM boxes b
-                $whereSql
+                WHERE 1=1 {$whereExtra}
                 ORDER BY b.box_code ASC
             ");
             $boxStmt->execute($params);
@@ -491,15 +499,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_zero_product'
 
             // 批量插入箱子（使用参数化绑定）
             if (!empty($box_codes)) {
-                $placeholders = rtrim(str_repeat('(?, ?, ?),', count($box_codes)), ',');
-                $box_sql = "INSERT INTO boxes (box_code, production_date, batch_number) VALUES {$placeholders}";
+                $placeholders = rtrim(str_repeat('(?, ?, ?, ?),', count($box_codes)), ',');
+                $box_sql = "INSERT INTO boxes (box_code, production_date, batch_number, tenant_id) VALUES {$placeholders}";
                 $stmt = $pdo->prepare($box_sql);
-                
+
                 $params = [];
+                $tenantId = getCurrentTenantId();
                 foreach ($box_codes as $code) {
                     $params[] = $code;
                     $params[] = $production_date;
                     $params[] = $batch_number;
+                    $params[] = $tenantId;
                 }
                 $stmt->execute($params);
             } else {
@@ -542,17 +552,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_zero_product'
                         $carton_exists = $stmt->fetchColumn();
                     } while ($carton_exists);
                     
-                    $carton_placeholders[] = '(?, ?, ?, ?)';
+                    $carton_placeholders[] = '(?, ?, ?, ?, ?)';
                     $carton_params[] = $carton_code;
                     $carton_params[] = $box_id;
                     $carton_params[] = $production_date;
                     $carton_params[] = $batch_number;
+                    $carton_params[] = $tenantId;
                 }
             }
 
             // 批量插入盒子（使用参数化绑定）
             if (!empty($carton_placeholders)) {
-                $carton_sql = "INSERT INTO cartons (carton_code, box_id, production_date, batch_number) VALUES " . implode(',', $carton_placeholders);
+                $carton_sql = "INSERT INTO cartons (carton_code, box_id, production_date, batch_number, tenant_id) VALUES " . implode(',', $carton_placeholders);
                 $stmt = $pdo->prepare($carton_sql);
                 $stmt->execute($carton_params);
             } else {
@@ -590,14 +601,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_zero_data'])) {
 
     try {
         // 构建查询条件（筛选无产品的盒子对应的箱子）
-        $whereClauses = [];
         $params = [];
+        $whereExtra = "";
         if (!empty($zero_batch_filter)) {
-            $whereClauses[] = "b.batch_number = :batch";
-            $params[':batch'] = $zero_batch_filter;
+            $whereExtra .= " AND b.batch_number = ?";
+            $params[] = $zero_batch_filter;
         }
-        // 关联查询：只查有盒子但无产品的箱子
-        $whereSql = empty($whereClauses) ? "" : "WHERE " . implode(" AND ", $whereClauses);
+        $whereExtra .= tenantWhere($params, 'b');
 
         $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || $_SERVER['SERVER_PORT'] == 443) ? "https://" : "http://";
         $domain = $_SERVER['HTTP_HOST'];
@@ -610,7 +620,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_zero_data'])) {
             FROM boxes b
             LEFT JOIN cartons c ON b.id = c.box_id
             LEFT JOIN products p ON c.id = p.carton_id
-            $whereSql
+            WHERE 1=1 {$whereExtra}
             GROUP BY b.id, c.id
             HAVING COUNT(p.id) = 0  -- 无产品（0支）
             ORDER BY b.box_code ASC
@@ -697,9 +707,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['search_code'])) {
             $target_id = null;
             if ($search_type == 'box') {
                 // 搜索箱子，获取其ID
-                $stmt = $pdo->prepare("SELECT id FROM boxes WHERE box_code = :code");
-                $stmt->bindParam(':code', $search_code);
-                $stmt->execute();
+                $params = [$search_code];
+                $tenantSql = tenantWhere($params);
+                $stmt = $pdo->prepare("SELECT id FROM boxes WHERE box_code = ?{$tenantSql}");
+                $stmt->execute($params);
                 $result = $stmt->fetch(PDO::FETCH_ASSOC);
                 if ($result) {
                     $target_id = $result['id'];
@@ -711,9 +722,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['search_code'])) {
                 }
             } else {
                 // 搜索盒子，获取其ID
-                $stmt = $pdo->prepare("SELECT id, box_id FROM cartons WHERE carton_code = :code");
-                $stmt->bindParam(':code', $search_code);
-                $stmt->execute();
+                $params = [$search_code];
+                $tenantSql = tenantWhere($params);
+                $stmt = $pdo->prepare("SELECT id, box_id FROM cartons WHERE carton_code = ?{$tenantSql}");
+                $stmt->execute($params);
                 $result = $stmt->fetch(PDO::FETCH_ASSOC);
                 if ($result) {
                     $target_id = $result['id'];
@@ -741,21 +753,31 @@ $stats = [
 ];
 
 try {
-    $stmt = $pdo->query("SELECT COUNT(*) FROM boxes");
+    $params = [];
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM boxes WHERE 1=1" . tenantWhere($params));
+    $stmt->execute($params);
     $stats['total_boxes'] = $stmt->fetchColumn();
-    
-    $stmt = $pdo->query("SELECT COUNT(*) FROM cartons");
+
+    $params = [];
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM cartons WHERE 1=1" . tenantWhere($params));
+    $stmt->execute($params);
     $stats['total_cartons'] = $stmt->fetchColumn();
-    
-    $stmt = $pdo->query("SELECT COUNT(*) FROM products");
+
+    $params = [];
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM products WHERE 1=1" . tenantWhere($params));
+    $stmt->execute($params);
     $stats['total_products'] = $stmt->fetchColumn();
-    
+
     // 获取经销商数量
-    $stmt = $pdo->query("SELECT COUNT(*) FROM base_distributors");
+    $params = [];
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM base_distributors WHERE 1=1" . tenantWhere($params));
+    $stmt->execute($params);
     $stats['total_base_distributors'] = $stmt->fetchColumn();
-    
+
     // 获取出库人员数量
-    $stmt = $pdo->query("SELECT COUNT(*) FROM warehouse_staff");
+    $params = [];
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM warehouse_staff WHERE 1=1" . tenantWhere($params));
+    $stmt->execute($params);
     $stats['total_warehouse_staff'] = $stmt->fetchColumn();
 } catch(PDOException $e) {
     $messages['error'][] = "获取统计数据出错: " . $e->getMessage();
@@ -1221,59 +1243,7 @@ function exportAsExcel($data, $title) {
     </style>
 </head>
 <body>
-    <!-- 左侧导航栏 -->
-    <div class="sidebar">
-        <div class="sidebar-header">
-            <h2>产品溯源系统</h2>
-        </div>
-        <ul class="sidebar-menu">
-            <li><a href="admin.php" class="active">系统首页</a></li>
-            <li class="has-submenu open">
-                <a href="javascript:void(0)" onclick="toggleSubmenu(this)">品牌业务 <span class="arrow">▼</span></a>
-                <ul class="submenu">
-                    <li><a href="admin_list.php">溯源数据</a></li>
-                    <li><a href="admin_base_distributors.php">经销商管理</a></li>
-                    <li><a href="admin_base_brands.php">品牌管理</a></li>
-                    <li><a href="admin_base_products.php">产品管理</a></li>
-                    <li><a href="admin_warehouse_staff.php">出库人员</a></li>
-                </ul>
-            </li>
-            <li class="has-submenu">
-                <a href="javascript:void(0)" onclick="toggleSubmenu(this)">代工业务 <span class="arrow">▼</span></a>
-                <ul class="submenu">
-                    <li><a href="admin_base_certificates.php">证书管理</a></li>
-                    <li><a href="admin_query_codes.php">查询码管理</a></li>
-                </ul>
-            </li>
-            <li class="has-submenu">
-                <a href="javascript:void(0)" onclick="toggleSubmenu(this)">系统设置 <span class="arrow">▼</span></a>
-                <ul class="submenu">
-                    <li><a href="admin_password.php">修改密码</a></li>
-                    <li><a href="admin_images.php">图片素材</a></li>
-                    <li><a href="admin_scan_editor.php">背景设计</a></li>
-                    <li><a href="admin_qiniu.php">七牛云接口</a></li>
-                </ul>
-            </li>
-            <li><a href="?action=logout">退出登录</a></li>
-        </ul>
-    </div>
-    
-    <script>
-    function toggleSubmenu(el) {
-        var parent = el.parentElement;
-        parent.classList.toggle('open');
-    }
-    // 自动展开当前页面所在的子菜单
-    document.addEventListener('DOMContentLoaded', function() {
-        var currentPath = window.location.pathname;
-        var submenus = document.querySelectorAll('.submenu a');
-        submenus.forEach(function(link) {
-            if (currentPath.indexOf(link.getAttribute('href')) !== -1) {
-                link.closest('.has-submenu').classList.add('open');
-            }
-        });
-    });
-    </script>
+    <?php $activePage = 'admin.php'; include __DIR__ . '/sidebar.php'; ?>
     
     <!-- 主内容区域 -->
     <div class="main-content">

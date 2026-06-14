@@ -1,6 +1,9 @@
 <?php
 session_start();
 require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/tenant.php';
+resolveTenant($pdo);
 require_once __DIR__ . '/check_domain.php';
 
 // 检查登录状态
@@ -52,6 +55,10 @@ if ($searchQueryCount !== '') {
     }
 }
 
+$tenantWhereClause = tenantWhere($params, 'cl');
+if ($tenantWhereClause) {
+    $where[] = preg_replace('/^\s*AND\s+/', '', $tenantWhereClause);
+}
 $whereClause = count($where) > 0 ? "WHERE " . implode(" AND ", $where) : "";
 
 // 查询总数（为了支持 c.cert_no 的搜索，必须引入 JOIN）
@@ -81,8 +88,8 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
 // 重置扫码次数
 if (isset($_GET['action']) && $_GET['action'] == 'reset_count' && isset($_GET['id'])) {
     $id = intval($_GET['id']);
-    $resetStmt = $pdo->prepare("UPDATE certificate_links SET query_count = 0, last_scan_time = NULL WHERE id = ?");
-    $resetStmt->execute([$id]);
+    $resetStmt = $pdo->prepare("UPDATE certificate_links SET query_count = 0, last_scan_time = NULL WHERE id = ? AND tenant_id = ?");
+    $resetStmt->execute([$id, getCurrentTenantId()]);
     echo "<script>alert('重置成功！'); window.location.href='admin_query_codes.php';</script>";
     exit;
 }
@@ -383,48 +390,9 @@ if (isset($_GET['action']) && $_GET['action'] == 'reset_count' && isset($_GET['i
     </style>
 </head>
 <body>
-    <div class="sidebar">
-        <div class="sidebar-header">
-            <h2>产品溯源系统</h2>
-        </div>
-        <ul class="sidebar-menu">
-            <li><a href="admin.php">系统首页</a></li>
-            <li class="has-submenu">
-                <a href="javascript:void(0)" onclick="toggleSubmenu(this)">品牌业务 <span class="arrow">▼</span></a>
-                <ul class="submenu">
-                    <li><a href="admin_list.php">溯源数据</a></li>
-                    <li><a href="admin_base_distributors.php">经销商管理</a></li>
-                    <li><a href="admin_base_brands.php">品牌管理</a></li>
-                    <li><a href="admin_base_products.php">产品管理</a></li>
-                    <li><a href="admin_warehouse_staff.php">出库人员</a></li>
-                </ul>
-            </li>
-            <li class="has-submenu open">
-                <a href="javascript:void(0)" onclick="toggleSubmenu(this)">代工业务 <span class="arrow">▼</span></a>
-                <ul class="submenu">
-                    <li><a href="admin_base_certificates.php">证书管理</a></li>
-                    <li><a href="admin_query_codes.php" class="active">查询码管理</a></li>
-                </ul>
-            </li>
-            <li class="has-submenu">
-                <a href="javascript:void(0)" onclick="toggleSubmenu(this)">系统设置 <span class="arrow">▼</span></a>
-                <ul class="submenu">
-                    <li><a href="admin_password.php">修改密码</a></li>
-                    <li><a href="admin_images.php">图片素材</a></li>
-                    <li><a href="admin_scan_editor.php">背景设计</a></li>
-                    <li><a href="admin_qiniu.php">七牛云接口</a></li>
-                </ul>
-            </li>
-            <li><a href="?action=logout">退出登录</a></li>
-        </ul>
-    </div>
-    
-    <script>
-    function toggleSubmenu(el) {
-        var parent = el.parentElement;
-        parent.classList.toggle('open');
-    }
+    <?php $activePage = 'admin_query_codes.php'; include __DIR__ . '/sidebar.php'; ?>
 
+    <script>
     // 复制到剪贴板功能
     function copyToClipboard(text) {
         if (!text) return;

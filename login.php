@@ -1,32 +1,17 @@
 <?php
 require __DIR__ . '/config/config.php';
-
-// 只允许特定域名访问后台（生产环境 + 本地开发环境）
-$host = $_SERVER['HTTP_HOST'];
-$allowedHosts = ['guokonghuayi', 'localhost', '127.0.0.1', 'verify.local'];
-$isAllowed = false;
-foreach ($allowedHosts as $allowed) {
-    if (strpos($host, $allowed) !== false) {
-        $isAllowed = true;
-        break;
-    }
-}
-if (!$isAllowed) {
-    header('Location: /');
-    exit;
-}
+require_once __DIR__ . '/includes/auth.php';
+require_once __DIR__ . '/includes/tenant.php';
 
 session_start();
+
+// 解析当前域名所属企业
+resolveTenant($pdo);
 
 // 如果已登录，跳转到管理页面
 if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true) {
     header('Location: admin/admin.php');
     exit;
-}
-
-// 验证数据库连接
-if (!isset($pdo)) {
-    die("数据库连接失败，请检查配置文件 config/config.php");
 }
 
 $error = '';
@@ -35,34 +20,58 @@ $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = isset($_POST['username']) ? trim($_POST['username']) : '';
     $password = isset($_POST['password']) ? trim($_POST['password']) : '';
-    
+
     try {
-        // 从数据库查询用户
-        $stmt = $pdo->prepare("SELECT id, username, password_hash, role, status FROM sys_users WHERE username = ?");
+        // 查询用户（包含 tenant 信息）
+        $stmt = $pdo->prepare("SELECT id, username, password_hash, role, status, tenant_id, is_super_admin, role_id FROM sys_users WHERE username = ?");
         $stmt->execute([$username]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        // 验证密码和状态
+
         if ($user && $user['status'] == 1 && password_verify($password, $user['password_hash'])) {
-            // 登录成功
-            $_SESSION['admin_logged_in'] = true;
-            $_SESSION['admin_id'] = $user['id'];
-            $_SESSION['admin_username'] = $user['username'];
-            $_SESSION['admin_role'] = $user['role'];
-            
-            // 更新最后登录时间
-            $pdo->prepare("UPDATE sys_users SET last_login = NOW() WHERE id = ?")->execute([$user['id']]);
-            
-            header('Location: admin/admin.php');
-            exit;
+            // 域名校验：用户是否属于当前域名允许的企业
+            if (!canLoginOnDomain($pdo, $user)) {
+                $error = '用户名或密码不正确';
+            } else {
+                // 加载角色权限
+                $permissions = [];
+                if (!empty($user['role_id'])) {
+                    $roleStmt = $pdo->prepare("SELECT name, permissions FROM roles WHERE id = ? AND status = 1");
+                    $roleStmt->execute([$user['role_id']]);
+                    $role = $roleStmt->fetch();
+                    if ($role) {
+                        $permissions = json_decode($role['permissions'], true) ?: [];
+                        $_SESSION['admin_role_name'] = $role['name'];
+                    }
+                }
+                // 超级管理员拥有全部权限
+                if (!empty($user['is_super_admin'])) {
+                    $permissions = ['modules' => ['brand', 'oem', 'system', 'platform'], 'actions' => []];
+                }
+
+                // 写入 session
+                $_SESSION['admin_logged_in'] = true;
+                $_SESSION['admin_id'] = $user['id'];
+                $_SESSION['admin_username'] = $user['username'];
+                $_SESSION['admin_role'] = $user['role'];
+                $_SESSION['admin_tenant_id'] = (int)$user['tenant_id'];
+                $_SESSION['admin_is_super'] = (int)$user['is_super_admin'];
+                $_SESSION['admin_role_id'] = (int)$user['role_id'];
+                $_SESSION['admin_permissions'] = $permissions;
+
+                // 更新最后登录时间
+                $pdo->prepare("UPDATE sys_users SET last_login = NOW() WHERE id = ?")->execute([$user['id']]);
+
+                header('Location: admin/admin.php');
+                exit;
+            }
         } elseif ($user && $user['status'] == 0) {
             $error = '账号已被禁用，请联系管理员';
         } else {
             $error = '用户名或密码不正确';
         }
     } catch (PDOException $e) {
+        error_log('登录数据库错误: ' . $e->getMessage());
         $error = '系统错误，请联系管理员';
-        // 生产环境可记录日志
     }
 }
 ?>
@@ -156,7 +165,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         <?php if (!empty($error)): ?>
             <div class="error">
-                <?php echo $error; ?>
+                <?php echo htmlspecialchars($error); ?>
             </div>
         <?php endif; ?>
         

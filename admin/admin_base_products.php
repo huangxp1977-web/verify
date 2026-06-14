@@ -1,6 +1,9 @@
 <?php
 session_start();
 require __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/tenant.php';
+resolveTenant($pdo);
 require_once __DIR__ . '/check_domain.php';
 
 // 检查登录状态
@@ -32,7 +35,10 @@ if (isset($_SESSION['flash_error'])) {
 // 获取所有产品（带品牌信息，不显示已删除）
 function getProducts($pdo) {
     try {
-        $stmt = $pdo->query("SELECT p.*, b.name_cn as brand_name FROM base_products p LEFT JOIN base_brands b ON p.brand_id = b.id WHERE p.status >= 0 ORDER BY p.product_name ASC");
+        $params = [];
+        $sql = "SELECT p.*, b.name_cn as brand_name FROM base_products p LEFT JOIN base_brands b ON p.brand_id = b.id WHERE p.status >= 0" . tenantWhere($params) . " ORDER BY p.product_name ASC";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch(PDOException $e) {
         return [];
@@ -42,7 +48,10 @@ function getProducts($pdo) {
 // 获取所有启用的品牌（供下拉选择）
 function getActiveBrands($pdo) {
     try {
-        $stmt = $pdo->query("SELECT id, name_cn, name_en FROM base_brands WHERE status = 1 ORDER BY name_cn ASC");
+        $params = [];
+        $sql = "SELECT id, name_cn, name_en FROM base_brands WHERE status = 1" . tenantWhere($params) . " ORDER BY name_cn ASC";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch(PDOException $e) {
         return [];
@@ -60,8 +69,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_product'])) {
     } else {
         try {
             $image_url = isset($_POST['image_url']) ? trim($_POST['image_url']) : '';
-            $stmt = $pdo->prepare("INSERT INTO base_products (product_name, brand_id, specification, image_url) VALUES (?, ?, ?, ?)");
-            $stmt->execute([$product_name, $brand_id, $specification, $image_url]);
+            $stmt = $pdo->prepare("INSERT INTO base_products (product_name, brand_id, specification, image_url, tenant_id) VALUES (?, ?, ?, ?, ?)");
+            $stmt->execute([$product_name, $brand_id, $specification, $image_url, getCurrentTenantId()]);
             $_SESSION['flash_success'] = "产品添加成功";
             header("Location: admin_base_products.php");
             exit;
@@ -83,8 +92,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_product'])) {
     } else {
         try {
             $image_url = isset($_POST['image_url']) ? trim($_POST['image_url']) : '';
-            $stmt = $pdo->prepare("UPDATE base_products SET product_name = ?, brand_id = ?, specification = ?, image_url = ? WHERE id = ?");
-            $stmt->execute([$product_name, $brand_id, $specification, $image_url, $id]);
+            $stmt = $pdo->prepare("UPDATE base_products SET product_name = ?, brand_id = ?, specification = ?, image_url = ? WHERE id = ? AND tenant_id = ?");
+            $stmt->execute([$product_name, $brand_id, $specification, $image_url, $id, getCurrentTenantId()]);
             $_SESSION['flash_success'] = "产品信息更新成功";
             header("Location: admin_base_products.php");
             exit;
@@ -101,8 +110,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_image_only'])) 
     
     if ($id > 0) {
         try {
-            $stmt = $pdo->prepare("UPDATE base_products SET image_url = ? WHERE id = ?");
-            $stmt->execute([$image_url, $id]);
+            $stmt = $pdo->prepare("UPDATE base_products SET image_url = ? WHERE id = ? AND tenant_id = ?");
+            $stmt->execute([$image_url, $id, getCurrentTenantId()]);
             $_SESSION['flash_success'] = "产品图片已更新";
             header("Location: admin_base_products.php");
             exit;
@@ -124,8 +133,8 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id']))
         if ($relatedCount > 0) {
             $error = "该产品有 {$relatedCount} 条关联数据，无法删除，只能禁用";
         } else {
-            $stmt = $pdo->prepare("UPDATE base_products SET status = -1 WHERE id = ?");
-            $stmt->execute([$id]);
+            $stmt = $pdo->prepare("UPDATE base_products SET status = -1 WHERE id = ? AND tenant_id = ?");
+            $stmt->execute([$id, getCurrentTenantId()]);
             $_SESSION['flash_success'] = "产品已删除";
             header("Location: admin_base_products.php");
             exit;
@@ -139,16 +148,17 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id']))
 if (isset($_GET['action']) && $_GET['action'] == 'toggle_status' && isset($_GET['id'])) {
     $id = intval($_GET['id']);
     try {
-        $stmt = $pdo->prepare("SELECT status, product_name FROM base_products WHERE id = ?");
-        $stmt->execute([$id]);
+        $params = [$id];
+        $stmt = $pdo->prepare("SELECT status, product_name FROM base_products WHERE id = ?" . tenantWhere($params));
+        $stmt->execute($params);
         $prod = $stmt->fetch(PDO::FETCH_ASSOC);
         
         if ($prod) {
             $newStatus = (isset($prod['status']) && $prod['status'] == 1) ? 0 : 1;
             $statusText = $newStatus == 1 ? '启用' : '禁用';
             
-            $stmt = $pdo->prepare("UPDATE base_products SET status = ? WHERE id = ?");
-            $stmt->execute([$newStatus, $id]);
+            $stmt = $pdo->prepare("UPDATE base_products SET status = ? WHERE id = ? AND tenant_id = ?");
+            $stmt->execute([$newStatus, $id, getCurrentTenantId()]);
             
             $_SESSION['flash_success'] = "产品【{$prod['product_name']}】已{$statusText}";
             header("Location: admin_base_products.php");
@@ -163,8 +173,9 @@ if (isset($_GET['action']) && $_GET['action'] == 'toggle_status' && isset($_GET[
 $edit_product = null;
 if (isset($_GET['action']) && $_GET['action'] == 'edit' && isset($_GET['id'])) {
     $id = intval($_GET['id']);
-    $stmt = $pdo->prepare("SELECT * FROM base_products WHERE id = ?");
-    $stmt->execute([$id]);
+    $params = [$id];
+    $stmt = $pdo->prepare("SELECT * FROM base_products WHERE id = ?" . tenantWhere($params));
+    $stmt->execute($params);
     $edit_product = $stmt->fetch(PDO::FETCH_ASSOC);
 }
 
@@ -390,48 +401,7 @@ $activeBrands = getActiveBrands($pdo);
     </style>
 </head>
 <body>
-    <div class="sidebar">
-        <div class="sidebar-header">
-            <h2>产品溯源系统</h2>
-        </div>
-        <ul class="sidebar-menu">
-            <li><a href="admin.php">系统首页</a></li>
-            <li class="has-submenu open">
-                <a href="javascript:void(0)" onclick="toggleSubmenu(this)">品牌业务 <span class="arrow">▼</span></a>
-                <ul class="submenu">
-                    <li><a href="admin_list.php">溯源数据</a></li>
-                    <li><a href="admin_base_distributors.php">经销商管理</a></li>
-                    <li><a href="admin_base_brands.php">品牌管理</a></li>
-                    <li><a href="admin_base_products.php" class="active">产品管理</a></li>
-                    <li><a href="admin_warehouse_staff.php">出库人员</a></li>
-                </ul>
-            </li>
-            <li class="has-submenu">
-                <a href="javascript:void(0)" onclick="toggleSubmenu(this)">代工业务 <span class="arrow">▼</span></a>
-                <ul class="submenu">
-                    <li><a href="admin_base_certificates.php">证书管理</a></li>
-                    <li><a href="admin_query_codes.php">查询码管理</a></li>
-                </ul>
-            </li>
-            <li class="has-submenu">
-                <a href="javascript:void(0)" onclick="toggleSubmenu(this)">系统设置 <span class="arrow">▼</span></a>
-                <ul class="submenu">
-                    <li><a href="admin_password.php">修改密码</a></li>
-                    <li><a href="admin_images.php">图片素材</a></li>
-                    <li><a href="admin_scan_editor.php">背景设计</a></li>
-                    <li><a href="admin_qiniu.php">七牛云接口</a></li>
-                </ul>
-            </li>
-            <li><a href="?action=logout">退出登录</a></li>
-        </ul>
-    </div>
-    
-    <script>
-    function toggleSubmenu(el) {
-        var parent = el.parentElement;
-        parent.classList.toggle('open');
-    }
-    </script>
+    <?php $activePage = 'admin_base_products.php'; include __DIR__ . '/sidebar.php'; ?>
 
     <div class="main-content">
         <div class="container">

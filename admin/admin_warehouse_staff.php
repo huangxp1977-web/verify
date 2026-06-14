@@ -1,6 +1,9 @@
 <?php
 session_start();
 require __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/tenant.php';
+resolveTenant($pdo);
 require_once __DIR__ . '/check_domain.php';
 
 // 检查登录状态
@@ -33,7 +36,10 @@ if (isset($_SESSION['flash_error'])) {
 // 获取所有出库人员（不显示已删除）
 function getWarehouseStaff($pdo) {
     try {
-        $stmt = $pdo->query("SELECT * FROM warehouse_staff WHERE status >= 0 ORDER BY username ASC");
+        $params = [];
+        $sql = "SELECT * FROM warehouse_staff WHERE status >= 0" . tenantWhere($params) . " ORDER BY username ASC";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch(PDOException $e) {
         return [];
@@ -62,12 +68,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_staff'])) {
                 // 加密密码
                 $hashed_password = password_hash($password, PASSWORD_DEFAULT);
                 
-                $stmt = $pdo->prepare("INSERT INTO warehouse_staff (username, password, full_name, phone, status) VALUES (:username, :password, :full_name, :phone, :status)");
+                $stmt = $pdo->prepare("INSERT INTO warehouse_staff (username, password, full_name, phone, status, tenant_id) VALUES (:username, :password, :full_name, :phone, :status, :tenant_id)");
                 $stmt->bindParam(':username', $username);
                 $stmt->bindParam(':password', $hashed_password);
                 $stmt->bindParam(':full_name', $full_name);
                 $stmt->bindParam(':phone', $phone);
                 $stmt->bindParam(':status', $status);
+                $stmt->bindValue(':tenant_id', getCurrentTenantId());
                 $stmt->execute();
                 $_SESSION['flash_success'] = "出库人员添加成功";
                 header("Location: admin_warehouse_staff.php");
@@ -105,10 +112,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_staff'])) {
                 if (!empty($password)) {
                     // 加密新密码
                     $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-                    $stmt = $pdo->prepare("UPDATE warehouse_staff SET username = :username, password = :password, full_name = :full_name, phone = :phone, status = :status WHERE id = :id");
+                    $stmt = $pdo->prepare("UPDATE warehouse_staff SET username = :username, password = :password, full_name = :full_name, phone = :phone, status = :status WHERE id = :id AND tenant_id = :tenant_id");
                     $stmt->bindParam(':password', $hashed_password);
                 } else {
-                    $stmt = $pdo->prepare("UPDATE warehouse_staff SET username = :username, full_name = :full_name, phone = :phone, status = :status WHERE id = :id");
+                    $stmt = $pdo->prepare("UPDATE warehouse_staff SET username = :username, full_name = :full_name, phone = :phone, status = :status WHERE id = :id AND tenant_id = :tenant_id");
                 }
                 
                 $stmt->bindParam(':id', $id);
@@ -116,6 +123,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_staff'])) {
                 $stmt->bindParam(':full_name', $full_name);
                 $stmt->bindParam(':phone', $phone);
                 $stmt->bindParam(':status', $status);
+                $stmt->bindValue(':tenant_id', getCurrentTenantId());
                 $stmt->execute();
                 $_SESSION['flash_success'] = "出库人员信息更新成功";
                 header("Location: admin_warehouse_staff.php");
@@ -131,8 +139,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_staff'])) {
 if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id'])) {
     $id = intval($_GET['id']);
     try {
-        $stmt = $pdo->prepare("UPDATE warehouse_staff SET status = -1 WHERE id = ?");
-        $stmt->execute([$id]);
+        $stmt = $pdo->prepare("UPDATE warehouse_staff SET status = -1 WHERE id = ? AND tenant_id = ?");
+        $stmt->execute([$id, getCurrentTenantId()]);
         $_SESSION['flash_success'] = "出库人员已删除";
         header("Location: admin_warehouse_staff.php");
         exit;
@@ -145,16 +153,16 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id']))
 if (isset($_GET['action']) && $_GET['action'] == 'toggle_status' && isset($_GET['id'])) {
     $id = intval($_GET['id']);
     try {
-        $stmt = $pdo->prepare("SELECT status, full_name FROM warehouse_staff WHERE id = ?");
-        $stmt->execute([$id]);
+        $stmt = $pdo->prepare("SELECT status, full_name FROM warehouse_staff WHERE id = ? AND tenant_id = ?");
+        $stmt->execute([$id, getCurrentTenantId()]);
         $staff = $stmt->fetch(PDO::FETCH_ASSOC);
         
         if ($staff) {
             $newStatus = (isset($staff['status']) && $staff['status'] == 1) ? 0 : 1;
             $statusText = $newStatus == 1 ? '启用' : '禁用';
             
-            $stmt = $pdo->prepare("UPDATE warehouse_staff SET status = ? WHERE id = ?");
-            $stmt->execute([$newStatus, $id]);
+            $stmt = $pdo->prepare("UPDATE warehouse_staff SET status = ? WHERE id = ? AND tenant_id = ?");
+            $stmt->execute([$newStatus, $id, getCurrentTenantId()]);
             
             $_SESSION['flash_success'] = "出库人员【{$staff['full_name']}】已{$statusText}";
             header("Location: admin_warehouse_staff.php");
@@ -170,9 +178,8 @@ $edit_staff = null;
 if (isset($_GET['action']) && $_GET['action'] == 'edit' && isset($_GET['id'])) {
     $id = intval($_GET['id']);
     try {
-        $stmt = $pdo->prepare("SELECT * FROM warehouse_staff WHERE id = :id");
-        $stmt->bindParam(':id', $id);
-        $stmt->execute();
+        $stmt = $pdo->prepare("SELECT * FROM warehouse_staff WHERE id = ? AND tenant_id = ?");
+        $stmt->execute([$id, getCurrentTenantId()]);
         $edit_staff = $stmt->fetch(PDO::FETCH_ASSOC);
     } catch(PDOException $e) {
         $error = "获取出库人员信息出错: " . $e->getMessage();
@@ -470,49 +477,7 @@ try {
     </style>
 </head>
 <body>
-    <!-- 左侧导航栏 -->
-    <div class="sidebar">
-        <div class="sidebar-header">
-            <h2>产品溯源系统</h2>
-        </div>
-        <ul class="sidebar-menu">
-            <li><a href="admin.php">系统首页</a></li>
-            <li class="has-submenu open">
-                <a href="javascript:void(0)" onclick="toggleSubmenu(this)">品牌业务 <span class="arrow">▼</span></a>
-                <ul class="submenu">
-                    <li><a href="admin_list.php">溯源数据</a></li>
-                    <li><a href="admin_base_distributors.php">经销商管理</a></li>
-                    <li><a href="admin_base_brands.php">品牌管理</a></li>
-                    <li><a href="admin_base_products.php">产品管理</a></li>
-                    <li><a href="admin_warehouse_staff.php" class="active">出库人员</a></li>
-                </ul>
-            </li>
-            <li class="has-submenu">
-                <a href="javascript:void(0)" onclick="toggleSubmenu(this)">代工业务 <span class="arrow">▼</span></a>
-                <ul class="submenu">
-                    <li><a href="admin_base_certificates.php">证书管理</a></li>
-                    <li><a href="admin_query_codes.php">查询码管理</a></li>
-                </ul>
-            </li>
-            <li class="has-submenu">
-                <a href="javascript:void(0)" onclick="toggleSubmenu(this)">系统设置 <span class="arrow">▼</span></a>
-                <ul class="submenu">
-                    <li><a href="admin_password.php">修改密码</a></li>
-                    <li><a href="admin_images.php">图片素材</a></li>
-                    <li><a href="admin_scan_editor.php">背景设计</a></li>
-                    <li><a href="admin_qiniu.php">七牛云接口</a></li>
-                </ul>
-            </li>
-            <li><a href="?action=logout">退出登录</a></li>
-        </ul>
-    </div>
-    
-    <script>
-    function toggleSubmenu(el) {
-        var parent = el.parentElement;
-        parent.classList.toggle('open');
-    }
-    </script>
+    <?php $activePage = 'admin_warehouse_staff.php'; include __DIR__ . '/sidebar.php'; ?>
     
     <!-- 主内容区域 -->
     <div class="main-content">

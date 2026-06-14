@@ -7,6 +7,9 @@ if (in_array($_SERVER['HTTP_HOST'] ?? '', ['localhost', '127.0.0.1', 'verify.loc
 
 session_start();
 require __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/tenant.php';
+resolveTenant($pdo);
 require_once __DIR__ . '/../includes/qiniu_helper.php';
 require_once __DIR__ . '/check_domain.php';
 
@@ -46,7 +49,10 @@ $currentCert = null;
 
 // 获取所有证书（不显示已删除）
 try {
-    $stmt = $pdo->query("SELECT * FROM base_certificates WHERE status >= 0 ORDER BY create_time DESC");
+    $params = [];
+    $sql = "SELECT * FROM base_certificates WHERE status >= 0" . tenantWhere($params) . " ORDER BY create_time DESC";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
     $certList = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch(PDOException $e) {
     $messages['error'][] = "获取证书列表出错: " . $e->getMessage();
@@ -128,19 +134,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_cert'])) {
                 if ($id > 0) {
                     // 编辑证书
                     $stmt = $pdo->prepare("
-                        UPDATE base_certificates 
+                        UPDATE base_certificates
                         SET cert_name=?, cert_no=?, issuer=?, issue_date=?, expire_date=?, image_url=?, update_time=NOW()
-                        WHERE id=?
+                        WHERE id=? AND tenant_id=?
                     ");
-                    $stmt->execute([$certName, $certNo, $issuer, $issueDate, $expireDate, $imageUrl, $id]);
+                    $stmt->execute([$certName, $certNo, $issuer, $issueDate, $expireDate, $imageUrl, $id, getCurrentTenantId()]);
                     $messages['success'][] = "证书更新成功";
                 } else {
                     // 添加新证书
                     $stmt = $pdo->prepare("
-                        INSERT INTO base_certificates (cert_name, cert_no, issuer, issue_date, expire_date, image_url, create_time, update_time)
-                        VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())
+                        INSERT INTO base_certificates (cert_name, cert_no, issuer, issue_date, expire_date, image_url, tenant_id, create_time, update_time)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
                     ");
-                    $stmt->execute([$certName, $certNo, $issuer, $issueDate, $expireDate, $imageUrl]);
+                    $stmt->execute([$certName, $certNo, $issuer, $issueDate, $expireDate, $imageUrl, getCurrentTenantId()]);
                     $messages['success'][] = "证书添加成功";
                 }
                 // 保存成功消息到session
@@ -165,8 +171,8 @@ if (isset($_GET['action']) && $_GET['action'] == 'toggle_status' && isset($_GET[
     $id = intval($_GET['id']);
     try {
         // 获取当前状态
-        $stmt = $pdo->prepare("SELECT status, cert_name FROM base_certificates WHERE id=?");
-        $stmt->execute([$id]);
+        $stmt = $pdo->prepare("SELECT status, cert_name FROM base_certificates WHERE id=? AND tenant_id=?");
+        $stmt->execute([$id, getCurrentTenantId()]);
         $cert = $stmt->fetch(PDO::FETCH_ASSOC);
         
         if (!$cert) {
@@ -177,8 +183,8 @@ if (isset($_GET['action']) && $_GET['action'] == 'toggle_status' && isset($_GET[
         $newStatus = (isset($cert['status']) && $cert['status'] == 1) ? 0 : 1;
         $statusText = $newStatus == 1 ? '启用' : '禁用';
         
-        $stmt = $pdo->prepare("UPDATE base_certificates SET status = ? WHERE id = ?");
-        $stmt->execute([$newStatus, $id]);
+        $stmt = $pdo->prepare("UPDATE base_certificates SET status = ? WHERE id = ? AND tenant_id = ?");
+        $stmt->execute([$newStatus, $id, getCurrentTenantId()]);
         
         $messages['success'][] = "证书【{$cert['cert_name']}】已{$statusText}";
         header("Location: admin_base_certificates.php");
@@ -195,8 +201,8 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id']))
     $id = intval($_GET['id']);
     try {
         // 获取证书信息
-        $stmt = $pdo->prepare("SELECT cert_no, cert_name FROM base_certificates WHERE id=?");
-        $stmt->execute([$id]);
+        $stmt = $pdo->prepare("SELECT cert_no, cert_name FROM base_certificates WHERE id=? AND tenant_id=?");
+        $stmt->execute([$id, getCurrentTenantId()]);
         $cert = $stmt->fetch(PDO::FETCH_ASSOC);
         
         if (!$cert) {
@@ -204,8 +210,8 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id']))
         }
         
         // 检查是否有关联的查询码
-        $linkStmt = $pdo->prepare("SELECT COUNT(*) FROM certificate_links WHERE cert_id = ?");
-        $linkStmt->execute([$id]);
+        $linkStmt = $pdo->prepare("SELECT COUNT(*) FROM certificate_links WHERE cert_id = ? AND tenant_id = ?");
+        $linkStmt->execute([$id, getCurrentTenantId()]);
         $linkCount = $linkStmt->fetchColumn();
         
         if ($linkCount > 0) {
@@ -213,8 +219,8 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id']))
         }
         
         // 软删除证书
-        $stmt = $pdo->prepare("UPDATE base_certificates SET status = -1 WHERE id = ?");
-        $stmt->execute([$id]);
+        $stmt = $pdo->prepare("UPDATE base_certificates SET status = -1 WHERE id = ? AND tenant_id = ?");
+        $stmt->execute([$id, getCurrentTenantId()]);
         
         $_SESSION['flash_messages'] = ['success' => ["证书【{$cert['cert_name']}】已删除"], 'error' => []];
         header("Location: admin_base_certificates.php");
@@ -228,8 +234,8 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id']))
 if (isset($_GET['action']) && $_GET['action'] == 'edit' && isset($_GET['id'])) {
     $id = intval($_GET['id']);
     try {
-        $stmt = $pdo->prepare("SELECT * FROM base_certificates WHERE id=?");
-        $stmt->execute([$id]);
+        $stmt = $pdo->prepare("SELECT * FROM base_certificates WHERE id=? AND tenant_id=?");
+        $stmt->execute([$id, getCurrentTenantId()]);
         $currentCert = $stmt->fetch(PDO::FETCH_ASSOC);
     } catch(PDOException $e) {
         $messages['error'][] = "获取证书信息出错: " . $e->getMessage();
@@ -241,10 +247,10 @@ if (isset($_GET['action']) && $_GET['action'] == 'export_url' && isset($_GET['id
     $id = intval($_GET['id']);
     try {
         // 获取证书信息
-        $stmt = $pdo->prepare("SELECT * FROM base_certificates WHERE id=?");
-        $stmt->execute([$id]);
+        $stmt = $pdo->prepare("SELECT * FROM base_certificates WHERE id=? AND tenant_id=?");
+        $stmt->execute([$id, getCurrentTenantId()]);
         $cert = $stmt->fetch(PDO::FETCH_ASSOC);
-        
+
         if (!$cert) {
             throw new Exception("证书不存在");
         }
@@ -299,9 +305,9 @@ if (isset($_GET['action']) && $_GET['action'] == 'export_url' && isset($_GET['id
             $queryUrl = generateCertQueryUrl($cert['cert_no'], $uniqueCode);
             
             // 入库记录
-            $stmt = $pdo->prepare("INSERT INTO certificate_links (cert_id, unique_code, query_url) VALUES (?, ?, ?)");
-            $stmt->execute([$cert['id'], $uniqueCode, $queryUrl]);
-            
+            $stmt = $pdo->prepare("INSERT INTO certificate_links (cert_id, unique_code, query_url, tenant_id) VALUES (?, ?, ?, ?)");
+            $stmt->execute([$cert['id'], $uniqueCode, $queryUrl, getCurrentTenantId()]);
+
             $content .= $i . "\t" . $queryUrl . "\n";
         }
 
@@ -398,8 +404,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_cert_data'])) {
                 $queryUrl = generateCertQueryUrl($cert['cert_no'], $uniqueCode);
                 
                 // 入库记录
-                $stmt = $pdo->prepare("INSERT INTO certificate_links (cert_id, unique_code, query_url) VALUES (?, ?, ?)");
-                $stmt->execute([$cert['id'], $uniqueCode, $queryUrl]);
+                $stmt = $pdo->prepare("INSERT INTO certificate_links (cert_id, unique_code, query_url, tenant_id) VALUES (?, ?, ?, ?)");
+                $stmt->execute([$cert['id'], $uniqueCode, $queryUrl, getCurrentTenantId()]);
 
                 $data = [
                     $cert['id'],
@@ -798,49 +804,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
     </style>
 </head>
 <body>
-    <!-- 左侧导航栏 -->
-    <div class="sidebar">
-        <div class="sidebar-header">
-            <h2>产品溯源系统</h2>
-        </div>
-        <ul class="sidebar-menu">
-            <li><a href="admin.php">系统首页</a></li>
-            <li class="has-submenu">
-                <a href="javascript:void(0)" onclick="toggleSubmenu(this)">品牌业务 <span class="arrow">▼</span></a>
-                <ul class="submenu">
-                    <li><a href="admin_list.php">溯源数据</a></li>
-                    <li><a href="admin_base_distributors.php">经销商管理</a></li>
-                    <li><a href="admin_base_brands.php">品牌管理</a></li>
-                    <li><a href="admin_base_products.php">产品管理</a></li>
-                    <li><a href="admin_warehouse_staff.php">出库人员</a></li>
-                </ul>
-            </li>
-            <li class="has-submenu open">
-                <a href="javascript:void(0)" onclick="toggleSubmenu(this)">代工业务 <span class="arrow">▼</span></a>
-                <ul class="submenu">
-                    <li><a href="admin_base_certificates.php" class="active">证书管理</a></li>
-                    <li><a href="admin_query_codes.php">查询码管理</a></li>
-                </ul>
-            </li>
-            <li class="has-submenu">
-                <a href="javascript:void(0)" onclick="toggleSubmenu(this)">系统设置 <span class="arrow">▼</span></a>
-                <ul class="submenu">
-                    <li><a href="admin_password.php">修改密码</a></li>
-                    <li><a href="admin_images.php">图片素材</a></li>
-                    <li><a href="admin_scan_editor.php">背景设计</a></li>
-                    <li><a href="admin_qiniu.php">七牛云接口</a></li>
-                </ul>
-            </li>
-            <li><a href="?action=logout">退出登录</a></li>
-        </ul>
-    </div>
-    
-    <script>
-    function toggleSubmenu(el) {
-        var parent = el.parentElement;
-        parent.classList.toggle('open');
-    }
-    </script>
+    <?php $activePage = 'admin_base_certificates.php'; include __DIR__ . '/sidebar.php'; ?>
     
     <!-- 主内容区域 -->
     <div class="main-content">
@@ -1002,8 +966,8 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
                                     <td class="action-buttons">
                                         <?php 
                                         // 检查是否有关联的查询码
-                                        $linkCheckStmt = $pdo->prepare("SELECT COUNT(*) FROM certificate_links WHERE cert_id = ?");
-                                        $linkCheckStmt->execute([$cert['id']]);
+                                        $linkCheckStmt = $pdo->prepare("SELECT COUNT(*) FROM certificate_links WHERE cert_id = ? AND tenant_id = ?");
+                                        $linkCheckStmt->execute([$cert['id'], getCurrentTenantId()]);
                                         $hasLinks = $linkCheckStmt->fetchColumn() > 0;
                                         if ($hasLinks): ?>
                                             <span class="btn btn-disabled" title="已有查询码数据，无法编辑">编辑</span>

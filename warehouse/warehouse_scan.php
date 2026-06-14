@@ -1,6 +1,9 @@
 <?php
 session_start();
 require __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/tenant.php';
+resolveTenant($pdo);
 
 // 检查登录状态
 if (!isset($_SESSION['warehouse_staff_logged_in']) || $_SESSION['warehouse_staff_logged_in'] !== true) {
@@ -23,7 +26,10 @@ $base_distributors = [];
 // 获取所有经销商
 function getDistributors($pdo) {
     try {
-        $stmt = $pdo->query("SELECT * FROM base_distributors ORDER BY name ASC");
+        $params = [];
+        $where = tenantWhere($params);
+        $stmt = $pdo->prepare("SELECT * FROM base_distributors WHERE 1=1{$where} ORDER BY name ASC");
+        $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch(PDOException $e) {
         return [];
@@ -33,9 +39,10 @@ function getDistributors($pdo) {
 // 获取箱子信息
 function getBoxInfo($pdo, $code) {
     try {
-        $stmt = $pdo->prepare("SELECT b.*, d.name as distributor_name FROM boxes b LEFT JOIN base_distributors d ON b.distributor_id = d.id WHERE b.box_code = :code");
-        $stmt->bindParam(':code', $code);
-        $stmt->execute();
+        $params = [':code' => $code];
+        $where = tenantWhere($params, 'b');
+        $stmt = $pdo->prepare("SELECT b.*, d.name as distributor_name FROM boxes b LEFT JOIN base_distributors d ON b.distributor_id = d.id WHERE b.box_code = :code{$where}");
+        $stmt->execute($params);
         return $stmt->fetch(PDO::FETCH_ASSOC);
     } catch(PDOException $e) {
         return null;
@@ -55,61 +62,87 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['assign_distributor']))
             $pdo->beginTransaction();
             
             // 获取箱子ID
-            $stmt = $pdo->prepare("SELECT id FROM boxes WHERE box_code = :code");
-            $stmt->bindParam(':code', $box_code);
-            $stmt->execute();
+            $params = [':code' => $box_code];
+            $where = tenantWhere($params, 'boxes');
+            $stmt = $pdo->prepare("SELECT id FROM boxes WHERE box_code = :code{$where}");
+            $stmt->execute($params);
             $box = $stmt->fetch(PDO::FETCH_ASSOC);
             
             if ($box) {
                 $box_id = $box['id'];
                 
                 // 更新箱子的经销商
-                $stmt = $pdo->prepare("UPDATE boxes SET distributor_id = :distributor_id WHERE id = :box_id");
-                $stmt->bindParam(':distributor_id', $distributor_id);
-                $stmt->bindParam(':box_id', $box_id);
-                $stmt->execute();
+                $updateParams = [':distributor_id' => $distributor_id, ':box_id' => $box_id];
+                $updateWhere = tenantWhere($updateParams, 'boxes');
+                $stmt = $pdo->prepare("UPDATE boxes SET distributor_id = :distributor_id WHERE id = :box_id{$updateWhere}");
+                $stmt->execute($updateParams);
                 
                 // 获取该箱子下的所有盒子
-                $stmt = $pdo->prepare("SELECT id FROM cartons WHERE box_id = :box_id");
-                $stmt->bindParam(':box_id', $box_id);
-                $stmt->execute();
+                $cartonParams = [':box_id' => $box_id];
+                $cartonWhere = tenantWhere($cartonParams, 'cartons');
+                $stmt = $pdo->prepare("SELECT id FROM cartons WHERE box_id = :box_id{$cartonWhere}");
+                $stmt->execute($cartonParams);
                 $cartons = $stmt->fetchAll(PDO::FETCH_COLUMN);
-                
+
                 // 更新盒子的经销商
                 if (!empty($cartons)) {
                     $placeholders = implode(',', array_fill(0, count($cartons), '?'));
-                    $stmt = $pdo->prepare("UPDATE cartons SET distributor_id = ? WHERE id IN ($placeholders)");
+                    $cartonUpdateParams = [];
+                    $cartonUpdateWhere = tenantWhere($cartonUpdateParams, 'cartons');
+                    $stmt = $pdo->prepare("UPDATE cartons SET distributor_id = ? WHERE id IN ($placeholders){$cartonUpdateWhere}");
                     $stmt->bindValue(1, $distributor_id, PDO::PARAM_INT);
-                    
+
                     // 绑定盒子ID参数
                     foreach ($cartons as $index => $carton_id) {
                         $stmt->bindValue($index + 2, $carton_id, PDO::PARAM_INT);
                     }
-                    
+
+                    // 绑定租户参数
+                    $bindOffset = count($cartons) + 2;
+                    foreach ($cartonUpdateParams as $i => $val) {
+                        $stmt->bindValue($bindOffset + $i, $val, PDO::PARAM_INT);
+                    }
+
                     $stmt->execute();
-                    
+
                     // 获取这些盒子下的所有产品
-                    $stmt = $pdo->prepare("SELECT id FROM products WHERE carton_id IN ($placeholders)");
-                    
+                    $productQueryParams = [];
+                    $productQueryWhere = tenantWhere($productQueryParams, 'products');
+                    $stmt = $pdo->prepare("SELECT id FROM products WHERE carton_id IN ($placeholders){$productQueryWhere}");
+
                     // 再次绑定盒子ID参数
                     foreach ($cartons as $index => $carton_id) {
                         $stmt->bindValue($index + 1, $carton_id, PDO::PARAM_INT);
                     }
-                    
+
+                    // 绑定租户参数
+                    $productBindOffset = count($cartons) + 1;
+                    foreach ($productQueryParams as $i => $val) {
+                        $stmt->bindValue($productBindOffset + $i, $val, PDO::PARAM_INT);
+                    }
+
                     $stmt->execute();
                     $products = $stmt->fetchAll(PDO::FETCH_COLUMN);
-                    
+
                     // 更新产品的经销商
                     if (!empty($products)) {
                         $product_placeholders = implode(',', array_fill(0, count($products), '?'));
-                        $stmt = $pdo->prepare("UPDATE products SET distributor_id = ? WHERE id IN ($product_placeholders)");
+                        $productUpdateParams = [];
+                        $productUpdateWhere = tenantWhere($productUpdateParams, 'products');
+                        $stmt = $pdo->prepare("UPDATE products SET distributor_id = ? WHERE id IN ($product_placeholders){$productUpdateWhere}");
                         $stmt->bindValue(1, $distributor_id, PDO::PARAM_INT);
-                        
+
                         // 绑定产品ID参数
                         foreach ($products as $index => $product_id) {
                             $stmt->bindValue($index + 2, $product_id, PDO::PARAM_INT);
                         }
-                        
+
+                        // 绑定租户参数
+                        $prodBindOffset = count($products) + 2;
+                        foreach ($productUpdateParams as $i => $val) {
+                            $stmt->bindValue($prodBindOffset + $i, $val, PDO::PARAM_INT);
+                        }
+
                         $stmt->execute();
                     }
                 }

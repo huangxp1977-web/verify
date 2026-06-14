@@ -8,6 +8,10 @@ header("Content-Type: application/json; charset=utf-8");
 // 引入数据库配置
 require '../config/config.php';
 
+// 引入多租户和权限辅助
+require_once __DIR__ . '/../includes/tenant.php';
+require_once __DIR__ . '/../includes/auth.php';
+
 // 引入七牛云辅助函数
 require_once __DIR__ . '/../includes/qiniu_helper.php';
 
@@ -34,19 +38,24 @@ if (empty($code)) {
 // 配置最大有效查询次数（固定为2次）
 define('MAX_QUERY_TIMES', 2);
 
+// 解析当前租户（通过域名）
+$tenant = getTenantByDomain($pdo);
+$tenantId = $tenant ? $tenant['tenant_id'] : 0;
+
 try {
     // 增加GROUP_CONCAT的长度限制，确保能容纳100个防伪码
     $pdo->exec("SET SESSION group_concat_max_len = 1000000");
     
     // 1. 先查询是否为单支产品防伪码
     $stmt = $pdo->prepare("
-        SELECT p.*, c.carton_code, b.box_code 
+        SELECT p.*, c.carton_code, b.box_code
         FROM products p
         JOIN cartons c ON p.carton_id = c.id
         JOIN boxes b ON c.box_id = b.id
-        WHERE p.product_code = :code AND p.status = 1
+        WHERE p.product_code = :code AND p.status = 1 AND p.tenant_id = :tenant_id
     ");
     $stmt->bindParam(':code', $code);
+    $stmt->bindParam(':tenant_id', $tenantId, PDO::PARAM_INT);
     $stmt->execute();
 
     if ($stmt->rowCount() > 0) {
@@ -99,9 +108,10 @@ try {
         (SELECT GROUP_CONCAT(product_code SEPARATOR ', ') FROM products WHERE carton_id = c.id AND status = 1) as product_codes
         FROM cartons c
         JOIN boxes b ON c.box_id = b.id
-        WHERE c.carton_code = :code AND c.status = 1
+        WHERE c.carton_code = :code AND c.status = 1 AND c.tenant_id = :tenant_id
     ");
     $stmt->bindParam(':code', $code);
+    $stmt->bindParam(':tenant_id', $tenantId, PDO::PARAM_INT);
     $stmt->execute();
 
     if ($stmt->rowCount() > 0) {
@@ -169,9 +179,10 @@ try {
         (SELECT COUNT(*) FROM cartons WHERE box_id = b.id AND status = 1) as carton_count,
         (SELECT GROUP_CONCAT(carton_code SEPARATOR ', ') FROM cartons WHERE box_id = b.id AND status = 1) as carton_codes
         FROM boxes b
-        WHERE b.box_code = :code AND b.status = 1
+        WHERE b.box_code = :code AND b.status = 1 AND b.tenant_id = :tenant_id
     ");
     $stmt->bindParam(':code', $code);
+    $stmt->bindParam(':tenant_id', $tenantId, PDO::PARAM_INT);
     $stmt->execute();
 
     if ($stmt->rowCount() > 0) {

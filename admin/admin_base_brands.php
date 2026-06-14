@@ -1,6 +1,9 @@
 <?php
 session_start();
 require __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/tenant.php';
+resolveTenant($pdo);
 require_once __DIR__ . '/check_domain.php';
 
 // 检查登录状态
@@ -32,14 +35,16 @@ if (isset($_SESSION['flash_error'])) {
 // 获取所有品牌
 function getBrands($pdo, $includeAll = false) {
     try {
+        $params = [];
         $sql = "SELECT * FROM base_brands";
         if (!$includeAll) {
             $sql .= " WHERE status = 1";  // 只显示正常状态
         } else {
             $sql .= " WHERE status >= 0"; // 显示正常和禁用，不显示已删除(-1)
         }
-        $sql .= " ORDER BY id DESC";
-        $stmt = $pdo->query($sql);
+        $sql .= tenantWhere($params) . " ORDER BY id DESC";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch(PDOException $e) {
         return [];
@@ -55,8 +60,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_brand'])) {
         $error = "中文名称不能为空";
     } else {
         try {
-            $stmt = $pdo->prepare("INSERT INTO base_brands (name_cn, name_en) VALUES (?, ?)");
-            $stmt->execute([$name_cn, $name_en]);
+            $stmt = $pdo->prepare("INSERT INTO base_brands (name_cn, name_en, tenant_id) VALUES (?, ?, ?)");
+            $stmt->execute([$name_cn, $name_en, getCurrentTenantId()]);
             $_SESSION['flash_success'] = "品牌添加成功";
             header("Location: admin_base_brands.php");
             exit;
@@ -76,8 +81,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_brand'])) {
         $error = "中文名称不能为空";
     } else {
         try {
-            $stmt = $pdo->prepare("UPDATE base_brands SET name_cn = ?, name_en = ? WHERE id = ?");
-            $stmt->execute([$name_cn, $name_en, $id]);
+            $stmt = $pdo->prepare("UPDATE base_brands SET name_cn = ?, name_en = ? WHERE id = ? AND tenant_id = ?");
+            $stmt->execute([$name_cn, $name_en, $id, getCurrentTenantId()]);
             $_SESSION['flash_success'] = "品牌信息更新成功";
             header("Location: admin_base_brands.php");
             exit;
@@ -99,8 +104,8 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id']))
         if ($relatedCount > 0) {
             $error = "该品牌有 {$relatedCount} 个关联产品，无法删除，只能禁用";
         } else {
-            $stmt = $pdo->prepare("UPDATE base_brands SET status = -1 WHERE id = ?");
-            $stmt->execute([$id]);
+            $stmt = $pdo->prepare("UPDATE base_brands SET status = -1 WHERE id = ? AND tenant_id = ?");
+            $stmt->execute([$id, getCurrentTenantId()]);
             $_SESSION['flash_success'] = "品牌已删除";
             header("Location: admin_base_brands.php");
             exit;
@@ -114,16 +119,17 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id']))
 if (isset($_GET['action']) && $_GET['action'] == 'toggle_status' && isset($_GET['id'])) {
     $id = intval($_GET['id']);
     try {
-        $stmt = $pdo->prepare("SELECT status, name_cn FROM base_brands WHERE id = ?");
-        $stmt->execute([$id]);
+        $params = [$id];
+        $stmt = $pdo->prepare("SELECT status, name_cn FROM base_brands WHERE id = ?" . tenantWhere($params));
+        $stmt->execute($params);
         $brand = $stmt->fetch(PDO::FETCH_ASSOC);
         
         if ($brand) {
             $newStatus = $brand['status'] == 1 ? 0 : 1;
             $statusText = $newStatus == 1 ? '启用' : '禁用';
             
-            $stmt = $pdo->prepare("UPDATE base_brands SET status = ? WHERE id = ?");
-            $stmt->execute([$newStatus, $id]);
+            $stmt = $pdo->prepare("UPDATE base_brands SET status = ? WHERE id = ? AND tenant_id = ?");
+            $stmt->execute([$newStatus, $id, getCurrentTenantId()]);
             
             $_SESSION['flash_success'] = "品牌【{$brand['name_cn']}】已{$statusText}";
             header("Location: admin_base_brands.php");
@@ -138,8 +144,9 @@ if (isset($_GET['action']) && $_GET['action'] == 'toggle_status' && isset($_GET[
 $edit_brand = null;
 if (isset($_GET['action']) && $_GET['action'] == 'edit' && isset($_GET['id'])) {
     $id = intval($_GET['id']);
-    $stmt = $pdo->prepare("SELECT * FROM base_brands WHERE id = ?");
-    $stmt->execute([$id]);
+    $params = [$id];
+    $stmt = $pdo->prepare("SELECT * FROM base_brands WHERE id = ?" . tenantWhere($params));
+    $stmt->execute($params);
     $edit_brand = $stmt->fetch(PDO::FETCH_ASSOC);
 }
 
@@ -369,48 +376,7 @@ $base_brands = getBrands($pdo, true); // 获取所有品牌（包括禁用的）
     </style>
 </head>
 <body>
-    <div class="sidebar">
-        <div class="sidebar-header">
-            <h2>产品溯源系统</h2>
-        </div>
-        <ul class="sidebar-menu">
-            <li><a href="admin.php">系统首页</a></li>
-            <li class="has-submenu open">
-                <a href="javascript:void(0)" onclick="toggleSubmenu(this)">品牌业务 <span class="arrow">▼</span></a>
-                <ul class="submenu">
-                    <li><a href="admin_list.php">溯源数据</a></li>
-                    <li><a href="admin_base_distributors.php">经销商管理</a></li>
-                    <li><a href="admin_base_brands.php" class="active">品牌管理</a></li>
-                    <li><a href="admin_base_products.php">产品管理</a></li>
-                    <li><a href="admin_warehouse_staff.php">出库人员</a></li>
-                </ul>
-            </li>
-            <li class="has-submenu">
-                <a href="javascript:void(0)" onclick="toggleSubmenu(this)">代工业务 <span class="arrow">▼</span></a>
-                <ul class="submenu">
-                    <li><a href="admin_base_certificates.php">证书管理</a></li>
-                    <li><a href="admin_query_codes.php">查询码管理</a></li>
-                </ul>
-            </li>
-            <li class="has-submenu">
-                <a href="javascript:void(0)" onclick="toggleSubmenu(this)">系统设置 <span class="arrow">▼</span></a>
-                <ul class="submenu">
-                    <li><a href="admin_password.php">修改密码</a></li>
-                    <li><a href="admin_images.php">图片素材</a></li>
-                    <li><a href="admin_scan_editor.php">背景设计</a></li>
-                    <li><a href="admin_qiniu.php">七牛云接口</a></li>
-                </ul>
-            </li>
-            <li><a href="?action=logout">退出登录</a></li>
-        </ul>
-    </div>
-    
-    <script>
-    function toggleSubmenu(el) {
-        var parent = el.parentElement;
-        parent.classList.toggle('open');
-    }
-    </script>
+    <?php $activePage = 'admin_base_brands.php'; include __DIR__ . '/sidebar.php'; ?>
 
     <div class="main-content">
         <div class="container">

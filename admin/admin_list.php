@@ -5,6 +5,9 @@ ini_set('max_execution_time', 300);
 
 session_start();
 require __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/tenant.php';
+resolveTenant($pdo);
 require_once __DIR__ . '/check_domain.php';
 
 // 检查登录状态
@@ -32,8 +35,11 @@ $parent_id = 0;
 $parent_data = [];
 $backup_dates = [];
 $base_distributors = [];
-$stmt = $pdo->query("SELECT id, name FROM base_distributors ORDER BY name ASC");
-$base_distributors = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$distParams = [];
+$distSql = "SELECT id, name FROM base_distributors WHERE status = 1" . tenantWhere($distParams) . " ORDER BY name ASC";
+$distStmt = $pdo->prepare($distSql);
+$distStmt->execute($distParams);
+$base_distributors = $distStmt->fetchAll(PDO::FETCH_ASSOC);
 
 // 存储计数缓存，避免重复查询
 $box_carton_counts = [];  // 箱子ID => 盒子数量
@@ -53,34 +59,34 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_single'])) {
 
             if ($level == 'box') {
                 // 软删除该箱子下的所有产品
-                $stmt = $pdo->prepare("UPDATE products p JOIN cartons c ON p.carton_id = c.id SET p.status = 0 WHERE c.box_id = ?");
-                $stmt->execute([$item_id]);
+                $stmt = $pdo->prepare("UPDATE products p JOIN cartons c ON p.carton_id = c.id SET p.status = 0 WHERE c.box_id = ? AND p.tenant_id = ?");
+                $stmt->execute([$item_id, getCurrentTenantId()]);
 
                 // 软删除该箱子下的所有盒子
-                $stmt = $pdo->prepare("UPDATE cartons SET status = 0 WHERE box_id = ?");
-                $stmt->execute([$item_id]);
+                $stmt = $pdo->prepare("UPDATE cartons SET status = 0 WHERE box_id = ? AND tenant_id = ?");
+                $stmt->execute([$item_id, getCurrentTenantId()]);
 
                 // 软删除该箱子
-                $stmt = $pdo->prepare("UPDATE boxes SET status = 0 WHERE id = ?");
-                $stmt->execute([$item_id]);
+                $stmt = $pdo->prepare("UPDATE boxes SET status = 0 WHERE id = ? AND tenant_id = ?");
+                $stmt->execute([$item_id, getCurrentTenantId()]);
                 
                 $success = "箱子【ID:$item_id】及其下属数据已删除";
 
             } elseif ($level == 'carton' && $id > 0) {
                 // 软删除该盒子下的所有产品
-                $stmt = $pdo->prepare("UPDATE products SET status = 0 WHERE carton_id = ?");
-                $stmt->execute([$item_id]);
+                $stmt = $pdo->prepare("UPDATE products SET status = 0 WHERE carton_id = ? AND tenant_id = ?");
+                $stmt->execute([$item_id, getCurrentTenantId()]);
 
                 // 软删除该盒子
-                $stmt = $pdo->prepare("UPDATE cartons SET status = 0 WHERE id = ? AND box_id = ?");
-                $stmt->execute([$item_id, $id]);
+                $stmt = $pdo->prepare("UPDATE cartons SET status = 0 WHERE id = ? AND box_id = ? AND tenant_id = ?");
+                $stmt->execute([$item_id, $id, getCurrentTenantId()]);
                 
                 $success = "盒子【ID:$item_id】及其下属产品已删除";
 
             } elseif ($level == 'product' && $id > 0) {
                 // 软删除该产品
-                $stmt = $pdo->prepare("UPDATE products SET status = 0 WHERE id = ? AND carton_id = ?");
-                $stmt->execute([$item_id, $id]);
+                $stmt = $pdo->prepare("UPDATE products SET status = 0 WHERE id = ? AND carton_id = ? AND tenant_id = ?");
+                $stmt->execute([$item_id, $id, getCurrentTenantId()]);
                 
                 $success = "产品【ID:$item_id】已删除";
             }
@@ -104,36 +110,59 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['batch_delete']) && !em
         $selectedIds = array_map('intval', $selectedIds); // 过滤非数字ID
         $idsStr = implode(',', $selectedIds);
 
+        $tenantId = getCurrentTenantId();
+        $placeholders = implode(',', array_fill(0, count($selectedIds), '?'));
+
         if ($level == 'box') {
             // 软删除选中箱子下的所有产品
-            $pdo->exec("
+            $params1 = $selectedIds;
+            $params1[] = $tenantId;
+            $stmt = $pdo->prepare("
                 UPDATE products p
                 JOIN cartons c ON p.carton_id = c.id
                 SET p.status = 0
-                WHERE c.box_id IN ($idsStr)
+                WHERE c.box_id IN ($placeholders) AND p.tenant_id = ?
             ");
-            
+            $stmt->execute($params1);
+
             // 软删除选中箱子下的所有盒子
-            $pdo->exec("UPDATE cartons SET status = 0 WHERE box_id IN ($idsStr)");
-            
+            $params2 = $selectedIds;
+            $params2[] = $tenantId;
+            $stmt = $pdo->prepare("UPDATE cartons SET status = 0 WHERE box_id IN ($placeholders) AND tenant_id = ?");
+            $stmt->execute($params2);
+
             // 软删除选中的箱子
-            $pdo->exec("UPDATE boxes SET status = 0 WHERE id IN ($idsStr)");
-            
+            $params3 = $selectedIds;
+            $params3[] = $tenantId;
+            $stmt = $pdo->prepare("UPDATE boxes SET status = 0 WHERE id IN ($placeholders) AND tenant_id = ?");
+            $stmt->execute($params3);
+
             $success = "已删除选中的" . count($selectedIds) . "个箱子及其下属数据";
 
         } elseif ($level == 'carton' && $id > 0) {
             // 软删除选中盒子下的所有产品
-            $pdo->exec("UPDATE products SET status = 0 WHERE carton_id IN ($idsStr)");
-            
+            $params1 = $selectedIds;
+            $params1[] = $tenantId;
+            $stmt = $pdo->prepare("UPDATE products SET status = 0 WHERE carton_id IN ($placeholders) AND tenant_id = ?");
+            $stmt->execute($params1);
+
             // 软删除选中的盒子
-            $pdo->exec("UPDATE cartons SET status = 0 WHERE id IN ($idsStr) AND box_id = $id");
-            
+            $params2 = $selectedIds;
+            $params2[] = $id;
+            $params2[] = $tenantId;
+            $stmt = $pdo->prepare("UPDATE cartons SET status = 0 WHERE id IN ($placeholders) AND box_id = ? AND tenant_id = ?");
+            $stmt->execute($params2);
+
             $success = "已删除选中的" . count($selectedIds) . "个盒子及其下属产品";
 
         } elseif ($level == 'product' && $id > 0) {
             // 软删除选中的产品
-            $pdo->exec("UPDATE products SET status = 0 WHERE id IN ($idsStr) AND carton_id = $id");
-            
+            $params1 = $selectedIds;
+            $params1[] = $id;
+            $params1[] = $tenantId;
+            $stmt = $pdo->prepare("UPDATE products SET status = 0 WHERE id IN ($placeholders) AND carton_id = ? AND tenant_id = ?");
+            $stmt->execute($params1);
+
             $success = "已删除选中的" . count($selectedIds) . "个产品";
         }
 
@@ -178,19 +207,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export'])) {
             // 构建导出数据的查询条件（与筛选条件一致）
             $where_clause = '';
             $params = [];
+            if (!isSuperAdmin()) {
+                $where_clause .= " WHERE boxes.tenant_id = :tenant_id";
+                $params[':tenant_id'] = getCurrentTenantId();
+            }
 
             if (!empty($box_code)) {
                 // 导出时使用与查询相同的匹配逻辑
-                $exactStmt = $pdo->prepare("SELECT COUNT(*) FROM boxes WHERE box_code = :box_code");
-                $exactStmt->bindParam(':box_code', $box_code);
-                $exactStmt->execute();
+                $exactParams = [':box_code' => $box_code];
+                if (!isSuperAdmin()) $exactParams[':tenant_id'] = getCurrentTenantId();
+                $exactTenant = isSuperAdmin() ? "" : " AND tenant_id = :tenant_id";
+                $exactStmt = $pdo->prepare("SELECT COUNT(*) FROM boxes WHERE box_code = :box_code" . $exactTenant);
+                $exactStmt->execute($exactParams);
                 $exactCount = $exactStmt->fetchColumn();
-                
+
                 if ($exactCount > 0) {
-                    $where_clause .= " WHERE box_code = :box_code";
+                    $where_clause .= (empty($where_clause) ? " WHERE" : " AND") . " box_code = :box_code";
                     $params[':box_code'] = $box_code;
                 } else {
-                    $where_clause .= " WHERE box_code LIKE :box_code";
+                    $where_clause .= (empty($where_clause) ? " WHERE" : " AND") . " box_code LIKE :box_code";
                     $params[':box_code'] = "%{$box_code}%";
                 }
             }
@@ -234,14 +269,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export'])) {
             }
             $export_title = '箱子';
         } elseif ($level == 'carton') {
+            $cartonExportParams = [':box_id' => $id];
+            $cartonExportTenant = isSuperAdmin() ? "" : " AND tenant_id = :tenant_id";
+            if (!isSuperAdmin()) $cartonExportParams[':tenant_id'] = getCurrentTenantId();
             $stmt = $pdo->prepare("
-                SELECT carton_code, batch_number, DATE(production_date) as production_date 
-                FROM cartons 
-                WHERE box_id = :box_id
+                SELECT carton_code, batch_number, DATE(production_date) as production_date
+                FROM cartons
+                WHERE box_id = :box_id" . $cartonExportTenant . "
                 ORDER BY carton_code ASC
             ");
-            $stmt->bindParam(':box_id', $id);
-            $stmt->execute();
+            $stmt->execute($cartonExportParams);
             $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
             foreach ($items as $item) {
@@ -254,14 +291,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export'])) {
             }
             $export_title = '盒子';
         } elseif ($level == 'product') {
+            $productExportParams = [':carton_id' => $id];
+            $productExportTenant = isSuperAdmin() ? "" : " AND tenant_id = :tenant_id";
+            if (!isSuperAdmin()) $productExportParams[':tenant_id'] = getCurrentTenantId();
             $stmt = $pdo->prepare("
                 SELECT product_code, batch_number, DATE(production_date) as production_date, product_name, region
-                FROM products 
-                WHERE carton_id = :carton_id
+                FROM products
+                WHERE carton_id = :carton_id" . $productExportTenant . "
                 ORDER BY product_code ASC
             ");
-            $stmt->bindParam(':carton_id', $id);
-            $stmt->execute();
+            $stmt->execute($productExportParams);
             $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
             foreach ($items as $item) {
@@ -304,35 +343,38 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit'])) {
         if ($level == 'box') {
             // 1. 更新箱子自身代理商
             $stmt = $pdo->prepare("
-                UPDATE boxes 
-                SET batch_number = :batch, production_date = :date, distributor_id = :did 
-                WHERE id = :id
+                UPDATE boxes
+                SET batch_number = :batch, production_date = :date, distributor_id = :did
+                WHERE id = :id AND tenant_id = :tenant_id
             ");
             $stmt->bindParam(':batch', $_POST['batch_number']);
             $stmt->bindParam(':date', $_POST['production_date']);
             $stmt->bindParam(':did', $new_distributor_id);
             $stmt->bindParam(':id', $item_id);
+            $stmt->bindValue(':tenant_id', getCurrentTenantId());
             $stmt->execute();
-            
+
             // 2. 同步更新该箱子下所有盒子的代理商
             $stmt = $pdo->prepare("
-                UPDATE cartons 
-                SET distributor_id = :did 
-                WHERE box_id = :box_id
+                UPDATE cartons
+                SET distributor_id = :did
+                WHERE box_id = :box_id AND tenant_id = :tenant_id
             ");
             $stmt->bindParam(':did', $new_distributor_id);
             $stmt->bindParam(':box_id', $item_id);
+            $stmt->bindValue(':tenant_id', getCurrentTenantId());
             $stmt->execute();
-            
+
             // 3. 同步更新该箱子下所有产品的代理商（通过盒子关联）
             $stmt = $pdo->prepare("
                 UPDATE products p
                 JOIN cartons c ON p.carton_id = c.id
-                SET p.distributor_id = :did 
-                WHERE c.box_id = :box_id
+                SET p.distributor_id = :did
+                WHERE c.box_id = :box_id AND p.tenant_id = :tenant_id
             ");
             $stmt->bindParam(':did', $new_distributor_id);
             $stmt->bindParam(':box_id', $item_id);
+            $stmt->bindValue(':tenant_id', getCurrentTenantId());
             $stmt->execute();
             
             $success = "箱子及下属所有盒子、产品的代理商已同步更新";
@@ -340,24 +382,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit'])) {
         } elseif ($level == 'carton') {
             // 1. 更新盒子自身代理商
             $stmt = $pdo->prepare("
-                UPDATE cartons 
-                SET batch_number = :batch, production_date = :date, distributor_id = :did 
-                WHERE id = :id
+                UPDATE cartons
+                SET batch_number = :batch, production_date = :date, distributor_id = :did
+                WHERE id = :id AND tenant_id = :tenant_id
             ");
             $stmt->bindParam(':batch', $_POST['batch_number']);
             $stmt->bindParam(':date', $_POST['production_date']);
             $stmt->bindParam(':did', $new_distributor_id);
             $stmt->bindParam(':id', $item_id);
+            $stmt->bindValue(':tenant_id', getCurrentTenantId());
             $stmt->execute();
-            
+
             // 2. 同步更新该盒子下所有产品的代理商
             $stmt = $pdo->prepare("
-                UPDATE products 
-                SET distributor_id = :did 
-                WHERE carton_id = :carton_id
+                UPDATE products
+                SET distributor_id = :did
+                WHERE carton_id = :carton_id AND tenant_id = :tenant_id
             ");
             $stmt->bindParam(':did', $new_distributor_id);
             $stmt->bindParam(':carton_id', $item_id);
+            $stmt->bindValue(':tenant_id', getCurrentTenantId());
             $stmt->execute();
             
             $success = "盒子及下属所有产品的代理商已同步更新";
@@ -365,10 +409,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit'])) {
         } elseif ($level == 'product') {
             // 产品仅更新自身代理商（无下级）
             $stmt = $pdo->prepare("
-                UPDATE products 
+                UPDATE products
                 SET product_name = :name, region = :region, image_url = :image,
-                    batch_number = :batch, production_date = :date, distributor_id = :did 
-                WHERE id = :id
+                    batch_number = :batch, production_date = :date, distributor_id = :did
+                WHERE id = :id AND tenant_id = :tenant_id
             ");
             $stmt->bindParam(':name', $_POST['product_name']);
             $stmt->bindParam(':region', $_POST['region']);
@@ -377,6 +421,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit'])) {
             $stmt->bindParam(':date', $_POST['production_date']);
             $stmt->bindParam(':did', $new_distributor_id);
             $stmt->bindParam(':id', $item_id);
+            $stmt->bindValue(':tenant_id', getCurrentTenantId());
             $stmt->execute();
             
             $success = "产品信息更新成功";
@@ -405,12 +450,18 @@ try {
         // 构建查询条件（已优化：只显示status=1的记录）
         $where_clause = ' WHERE boxes.status = 1';
         $params = [];
+        if (!isSuperAdmin()) {
+            $where_clause .= " AND boxes.tenant_id = :tenant_id";
+            $params[':tenant_id'] = getCurrentTenantId();
+        }
         
         if (!empty($box_code)) {
             // 先尝试精确匹配（处理包含特殊字符的完整防伪码）
-            $exactStmt = $pdo->prepare("SELECT COUNT(*) FROM boxes WHERE box_code = :box_code AND status = 1");
-            $exactStmt->bindParam(':box_code', $box_code);
-            $exactStmt->execute();
+            $exactParams2 = [':box_code' => $box_code];
+            if (!isSuperAdmin()) $exactParams2[':tenant_id'] = getCurrentTenantId();
+            $exactTenant = isSuperAdmin() ? "" : " AND tenant_id = :tenant_id";
+            $exactStmt = $pdo->prepare("SELECT COUNT(*) FROM boxes WHERE box_code = :box_code AND status = 1" . $exactTenant);
+            $exactStmt->execute($exactParams2);
             $exactCount = $exactStmt->fetchColumn();
             
             if ($exactCount > 0) {
@@ -469,13 +520,16 @@ try {
             $boxIds = array_column($data, 'id');
             $placeholders = implode(',', array_fill(0, count($boxIds), '?'));
             
+            $cartonCountParams = $boxIds;
+            $cartonCountTenant = isSuperAdmin() ? "" : " AND tenant_id = ?";
+            if (!isSuperAdmin()) $cartonCountParams[] = getCurrentTenantId();
             $stmt = $pdo->prepare("
-                SELECT box_id, COUNT(*) as count 
-                FROM cartons 
-                WHERE box_id IN ($placeholders) AND status = 1 
+                SELECT box_id, COUNT(*) as count
+                FROM cartons
+                WHERE box_id IN ($placeholders) AND status = 1" . $cartonCountTenant . "
                 GROUP BY box_id
             ");
-            $stmt->execute($boxIds);
+            $stmt->execute($cartonCountParams);
             
             while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 $box_carton_counts[$row['box_id']] = $row['count'];
@@ -486,9 +540,11 @@ try {
         $title = '盒子列表';
         
         // 获取箱子信息
-        $stmt = $pdo->prepare("SELECT * FROM boxes WHERE id = :id");
-        $stmt->bindParam(':id', $id);
-        $stmt->execute();
+        $boxParams = [':id' => $id];
+        if (!isSuperAdmin()) $boxParams[':tenant_id'] = getCurrentTenantId();
+        $boxTenant = isSuperAdmin() ? "" : " AND tenant_id = :tenant_id";
+        $stmt = $pdo->prepare("SELECT * FROM boxes WHERE id = :id" . $boxTenant);
+        $stmt->execute($boxParams);
         $parent_data = $stmt->fetch(PDO::FETCH_ASSOC);
         
         if (!$parent_data) {
@@ -502,23 +558,27 @@ try {
         ];
         
         // 获取总记录数
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM cartons WHERE box_id = :box_id AND status = 1");
-        $stmt->bindParam(':box_id', $id);
-        $stmt->execute();
+        $cartonParams = [':box_id' => $id];
+        if (!isSuperAdmin()) $cartonParams[':tenant_id'] = getCurrentTenantId();
+        $cartonTenant = isSuperAdmin() ? "" : " AND tenant_id = :tenant_id";
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM cartons WHERE box_id = :box_id AND status = 1" . $cartonTenant);
+        $stmt->execute($cartonParams);
         $total_records = $stmt->fetchColumn();
         
         // 获取盒子数据
-        $stmt = $pdo->prepare("            
-            SELECT cartons.*, base_distributors.name as distributor_name 
-            FROM cartons 
+        $cartonDataParams = [':box_id' => $id];
+        if (!isSuperAdmin()) $cartonDataParams[':tenant_id'] = getCurrentTenantId();
+        $stmt = $pdo->prepare("
+            SELECT cartons.*, base_distributors.name as distributor_name
+            FROM cartons
             LEFT JOIN base_distributors ON cartons.distributor_id = base_distributors.id
-            WHERE box_id = :box_id AND cartons.status = 1
+            WHERE box_id = :box_id AND cartons.status = 1" . $cartonTenant . "
             ORDER BY carton_code ASC
             LIMIT :offset, :page_size
         ");
-        $stmt->bindParam(':box_id', $id);
-        $stmt->bindParam(':offset', $offset, PDO::PARAM_INT);
-        $stmt->bindParam(':page_size', $page_size, PDO::PARAM_INT);
+        foreach ($cartonDataParams as $k => $v) { $stmt->bindValue($k, $v); }
+        $stmt->bindValue(':offset', (int)$offset, PDO::PARAM_INT);
+        $stmt->bindValue(':page_size', (int)$page_size, PDO::PARAM_INT);
         $stmt->execute();
         $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
         $parent_id = $id;
@@ -528,13 +588,16 @@ try {
             $cartonIds = array_column($data, 'id');
             $placeholders = implode(',', array_fill(0, count($cartonIds), '?'));
             
+            $productCountParams = $cartonIds;
+            $productCountTenant = isSuperAdmin() ? "" : " AND tenant_id = ?";
+            if (!isSuperAdmin()) $productCountParams[] = getCurrentTenantId();
             $stmt = $pdo->prepare("
-                SELECT carton_id, COUNT(*) as count 
-                FROM products 
-                WHERE carton_id IN ($placeholders) AND status = 1 
+                SELECT carton_id, COUNT(*) as count
+                FROM products
+                WHERE carton_id IN ($placeholders) AND status = 1" . $productCountTenant . "
                 GROUP BY carton_id
             ");
-            $stmt->execute($cartonIds);
+            $stmt->execute($productCountParams);
             
             while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 $carton_product_counts[$row['carton_id']] = $row['count'];
@@ -545,19 +608,23 @@ try {
         $title = '产品列表';
         
         // 获取盒子信息
-        $stmt = $pdo->prepare("SELECT * FROM cartons WHERE id = :id");
-        $stmt->bindParam(':id', $id);
-        $stmt->execute();
+        $cartonLookupParams = [':id' => $id];
+        if (!isSuperAdmin()) $cartonLookupParams[':tenant_id'] = getCurrentTenantId();
+        $cartonLookupTenant = isSuperAdmin() ? "" : " AND tenant_id = :tenant_id";
+        $stmt = $pdo->prepare("SELECT * FROM cartons WHERE id = :id" . $cartonLookupTenant);
+        $stmt->execute($cartonLookupParams);
         $carton_data = $stmt->fetch(PDO::FETCH_ASSOC);
-        
+
         if (!$carton_data) {
             throw new Exception("未找到指定的盒子");
         }
-        
+
         // 获取所属箱子信息
-        $stmt = $pdo->prepare("SELECT * FROM boxes WHERE id = :id");
-        $stmt->bindParam(':id', $carton_data['box_id']);
-        $stmt->execute();
+        $boxLookupParams = [':id' => $carton_data['box_id']];
+        if (!isSuperAdmin()) $boxLookupParams[':tenant_id'] = getCurrentTenantId();
+        $boxLookupTenant = isSuperAdmin() ? "" : " AND tenant_id = :tenant_id";
+        $stmt = $pdo->prepare("SELECT * FROM boxes WHERE id = :id" . $boxLookupTenant);
+        $stmt->execute($boxLookupParams);
         $box_data = $stmt->fetch(PDO::FETCH_ASSOC);
         
         $breadcrumb[] = ['name' => '箱子列表', 'url' => 'admin_list.php?level=box'];
@@ -571,23 +638,27 @@ try {
         ];
         
         // 获取总记录数
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM products WHERE carton_id = :carton_id AND status = 1");
-        $stmt->bindParam(':carton_id', $id);
-        $stmt->execute();
+        $productParams = [':carton_id' => $id];
+        if (!isSuperAdmin()) $productParams[':tenant_id'] = getCurrentTenantId();
+        $productTenant = isSuperAdmin() ? "" : " AND tenant_id = :tenant_id";
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM products WHERE carton_id = :carton_id AND status = 1" . $productTenant);
+        $stmt->execute($productParams);
         $total_records = $stmt->fetchColumn();
-        
+
         // 获取产品数据
-        $stmt = $pdo->prepare("            
-            SELECT products.*, base_distributors.name as distributor_name 
-            FROM products 
+        $productDataParams = [':carton_id' => $id];
+        if (!isSuperAdmin()) $productDataParams[':tenant_id'] = getCurrentTenantId();
+        $stmt = $pdo->prepare("
+            SELECT products.*, base_distributors.name as distributor_name
+            FROM products
             LEFT JOIN base_distributors ON products.distributor_id = base_distributors.id
-            WHERE carton_id = :carton_id AND products.status = 1
+            WHERE carton_id = :carton_id AND products.status = 1" . $productTenant . "
             ORDER BY product_code ASC
             LIMIT :offset, :page_size
         ");
-        $stmt->bindParam(':carton_id', $id);
-        $stmt->bindParam(':offset', $offset, PDO::PARAM_INT);
-        $stmt->bindParam(':page_size', $page_size, PDO::PARAM_INT);
+        foreach ($productDataParams as $k => $v) { $stmt->bindValue($k, $v); }
+        $stmt->bindValue(':offset', (int)$offset, PDO::PARAM_INT);
+        $stmt->bindValue(':page_size', (int)$page_size, PDO::PARAM_INT);
         $stmt->execute();
         $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
         $parent_id = $id;
@@ -1128,49 +1199,7 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
     </style>
 </head>
 <body>
-    <!-- 左侧导航栏 -->
-    <div class="sidebar">
-        <div class="sidebar-header">
-            <h2>产品溯源系统</h2>
-        </div>
-        <ul class="sidebar-menu">
-            <li><a href="admin.php">系统首页</a></li>
-            <li class="has-submenu open">
-                <a href="javascript:void(0)" onclick="toggleSubmenu(this)">品牌业务 <span class="arrow">▼</span></a>
-                <ul class="submenu">
-                    <li><a href="admin_list.php" class="active">溯源数据</a></li>
-                    <li><a href="admin_base_distributors.php">经销商管理</a></li>
-                    <li><a href="admin_base_brands.php">品牌管理</a></li>
-                    <li><a href="admin_base_products.php">产品管理</a></li>
-                    <li><a href="admin_warehouse_staff.php">出库人员</a></li>
-                </ul>
-            </li>
-            <li class="has-submenu">
-                <a href="javascript:void(0)" onclick="toggleSubmenu(this)">代工业务 <span class="arrow">▼</span></a>
-                <ul class="submenu">
-                    <li><a href="admin_base_certificates.php">证书管理</a></li>
-                    <li><a href="admin_query_codes.php">查询码管理</a></li>
-                </ul>
-            </li>
-            <li class="has-submenu">
-                <a href="javascript:void(0)" onclick="toggleSubmenu(this)">系统设置 <span class="arrow">▼</span></a>
-                <ul class="submenu">
-                    <li><a href="admin_password.php">修改密码</a></li>
-                    <li><a href="admin_images.php">图片素材</a></li>
-                    <li><a href="admin_scan_editor.php">背景设计</a></li>
-                    <li><a href="admin_qiniu.php">七牛云接口</a></li>
-                </ul>
-            </li>
-            <li><a href="?action=logout">退出登录</a></li>
-        </ul>
-    </div>
-    
-    <script>
-    function toggleSubmenu(el) {
-        var parent = el.parentElement;
-        parent.classList.toggle('open');
-    }
-    </script>
+    <?php $activePage = 'admin_list.php'; include __DIR__ . '/sidebar.php'; ?>
     
     <!-- 主内容区域 -->
     <div class="main-content">

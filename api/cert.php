@@ -8,6 +8,10 @@ header("Content-Type: application/json; charset=utf-8");
 // 引入数据库配置
 require '../config/config.php';
 
+// 引入多租户和权限辅助
+require_once __DIR__ . '/../includes/tenant.php';
+require_once __DIR__ . '/../includes/auth.php';
+
 // 引入七牛云辅助函数
 require_once __DIR__ . '/../includes/qiniu_helper.php';
 
@@ -41,15 +45,20 @@ if (empty($uniqueCode)) {
     exit;
 }
 
+// 解析当前租户（通过域名）
+$tenant = getTenantByDomain($pdo);
+$tenantId = $tenant ? $tenant['tenant_id'] : 0;
+
 try {
     // 1. 先通过 unique_code 查找防伪码记录（获取 cert_id），不依赖 URL 中的 cert_no
     //    这样即使二维码已印刷（URL 中 cert_no 是旧的），记录过户后仍能正确关联到新证书
     $linkStmt = $pdo->prepare("
-        SELECT id, cert_id, query_count FROM certificate_links 
-        WHERE unique_code = :code 
+        SELECT id, cert_id, query_count FROM certificate_links
+        WHERE unique_code = :code AND tenant_id = :tenant_id
         LIMIT 1
     ");
     $linkStmt->bindParam(':code', $uniqueCode);
+    $linkStmt->bindParam(':tenant_id', $tenantId, PDO::PARAM_INT);
     $linkStmt->execute();
 
     $link = $linkStmt->fetch(PDO::FETCH_ASSOC);
@@ -74,12 +83,13 @@ try {
 
     // 3. 通过 cert_id 反查证书详情
     $certStmt = $pdo->prepare("
-        SELECT cert_name, cert_no, issuer, issue_date, expire_date, image_url, status, create_time, update_time 
-        FROM base_certificates 
-        WHERE id = :cert_id 
+        SELECT cert_name, cert_no, issuer, issue_date, expire_date, image_url, status, create_time, update_time
+        FROM base_certificates
+        WHERE id = :cert_id AND tenant_id = :tenant_id
         LIMIT 1
     ");
     $certStmt->bindParam(':cert_id', $certId, PDO::PARAM_INT);
+    $certStmt->bindParam(':tenant_id', $tenantId, PDO::PARAM_INT);
     $certStmt->execute();
 
     $certData = $certStmt->fetch(PDO::FETCH_ASSOC);

@@ -6,8 +6,17 @@
 
 header('Content-Type: application/json; charset=utf-8');
 
+session_start();
+
+if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
+    echo json_encode(['success' => false, 'message' => '未授权访问']);
+    exit;
+}
+
 // 引入配置和辅助函数
 require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/tenant.php';
 require_once __DIR__ . '/../includes/qiniu_helper.php';
 
 // 检查请求方法
