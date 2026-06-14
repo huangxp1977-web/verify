@@ -1,5 +1,6 @@
 <?php
-// 引入七牛云辅助函数，处理图片URL
+// 引入配置和七牛云辅助函数
+require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../includes/qiniu_helper.php';
 
 // 获取轮播图URLs

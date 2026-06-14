@@ -30,7 +30,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     foreach ($example as $key => $default) {
         $config[$key] = trim($_POST[$key] ?? '');
     }
-    $config['QINIU_ENABLED'] = false;
+    // 填了七牛 Access Key 就自动启用
+    $config['QINIU_ENABLED'] = !empty($config['QINIU_ACCESS_KEY']);
 
     // 基本校验
     if (empty($config['DB_HOST']) || empty($config['DB_NAME']) || empty($config['DB_USER'])) {
