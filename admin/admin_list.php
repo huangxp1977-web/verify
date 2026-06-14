@@ -738,6 +738,7 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
+    <link rel="icon" type="image/webp" href="/favicon-DQ.webp">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>产品溯源系统 - 溯源数据</title>

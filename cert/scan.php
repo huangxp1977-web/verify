@@ -7,6 +7,7 @@ $signPackage = $jssdk->GetSignPackage();
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
+    <link rel="icon" type="image/webp" href="/favicon-DQ.webp">
 <meta charset="UTF-8">
 <title>华医技术 - 扫码查询</title>
 <meta name="renderer" content="webkit">

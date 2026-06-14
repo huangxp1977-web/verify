@@ -148,6 +148,7 @@ $base_brands = getBrands($pdo, true); // 获取所有品牌（包括禁用的）
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
+    <link rel="icon" type="image/webp" href="/favicon-DQ.webp">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>产品溯源系统 - 品牌管理</title>

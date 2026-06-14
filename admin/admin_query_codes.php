@@ -90,6 +90,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'reset_count' && isset($_GET['i
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
+    <link rel="icon" type="image/webp" href="/favicon-DQ.webp">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>产品溯源系统 - 查询码管理</title>

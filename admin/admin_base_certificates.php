@@ -254,6 +254,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'export_url' && isset($_GET['id
             echo '<!DOCTYPE html>
             <html lang="zh-CN">
             <head>
+    <link rel="icon" type="image/webp" href="/favicon-DQ.webp">
                 <meta charset="UTF-8">
                 <title>导出证书查询码</title>
                 <style>
@@ -324,6 +325,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_cert_data'])) {
         echo '<!DOCTYPE html>
         <html lang="zh-CN">
         <head>
+    <link rel="icon" type="image/webp" href="/favicon-DQ.webp">
             <meta charset="UTF-8">
             <title>批量导出证书查询码</title>
             <style>
@@ -433,6 +435,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
+    <link rel="icon" type="image/webp" href="/favicon-DQ.webp">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>产品溯源系统 - 证书管理</title>
