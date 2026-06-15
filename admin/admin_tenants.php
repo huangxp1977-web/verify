@@ -42,7 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_tenant'])) {
         'access_key' => trim($_POST['qiniu_ak'] ?? ''),
         'secret_key' => trim($_POST['qiniu_sk'] ?? ''),
         'bucket'     => trim($_POST['qiniu_bucket'] ?? ''),
-        'domain'     => trim($_POST['qiniu_domain'] ?? ''),
+        'domain'     => 'https://' . trim($_POST['qiniu_domain_host'] ?? ''),
         'enabled'    => !empty($_POST['qiniu_enabled']),
     ];
     $qiniuJson = !empty($qiniu['access_key']) ? json_encode($qiniu) : null;
@@ -179,7 +179,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_qiniu'])) {
         'access_key' => trim($_POST['qiniu_ak'] ?? ''),
         'secret_key' => trim($_POST['qiniu_sk'] ?? ''),
         'bucket' => trim($_POST['qiniu_bucket'] ?? ''),
-        'domain' => trim($_POST['qiniu_domain'] ?? ''),
+        'domain' => 'https://' . trim($_POST['qiniu_domain_host'] ?? ''),
         'enabled' => !empty($_POST['qiniu_enabled']),
     ];
     $json = json_encode($qiniu);
@@ -358,12 +358,18 @@ $tenants = $stmt->fetchAll();
                 <form method="post">
                     <input type="hidden" name="tenant_id" value="<?php echo $edit_tenant['id']; ?>">
                     <div class="form-row">
-                        <div class="form-col"><div class="form-group"><label>Access Key</label><input type="text" name="qiniu_ak" value="<?php echo htmlspecialchars($edit_qiniu['access_key']); ?>"></div></div>
-                        <div class="form-col"><div class="form-group"><label>Secret Key</label><input type="password" name="qiniu_sk" value="<?php echo htmlspecialchars($edit_qiniu['secret_key']); ?>"></div></div>
+                        <div class="form-col"><div class="form-group"><label>Access Key (AK)</label><input type="text" name="qiniu_ak" value="<?php echo htmlspecialchars($edit_qiniu['access_key']); ?>"></div></div>
+                        <div class="form-col"><div class="form-group"><label>Secret Key (SK)</label><input type="password" name="qiniu_sk" value="<?php echo htmlspecialchars($edit_qiniu['secret_key']); ?>"></div></div>
                     </div>
                     <div class="form-row">
-                        <div class="form-col"><div class="form-group"><label>Bucket</label><input type="text" name="qiniu_bucket" value="<?php echo htmlspecialchars($edit_qiniu['bucket']); ?>"></div></div>
-                        <div class="form-col"><div class="form-group"><label>域名</label><input type="text" name="qiniu_domain" value="<?php echo htmlspecialchars($edit_qiniu['domain']); ?>" placeholder="https://cdn.example.com"></div></div>
+                        <div class="form-col"><div class="form-group"><label>存储空间名称 (Bucket)</label><input type="text" name="qiniu_bucket" value="<?php echo htmlspecialchars($edit_qiniu['bucket']); ?>"></div></div>
+                        <div class="form-col"><div class="form-group"><label>访问域名 (Domain)</label>
+                            <?php $qiniuHost = preg_replace('#^https?://#', '', $edit_qiniu['domain'] ?? ''); ?>
+                            <div style="display:flex;gap:0">
+                                <span style="display:inline-flex;align-items:center;padding:0 12px;background:#e9ecef;border:1px solid #ddd;border-radius:4px 0 0 4px;border-right:none;color:#495057;font-size:14px">https://</span>
+                                <input type="text" name="qiniu_domain_host" value="<?php echo htmlspecialchars($qiniuHost); ?>" placeholder="cdn.example.com" style="flex:1;border-radius:0 4px 4px 0">
+                            </div>
+                        </div></div>
                     </div>
                     <div class="form-group">
                         <label style="display:inline;font-weight:normal"><input type="checkbox" name="qiniu_enabled" value="1" <?php if (!empty($edit_qiniu['enabled'])) echo 'checked'; ?>> 启用七牛云存储</label>
@@ -400,12 +406,17 @@ $tenants = $stmt->fetchAll();
                     <div style="background:#fff;padding:12px;border-radius:6px;margin-bottom:12px;border:1px solid #ddd">
                         <h3 style="font-size:14px;color:#4a3f69;margin:0 0 8px 0">七牛云配置（选填，可后续配置）</h3>
                         <div class="form-row">
-                            <div class="form-col"><div class="form-group"><label>Access Key</label><input type="text" name="qiniu_ak"></div></div>
-                            <div class="form-col"><div class="form-group"><label>Secret Key</label><input type="password" name="qiniu_sk"></div></div>
+                            <div class="form-col"><div class="form-group"><label>Access Key (AK)</label><input type="text" name="qiniu_ak"></div></div>
+                            <div class="form-col"><div class="form-group"><label>Secret Key (SK)</label><input type="password" name="qiniu_sk"></div></div>
                         </div>
                         <div class="form-row">
-                            <div class="form-col"><div class="form-group"><label>Bucket</label><input type="text" name="qiniu_bucket"></div></div>
-                            <div class="form-col"><div class="form-group"><label>域名</label><input type="text" name="qiniu_domain" placeholder="https://cdn.example.com"></div></div>
+                            <div class="form-col"><div class="form-group"><label>存储空间名称 (Bucket)</label><input type="text" name="qiniu_bucket"></div></div>
+                            <div class="form-col"><div class="form-group"><label>访问域名 (Domain)</label>
+                                <div style="display:flex;gap:0">
+                                    <span style="display:inline-flex;align-items:center;padding:0 12px;background:#e9ecef;border:1px solid #ddd;border-radius:4px 0 0 4px;border-right:none;color:#495057;font-size:14px">https://</span>
+                                    <input type="text" name="qiniu_domain_host" placeholder="cdn.example.com" style="flex:1;border-radius:0 4px 4px 0">
+                                </div>
+                            </div></div>
                         </div>
                         <div class="form-group"><label style="display:inline;font-weight:normal"><input type="checkbox" name="qiniu_enabled" value="1"> 启用七牛云存储</label></div>
                     </div>
