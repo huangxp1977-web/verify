@@ -12,6 +12,12 @@ if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== tru
     exit;
 }
 
+// 权限检查
+if (!isSuperAdmin() && !hasPermission('brand_distributors')) {
+    header('Location: admin.php');
+    exit;
+}
+
 // 处理退出
 if (isset($_GET['action']) && $_GET['action'] == 'logout') {
     session_destroy();

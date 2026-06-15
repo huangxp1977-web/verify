@@ -13,8 +13,8 @@ if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== tru
     exit;
 }
 
-// 仅平台超级管理员可访问全局配置
-if (!isSuperAdmin()) {
+// 权限检查
+if (!isSuperAdmin() && !hasPermission('system_scan_editor')) {
     header('Location: admin.php');
     exit;
 }

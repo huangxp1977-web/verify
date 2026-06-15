@@ -10,15 +10,6 @@ $activePage = $activePage ?? '';
 // 定义菜单结构
 $menuGroups = [];
 
-// 平台管理（仅超级管理员）
-if (isSuperAdmin()) {
-    $platformItems = [];
-    if (file_exists(__DIR__ . '/admin_tenants.php')) $platformItems[] = ['file' => 'admin_tenants.php', 'label' => '企业管理', 'key' => 'platform_tenants'];
-    if (!empty($platformItems)) {
-        $menuGroups[] = ['label' => '平台管理', 'items' => $platformItems];
-    }
-}
-
 // 品牌业务
 if (hasModule('brand')) {
     $items = [];
@@ -53,6 +44,15 @@ if (hasPermission('system_roles') && file_exists(__DIR__ . '/admin_roles.php')) 
 $sysItems[] = ['file' => 'admin_password.php', 'label' => '修改密码', 'key' => 'system_password'];
 if (!empty($sysItems)) {
     $menuGroups[] = ['label' => '系统设置', 'items' => $sysItems];
+}
+
+// 平台管理（仅超级管理员，放在系统设置下面）
+if (isSuperAdmin()) {
+    $platformItems = [];
+    if (file_exists(__DIR__ . '/admin_tenants.php')) $platformItems[] = ['file' => 'admin_tenants.php', 'label' => '企业管理', 'key' => 'platform_tenants'];
+    if (!empty($platformItems)) {
+        $menuGroups[] = ['label' => '平台管理', 'items' => $platformItems];
+    }
 }
 
 // 判断某个 group 中是否包含当前 activePage

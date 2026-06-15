@@ -12,6 +12,12 @@ if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== tru
     exit;
 }
 
+// 权限检查
+if (!isSuperAdmin() && !hasPermission('brand_list')) {
+    header('Location: admin.php');
+    exit;
+}
+
 // 处理导出请求
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['export'])) {
     $exportType = $_POST['export_type']; // box 或 carton

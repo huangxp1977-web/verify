@@ -12,6 +12,12 @@ if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== tru
     exit;
 }
 
+// 权限检查
+if (!isSuperAdmin() && !hasPermission('oem_query_codes')) {
+    header('Location: admin.php');
+    exit;
+}
+
 // 分页配置
 $perPage = 30; // 每页显示行数
 $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;

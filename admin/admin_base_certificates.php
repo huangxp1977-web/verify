@@ -31,6 +31,12 @@ if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== tru
     exit;
 }
 
+// 权限检查
+if (!isSuperAdmin() && !hasPermission('oem_certificates')) {
+    header('Location: admin.php');
+    exit;
+}
+
 // 初始化消息变量
 $messages = [
     'success' => [],

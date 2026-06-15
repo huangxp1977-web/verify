@@ -15,6 +15,12 @@ if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== tru
     exit;
 }
 
+// 权限检查
+if (!isSuperAdmin() && !hasPermission('system_images')) {
+    header('Location: admin.php');
+    exit;
+}
+
 // Flash消息处理（从session读取后清除）
 $messages = ['success' => [], 'error' => []];
 if (isset($_SESSION['flash_messages'])) {

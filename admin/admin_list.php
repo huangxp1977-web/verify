@@ -16,6 +16,12 @@ if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== tru
     exit;
 }
 
+// 权限检查
+if (!isSuperAdmin() && !hasPermission('brand_list')) {
+    header('Location: admin.php');
+    exit;
+}
+
 // 获取当前层级和ID
 $level = isset($_GET['level']) ? $_GET['level'] : 'box';
 $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
