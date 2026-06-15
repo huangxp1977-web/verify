@@ -37,7 +37,6 @@ if (hasModule('oem')) {
 $sysItems = [];
 if (hasPermission('system_images'))      $sysItems[] = ['file' => 'admin_images.php', 'label' => '图片素材', 'key' => 'system_images'];
 if (hasPermission('system_scan_editor')) $sysItems[] = ['file' => 'admin_scan_editor.php', 'label' => '背景设计', 'key' => 'system_scan_editor'];
-if (hasPermission('system_qiniu'))       $sysItems[] = ['file' => 'admin_qiniu.php', 'label' => '七牛云接口', 'key' => 'system_qiniu'];
 if (hasPermission('system_users') && file_exists(__DIR__ . '/admin_users.php'))       $sysItems[] = ['file' => 'admin_users.php', 'label' => '用户管理', 'key' => 'system_users'];
 if (hasPermission('system_roles') && file_exists(__DIR__ . '/admin_roles.php'))       $sysItems[] = ['file' => 'admin_roles.php', 'label' => '角色管理', 'key' => 'system_roles'];
 // 密码修改始终可见（登录用户都可以改自己的密码）

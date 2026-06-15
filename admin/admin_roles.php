@@ -25,7 +25,7 @@ $permGroups = [
         'oem_certificates' => '证书管理', 'oem_query_codes' => '查询码管理',
     ]],
     'system' => ['label' => '系统设置', 'items' => [
-        'system_images' => '图片素材', 'system_scan_editor' => '背景设计', 'system_qiniu' => '七牛云接口',
+        'system_images' => '图片素材', 'system_scan_editor' => '背景设计',
         'system_users' => '用户管理', 'system_roles' => '角色管理',
     ]],
 ];

@@ -33,9 +33,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_tenant'])) {
     $contact_email = trim($_POST['contact_email'] ?? '');
     $modules = $_POST['modules'] ?? [];
     $modulesJson = json_encode($modules);
+    // 管理员账号
+    $adminUser = trim($_POST['admin_username'] ?? '');
+    $adminPass = trim($_POST['admin_password'] ?? 'Admin@123456');
     // 域名
     $domain = trim($_POST['domain'] ?? '');
-    $domainType = $_POST['domain_type'] ?? 'admin';
     $portalDomain = trim($_POST['portal_domain'] ?? '');
     // 七牛配置
     $qiniu = [
@@ -49,7 +51,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_tenant'])) {
 
     if (empty($name)) {
         $error = '企业名称不能为空';
+    } elseif (empty($adminUser)) {
+        $error = '管理员用户名不能为空';
     } else {
+        // 检查用户名是否已存在
+        $checkStmt = $pdo->prepare("SELECT id FROM sys_users WHERE username = ?");
+        $checkStmt->execute([$adminUser]);
+        if ($checkStmt->fetch()) {
+            $error = "用户名【{$adminUser}】已存在";
+        }
+    }
+
+    if (empty($error)) {
         try {
             $pdo->beginTransaction();
             // 插入企业（含七牛配置）
@@ -80,7 +93,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_tenant'])) {
                     'oem_query_codes' => ['view','export'],
                     'system_images' => ['view','upload','delete'],
                     'system_scan_editor' => ['view','edit'],
-                    'system_qiniu' => ['view','edit'],
                     'system_users' => ['view','create','edit','delete'],
                     'system_roles' => ['view','create','edit','delete'],
                 ]
@@ -89,15 +101,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_tenant'])) {
             $stmt->execute([$tenantId, $defaultPerms]);
             $roleId = $pdo->lastInsertId();
 
-            // 创建默认管理员账号
-            $adminUser = preg_replace('/[^a-zA-Z0-9]/', '', $name) . '_admin';
-            $adminPass = 'Admin@123456';
+            // 创建管理员账号
             $hash = password_hash($adminPass, PASSWORD_DEFAULT);
             $stmt = $pdo->prepare("INSERT INTO sys_users (username, password_hash, role, status, tenant_id, is_super_admin, role_id) VALUES (?, ?, 'admin', 1, ?, 0, ?)");
             $stmt->execute([$adminUser, $hash, $tenantId, $roleId]);
 
             $pdo->commit();
-            $_SESSION['flash_success'] = "企业【{$name}】创建成功！管理员账号：{$adminUser}，默认密码：{$adminPass}（请首次登录后修改）";
+            $_SESSION['flash_success'] = "企业【{$name}】创建成功！管理员账号：{$adminUser}，密码：{$adminPass}（请首次登录后修改）";
             header("Location: admin_tenants.php");
             exit;
         } catch (PDOException $e) {
@@ -182,6 +192,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_qiniu'])) {
         'domain' => 'https://' . trim($_POST['qiniu_domain_host'] ?? ''),
         'enabled' => !empty($_POST['qiniu_enabled']),
     ];
+    // 启用时校验必填项
+    if ($qiniu['enabled'] && (empty($qiniu['access_key']) || empty($qiniu['secret_key']) || empty($qiniu['bucket']) || empty(trim($_POST['qiniu_domain_host'] ?? '')))) {
+        $_SESSION['flash_error'] = '启用七牛云时，所有配置项都必须填写';
+        header("Location: admin_tenants.php?action=edit&id={$tenantId}");
+        exit;
+    }
     $json = json_encode($qiniu);
     $stmt = $pdo->prepare("UPDATE tenants SET qiniu_config = ? WHERE id = ?");
     $stmt->execute([$json, $tenantId]);
@@ -329,41 +345,69 @@ $tenants = $stmt->fetchAll();
             <!-- 域名管理 -->
             <div class="section">
                 <h2>域名绑定</h2>
-                <table>
-                    <thead><tr><th>域名</th><th>类型</th><th>操作</th></tr></thead>
-                    <tbody>
-                    <?php foreach ($edit_domains as $d): ?>
-                        <tr>
-                            <td><?php echo htmlspecialchars($d['domain']); ?></td>
-                            <td><?php echo $d['type'] == 'admin' ? '后台管理' : '前端扫码'; ?></td>
-                            <td><a href="?action=delete_domain&id=<?php echo $d['id']; ?>&tid=<?php echo $edit_tenant['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('确定解绑？');">解绑</a></td>
-                        </tr>
-                    <?php endforeach; ?>
-                    <?php if (empty($edit_domains)): ?><tr><td colspan="3">暂无域名绑定</td></tr><?php endif; ?>
-                    </tbody>
-                </table>
-                <form method="post" style="margin-top:10px">
+                <?php
+                $adminDomain = null;
+                $portalDomain = null;
+                foreach ($edit_domains as $d) {
+                    if ($d['type'] == 'admin') $adminDomain = $d;
+                    if ($d['type'] == 'portal') $portalDomain = $d;
+                }
+                ?>
+                <form method="post">
                     <input type="hidden" name="tenant_id" value="<?php echo $edit_tenant['id']; ?>">
-                    <div class="form-row">
-                        <div class="form-col"><div class="form-group"><label>后台管理域名</label><input type="text" name="domain" placeholder="admin.example.com"></div></div>
-                        <div class="form-col"><div class="form-group"><label>前端扫码域名</label><input type="text" name="portal_domain" placeholder="verify.example.com"></div></div>
-                        <div style="display:flex;align-items:flex-end"><button type="submit" name="add_domain" class="btn">添加域名</button></div>
+                    <!-- 后台管理域名 -->
+                    <div class="form-group">
+                        <label>后台管理域名（企业用户通过此域名登录后台）</label>
+                        <?php if ($adminDomain): ?>
+                        <div style="display:flex;gap:10px;align-items:center">
+                            <input type="text" value="<?php echo htmlspecialchars($adminDomain['domain']); ?>" disabled style="flex:1">
+                            <a href="?action=delete_domain&id=<?php echo $adminDomain['id']; ?>&tid=<?php echo $edit_tenant['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('确定解绑后台域名？');">解绑</a>
+                        </div>
+                        <?php else: ?>
+                        <input type="text" name="domain" placeholder="admin.example.com">
+                        <?php endif; ?>
                     </div>
+                    <!-- 前端扫码域名 -->
+                    <div class="form-group">
+                        <label>前端扫码域名（消费者通过此域名扫码查询产品）</label>
+                        <?php if ($portalDomain): ?>
+                        <div style="display:flex;gap:10px;align-items:center">
+                            <input type="text" value="<?php echo htmlspecialchars($portalDomain['domain']); ?>" disabled style="flex:1">
+                            <a href="?action=delete_domain&id=<?php echo $portalDomain['id']; ?>&tid=<?php echo $edit_tenant['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('确定解绑扫码域名？');">解绑</a>
+                        </div>
+                        <?php else: ?>
+                        <input type="text" name="portal_domain" placeholder="verify.example.com">
+                        <?php endif; ?>
+                    </div>
+                    <?php if (!$adminDomain || !$portalDomain): ?>
+                    <button type="submit" name="add_domain" class="btn">保存域名</button>
+                    <?php endif; ?>
                 </form>
             </div>
 
             <!-- 七牛云配置 -->
             <div class="section">
-                <h2>七牛云配置</h2>
+                <h2>七牛云配置 <?php echo !empty($edit_qiniu['enabled']) ? '<span class="badge badge-active">已启用</span>' : '<span class="badge badge-disabled">未启用</span>'; ?></h2>
+                <p style="color:#666;font-size:13px;margin-top:0">Access Key 和 Secret Key 请在 <a href="https://portal.qiniu.com" target="_blank">七牛云控制台</a> 的"密钥管理"中查看</p>
                 <form method="post">
                     <input type="hidden" name="tenant_id" value="<?php echo $edit_tenant['id']; ?>">
                     <div class="form-row">
-                        <div class="form-col"><div class="form-group"><label>Access Key (AK)</label><input type="text" name="qiniu_ak" value="<?php echo htmlspecialchars($edit_qiniu['access_key']); ?>"></div></div>
-                        <div class="form-col"><div class="form-group"><label>Secret Key (SK)</label><input type="password" name="qiniu_sk" value="<?php echo htmlspecialchars($edit_qiniu['secret_key']); ?>"></div></div>
+                        <div class="form-col"><div class="form-group">
+                            <label>Access Key (AK)</label>
+                            <input type="text" name="qiniu_ak" value="<?php echo htmlspecialchars($edit_qiniu['access_key'] ?? ''); ?>" placeholder="请输入七牛云 Access Key">
+                        </div></div>
+                        <div class="form-col"><div class="form-group">
+                            <label>Secret Key (SK)</label>
+                            <input type="password" name="qiniu_sk" value="<?php echo htmlspecialchars($edit_qiniu['secret_key'] ?? ''); ?>" placeholder="请输入七牛云 Secret Key">
+                        </div></div>
                     </div>
                     <div class="form-row">
-                        <div class="form-col"><div class="form-group"><label>存储空间名称 (Bucket)</label><input type="text" name="qiniu_bucket" value="<?php echo htmlspecialchars($edit_qiniu['bucket']); ?>"></div></div>
-                        <div class="form-col"><div class="form-group"><label>访问域名 (Domain)</label>
+                        <div class="form-col"><div class="form-group">
+                            <label>存储空间名称 (Bucket)</label>
+                            <input type="text" name="qiniu_bucket" value="<?php echo htmlspecialchars($edit_qiniu['bucket'] ?? ''); ?>" placeholder="例如：my-bucket">
+                        </div></div>
+                        <div class="form-col"><div class="form-group">
+                            <label>访问域名 (Domain)</label>
                             <?php $qiniuHost = preg_replace('#^https?://#', '', $edit_qiniu['domain'] ?? ''); ?>
                             <div style="display:flex;gap:0">
                                 <span style="display:inline-flex;align-items:center;padding:0 12px;background:#e9ecef;border:1px solid #ddd;border-radius:4px 0 0 4px;border-right:none;color:#495057;font-size:14px">https://</span>
@@ -374,9 +418,62 @@ $tenants = $stmt->fetchAll();
                     <div class="form-group">
                         <label style="display:inline;font-weight:normal"><input type="checkbox" name="qiniu_enabled" value="1" <?php if (!empty($edit_qiniu['enabled'])) echo 'checked'; ?>> 启用七牛云存储</label>
                     </div>
-                    <button type="submit" name="save_qiniu" class="btn">保存七牛配置</button>
+                    <button type="submit" name="save_qiniu" class="btn">保存配置</button>
                 </form>
             </div>
+
+            <?php if (!empty($edit_qiniu['enabled'])): ?>
+            <!-- 同步功能区块 -->
+            <div style="background: #f5f3fa; border: 1px solid #d4cce8; border-radius: 8px; padding: 20px; margin-top: 20px;">
+                <h3 style="margin-top: 0; color: #4a3f69;">文件同步</h3>
+                <p style="color: #666; font-size: 14px;">将本地 uploads 目录的文件同步到七牛云，同步后本地文件将被删除。</p>
+                <div id="syncStats" style="background: #fff; padding: 15px; border-radius: 4px; margin-bottom: 15px;">
+                    <span id="fileCount">正在统计...</span>
+                </div>
+                <button type="button" class="btn" id="syncBtn" onclick="startSync()">开始同步</button>
+                <span id="syncStatus" style="margin-left: 15px; color: #666;"></span>
+                <div id="syncResult" style="margin-top: 15px; display: none;">
+                    <pre style="background: #f4f4f4; padding: 10px; border-radius: 4px; max-height: 200px; overflow: auto;"></pre>
+                </div>
+            </div>
+            <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                fetch('/api/qiniu_sync.php?action=list')
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        if (data.success) {
+                            document.getElementById('fileCount').innerHTML = '待同步文件: <strong>' + data.count + '</strong> 个';
+                            var btn = document.getElementById('syncBtn');
+                            if (data.count === 0) { btn.disabled = true; btn.style.backgroundColor = '#ccc'; btn.style.cursor = 'not-allowed'; }
+                        } else {
+                            document.getElementById('fileCount').textContent = '获取失败: ' + data.message;
+                        }
+                    })
+                    .catch(function() { document.getElementById('fileCount').textContent = '统计失败'; });
+            });
+            function startSync() {
+                if (!confirm('确定要同步所有文件到七牛云吗？同步后本地文件将被删除。')) return;
+                var btn = document.getElementById('syncBtn');
+                var status = document.getElementById('syncStatus');
+                btn.disabled = true; btn.textContent = '同步中...'; status.textContent = '请稍候，正在同步...';
+                fetch('/api/qiniu_sync.php?action=sync')
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        if (data.success) {
+                            status.innerHTML = '<span style="color:green;">' + data.message + '</span>';
+                            document.getElementById('syncResult').style.display = 'block';
+                            document.getElementById('syncResult').querySelector('pre').textContent = JSON.stringify(data.results, null, 2);
+                            document.getElementById('fileCount').innerHTML = '待同步文件: <strong>0</strong> 个';
+                            btn.disabled = true; btn.style.backgroundColor = '#ccc'; btn.style.cursor = 'not-allowed'; btn.textContent = '开始同步';
+                        } else {
+                            btn.disabled = false; btn.textContent = '开始同步';
+                            status.innerHTML = '<span style="color:red;">同步失败: ' + data.message + '</span>';
+                        }
+                    })
+                    .catch(function() { btn.disabled = false; btn.textContent = '开始同步'; status.innerHTML = '<span style="color:red;">请求失败</span>'; });
+            }
+            </script>
+            <?php endif; ?>
 
             <?php else: ?>
             <!-- ========== 添加企业表单 ========== -->
@@ -395,6 +492,15 @@ $tenants = $stmt->fetchAll();
                         <label>开通模块</label>
                         <label style="display:inline;margin-right:15px;font-weight:normal"><input type="checkbox" name="modules[]" value="brand" checked> 品牌业务</label>
                         <label style="display:inline;font-weight:normal"><input type="checkbox" name="modules[]" value="oem"> 代工业务</label>
+                    </div>
+
+                    <div style="background:#fff;padding:12px;border-radius:6px;margin-bottom:12px;border:1px solid #ddd">
+                        <h3 style="font-size:14px;color:#4a3f69;margin:0 0 8px 0">管理员账号</h3>
+                        <div class="form-row">
+                            <div class="form-col"><div class="form-group"><label>管理员用户名 *</label><input type="text" name="admin_username" required placeholder="例如：huayi"></div></div>
+                            <div class="form-col"><div class="form-group"><label>初始密码</label><input type="text" name="admin_password" value="Admin@123456" placeholder="默认 Admin@123456"></div></div>
+                        </div>
+                        <small style="color:#999">管理员首次登录后建议修改密码</small>
                     </div>
 
                     <div style="background:#fff;padding:12px;border-radius:6px;margin-bottom:12px;border:1px solid #ddd">
