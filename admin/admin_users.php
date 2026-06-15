@@ -63,6 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_user'])) {
 // ========== 编辑用户 ==========
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_user'])) {
     $id = intval($_POST['id']);
+    $username = trim($_POST['username'] ?? '');
     $roleId = intval($_POST['role_id'] ?? 0);
     $newPassword = $_POST['new_password'] ?? '';
 
@@ -81,6 +82,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_user'])) {
     }
 
     try {
+        // 更新用户名（检查重名）
+        if (!empty($username)) {
+            $checkStmt = $pdo->prepare("SELECT id FROM sys_users WHERE username = ? AND id != ?");
+            $checkStmt->execute([$username, $id]);
+            if ($checkStmt->fetch()) {
+                $error = "用户名【{$username}】已被使用";
+            } else {
+                if (isSuperAdmin()) {
+                    $stmt = $pdo->prepare("UPDATE sys_users SET username = ? WHERE id = ?");
+                    $stmt->execute([$username, $id]);
+                } else {
+                    $stmt = $pdo->prepare("UPDATE sys_users SET username = ? WHERE id = ? AND tenant_id = ?");
+                    $stmt->execute([$username, $id, getCurrentTenantId()]);
+                }
+            }
+        }
+        // 更新角色
         if (isSuperAdmin()) {
             $stmt = $pdo->prepare("UPDATE sys_users SET role_id = ? WHERE id = ?");
             $stmt->execute([$roleId, $id]);
@@ -231,7 +249,7 @@ $users = $stmt->fetchAll();
                     <input type="hidden" name="id" value="<?php echo $edit_user['id']; ?>">
                     <div class="form-row">
                         <div class="form-col">
-                            <div class="form-group"><label>用户名</label><input type="text" value="<?php echo htmlspecialchars($edit_user['username']); ?>" disabled></div>
+                            <div class="form-group"><label>用户名</label><input type="text" name="username" value="<?php echo htmlspecialchars($edit_user['username']); ?>" required></div>
                         </div>
                         <div class="form-col">
                             <div class="form-group"><label>所属企业</label><input type="text" value="<?php echo htmlspecialchars($edit_user['tenant_name'] ?? '平台'); ?>" disabled></div>
@@ -334,7 +352,7 @@ $users = $stmt->fetchAll();
                         <td><?php echo htmlspecialchars($u['username']); ?></td>
                         <?php if (isSuperAdmin()): ?><td><?php echo htmlspecialchars($u['tenant_name'] ?? '平台'); ?></td><?php endif; ?>
                         <td><?php echo $u['is_super_admin'] ? '超级管理员' : htmlspecialchars($u['role_name'] ?? '未分配'); ?></td>
-                        <td><span class="badge <?php echo $u['is_super_admin'] ? 'badge-super' : 'badge-active'; ?>"><?php echo $u['is_super_admin'] ? '超级管理员' : '普通用户'; ?></span></td>
+                        <td><span class="badge <?php echo $u['is_super_admin'] ? 'badge-super' : ($u['role_name'] ? 'badge-active' : 'badge-disabled'); ?>"><?php echo $u['is_super_admin'] ? '超级管理员' : ($u['role_name'] ?: '未分配角色'); ?></span></td>
                         <td><span class="badge <?php echo $u['status'] == 1 ? 'badge-active' : 'badge-disabled'; ?>"><?php echo $u['status'] == 1 ? '正常' : '禁用'; ?></span></td>
                         <td><?php echo $u['last_login'] ? date('m-d H:i', strtotime($u['last_login'])) : '-'; ?></td>
                         <td>
