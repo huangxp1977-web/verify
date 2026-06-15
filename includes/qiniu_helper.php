@@ -11,6 +11,17 @@ function getQiniuConfig() {
 
     // 1. 优先读当前企业的七牛配置
     $tenantId = $_SESSION['admin_tenant_id'] ?? 0;
+    // 前端扫码页面无 session，通过域名解析 tenant
+    if ($tenantId == 0) {
+        if (!function_exists('getTenantByDomain')) {
+            require_once __DIR__ . '/tenant.php';
+        }
+        global $pdo;
+        if (isset($pdo)) {
+            $domainTenant = getTenantByDomain($pdo);
+            if ($domainTenant) $tenantId = $domainTenant['tenant_id'];
+        }
+    }
     if ($tenantId > 0) {
         global $pdo;
         if (isset($pdo)) {
