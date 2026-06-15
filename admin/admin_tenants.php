@@ -136,19 +136,28 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_tenant'])) {
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_domain'])) {
     $tenantId = intval($_POST['tenant_id']);
     $domain = trim($_POST['domain'] ?? '');
-    $type = $_POST['domain_type'] ?? 'admin';
-    if (!empty($domain)) {
-        try {
-            $stmt = $pdo->prepare("INSERT INTO tenant_domains (tenant_id, domain, type) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE type=VALUES(type), status=1");
-            $stmt->execute([$tenantId, $domain, $type]);
-            $_SESSION['flash_success'] = "域名 {$domain} 绑定成功";
-            header("Location: admin_tenants.php?action=edit&id={$tenantId}");
-            exit;
-        } catch (PDOException $e) {
-            $_SESSION['flash_error'] = '绑定失败：' . $e->getMessage();
-            header("Location: admin_tenants.php?action=edit&id={$tenantId}");
-            exit;
+    $portalDomain = trim($_POST['portal_domain'] ?? '');
+    $added = [];
+    try {
+        if (!empty($domain)) {
+            $stmt = $pdo->prepare("INSERT INTO tenant_domains (tenant_id, domain, type) VALUES (?, ?, 'admin') ON DUPLICATE KEY UPDATE type=VALUES(type), status=1");
+            $stmt->execute([$tenantId, $domain]);
+            $added[] = $domain;
         }
+        if (!empty($portalDomain)) {
+            $stmt = $pdo->prepare("INSERT INTO tenant_domains (tenant_id, domain, type) VALUES (?, ?, 'portal') ON DUPLICATE KEY UPDATE type=VALUES(type), status=1");
+            $stmt->execute([$tenantId, $portalDomain]);
+            $added[] = $portalDomain;
+        }
+        if (!empty($added)) {
+            $_SESSION['flash_success'] = '域名绑定成功：' . implode('、', $added);
+        }
+        header("Location: admin_tenants.php?action=edit&id={$tenantId}");
+        exit;
+    } catch (PDOException $e) {
+        $_SESSION['flash_error'] = '绑定失败：' . $e->getMessage();
+        header("Location: admin_tenants.php?action=edit&id={$tenantId}");
+        exit;
     }
 }
 
@@ -336,8 +345,8 @@ $tenants = $stmt->fetchAll();
                 <form method="post" style="margin-top:10px">
                     <input type="hidden" name="tenant_id" value="<?php echo $edit_tenant['id']; ?>">
                     <div class="form-row">
-                        <div class="form-col"><div class="form-group"><label>域名</label><input type="text" name="domain" placeholder="example.com"></div></div>
-                        <div class="form-col"><div class="form-group"><label>类型</label><select name="domain_type"><option value="admin">后台管理</option><option value="portal">前端扫码</option></select></div></div>
+                        <div class="form-col"><div class="form-group"><label>后台管理域名</label><input type="text" name="domain" placeholder="admin.example.com"></div></div>
+                        <div class="form-col"><div class="form-group"><label>前端扫码域名</label><input type="text" name="portal_domain" placeholder="verify.example.com"></div></div>
                         <div style="display:flex;align-items:flex-end"><button type="submit" name="add_domain" class="btn">添加域名</button></div>
                     </div>
                 </form>

@@ -49,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_user'])) {
     else {
         try {
             $hash = password_hash($password, PASSWORD_DEFAULT);
-            $stmt = $pdo->prepare("INSERT INTO sys_users (username, password_hash, role, status, tenant_id, is_super_admin, role_id) VALUES (?, ?, 'user', 1, ?, 0, ?)");
+            $stmt = $pdo->prepare("INSERT INTO sys_users (username, password_hash, role, status, tenant_id, is_super_admin, role_id) VALUES (?, ?, 'operator', 1, ?, 0, ?)");
             $stmt->execute([$username, $hash, $tenantId, $roleId]);
             $_SESSION['flash_success'] = "用户【{$username}】创建成功";
             header("Location: admin_users.php"); exit;
