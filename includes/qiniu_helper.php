@@ -4,21 +4,46 @@
  * 提供上传、删除、URL获取等功能
  */
 
-// 获取七牛云配置（从 secrets.php 常量读取）
+// 获取七牛云配置（优先读企业配置，兜底用 secrets.php）
 function getQiniuConfig() {
     static $config = null;
-    if ($config === null) {
-        if (defined('QINIU_ACCESS_KEY') && QINIU_ACCESS_KEY !== '') {
-            $config = [
-                'access_key' => QINIU_ACCESS_KEY,
-                'secret_key' => QINIU_SECRET_KEY,
-                'bucket'     => QINIU_BUCKET,
-                'domain'     => QINIU_DOMAIN,
-                'enabled'    => QINIU_ENABLED,
-            ];
-        } else {
-            $config = [];
+    if ($config !== null) return $config;
+
+    // 1. 优先读当前企业的七牛配置
+    $tenantId = $_SESSION['admin_tenant_id'] ?? 0;
+    if ($tenantId > 0) {
+        global $pdo;
+        if (isset($pdo)) {
+            $stmt = $pdo->prepare("SELECT qiniu_config FROM tenants WHERE id = ?");
+            $stmt->execute([$tenantId]);
+            $tenant = $stmt->fetch();
+            if ($tenant && !empty($tenant['qiniu_config'])) {
+                $tc = json_decode($tenant['qiniu_config'], true);
+                if (!empty($tc['access_key'])) {
+                    $config = [
+                        'access_key' => $tc['access_key'] ?? '',
+                        'secret_key' => $tc['secret_key'] ?? '',
+                        'bucket'     => $tc['bucket'] ?? '',
+                        'domain'     => $tc['domain'] ?? '',
+                        'enabled'    => !empty($tc['enabled']),
+                    ];
+                    return $config;
+                }
+            }
         }
+    }
+
+    // 2. 兜底：用 secrets.php 中的平台配置
+    if (defined('QINIU_ACCESS_KEY') && QINIU_ACCESS_KEY !== '') {
+        $config = [
+            'access_key' => QINIU_ACCESS_KEY,
+            'secret_key' => QINIU_SECRET_KEY,
+            'bucket'     => QINIU_BUCKET,
+            'domain'     => QINIU_DOMAIN,
+            'enabled'    => QINIU_ENABLED,
+        ];
+    } else {
+        $config = [];
     }
     return $config;
 }
