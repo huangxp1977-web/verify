@@ -4,12 +4,12 @@
  * 提供上传、删除、URL获取等功能
  */
 
-// 获取七牛云配置（优先读企业配置，兜底用 secrets.php）
+// 获取七牛云配置（从当前企业 tenants.qiniu_config 读取）
 function getQiniuConfig() {
     static $config = null;
     if ($config !== null) return $config;
 
-    // 1. 优先读当前企业的七牛配置
+    // 读当前企业的七牛配置
     $tenantId = $_SESSION['admin_tenant_id'] ?? 0;
     // 前端扫码页面无 session，通过域名解析 tenant
     if ($tenantId == 0) {
@@ -44,18 +44,8 @@ function getQiniuConfig() {
         }
     }
 
-    // 2. 兜底：用 secrets.php 中的平台配置
-    if (defined('QINIU_ACCESS_KEY') && QINIU_ACCESS_KEY !== '') {
-        $config = [
-            'access_key' => QINIU_ACCESS_KEY,
-            'secret_key' => QINIU_SECRET_KEY,
-            'bucket'     => QINIU_BUCKET,
-            'domain'     => QINIU_DOMAIN,
-            'enabled'    => QINIU_ENABLED,
-        ];
-    } else {
-        $config = [];
-    }
+    // 未找到企业配置，七牛云未启用
+    $config = [];
     return $config;
 }
 

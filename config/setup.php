@@ -19,10 +19,6 @@ $example = [
     'WX_APP_SECRET' => '',
     'CERT_APP_ID' => '',
     'CERT_APP_SECRET' => '',
-    'QINIU_ACCESS_KEY' => '',
-    'QINIU_SECRET_KEY' => '',
-    'QINIU_BUCKET' => '',
-    'QINIU_DOMAIN' => '',
 ];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -30,8 +26,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     foreach ($example as $key => $default) {
         $config[$key] = trim($_POST[$key] ?? '');
     }
-    // 填了七牛 Access Key 就自动启用
-    $config['QINIU_ENABLED'] = !empty($config['QINIU_ACCESS_KEY']);
 
     // 基本校验
     if (empty($config['DB_HOST']) || empty($config['DB_NAME']) || empty($config['DB_USER'])) {
@@ -93,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="container">
         <h1>产品溯源系统 - 安装配置</h1>
 
-        <div class="hint">首次使用，请填写以下配置信息。数据库连接信息为必填，微信和七牛云可后续在后台配置。</div>
+        <div class="hint">首次使用，请填写以下配置信息。数据库连接信息为必填，微信可后续在后台配置。</div>
 
         <?php if ($success): ?>
             <div class="success"><?php echo $success; ?> <?php if (file_exists($secretsFile)): ?><br><a href="/">进入系统 →</a><?php endif; ?></div>
@@ -145,26 +139,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="form-row optional">
                     <label>AppSecret</label>
                     <input type="password" name="CERT_APP_SECRET" value="<?php echo htmlspecialchars($_POST['CERT_APP_SECRET'] ?? ''); ?>">
-                </div>
-            </div>
-
-            <div class="section">
-                <h2>七牛云（可选，也可在后台配置）</h2>
-                <div class="form-row optional">
-                    <label>Access Key</label>
-                    <input type="text" name="QINIU_ACCESS_KEY" value="<?php echo htmlspecialchars($_POST['QINIU_ACCESS_KEY'] ?? ''); ?>">
-                </div>
-                <div class="form-row optional">
-                    <label>Secret Key</label>
-                    <input type="password" name="QINIU_SECRET_KEY" value="<?php echo htmlspecialchars($_POST['QINIU_SECRET_KEY'] ?? ''); ?>">
-                </div>
-                <div class="form-row optional">
-                    <label>Bucket</label>
-                    <input type="text" name="QINIU_BUCKET" value="<?php echo htmlspecialchars($_POST['QINIU_BUCKET'] ?? ''); ?>">
-                </div>
-                <div class="form-row optional">
-                    <label>域名</label>
-                    <input type="text" name="QINIU_DOMAIN" value="<?php echo htmlspecialchars($_POST['QINIU_DOMAIN'] ?? ''); ?>" placeholder="https://cdn.example.com">
                 </div>
             </div>
 

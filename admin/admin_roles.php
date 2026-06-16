@@ -19,13 +19,14 @@ if (isset($_SESSION['flash_error'])) { $error = $_SESSION['flash_error']; unset(
 $permGroups = [
     'brand' => ['label' => '品牌业务', 'items' => [
         'brand_list' => '溯源数据', 'brand_distributors' => '经销商管理', 'brand_brands' => '品牌管理',
-        'brand_products' => '产品管理', 'brand_warehouse' => '出库人员',
+        'brand_products' => '产品管理', 'brand_warehouse' => '出库扫码',
     ]],
     'oem' => ['label' => '代工业务', 'items' => [
         'oem_certificates' => '证书管理', 'oem_query_codes' => '查询码管理',
     ]],
     'system' => ['label' => '系统设置', 'items' => [
         'system_images' => '图片素材', 'system_scan_editor' => '背景设计',
+        'system_qiniu' => '七牛云接口',
         'system_users' => '用户管理', 'system_roles' => '角色管理',
     ]],
 ];
@@ -56,10 +57,11 @@ function permsHas($perms, $key) {
 // ========== 添加角色 ==========
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_role'])) {
     $name = trim($_POST['name'] ?? '');
+    $tenantId = isSuperAdmin() ? intval($_POST['tenant_id'] ?? 0) : getCurrentTenantId();
     if (empty($name)) { $error = '角色名称不能为空'; }
+    elseif (isSuperAdmin() && $tenantId <= 0) { $error = '请选择所属企业'; }
     else {
         $perms = buildPermsFromPost($permGroups);
-        $tenantId = isSuperAdmin() ? intval($_POST['tenant_id'] ?? 0) : getCurrentTenantId();
         try {
             $stmt = $pdo->prepare("INSERT INTO roles (tenant_id, name, permissions, is_system) VALUES (?, ?, ?, 0)");
             $stmt->execute([$tenantId, $name, json_encode($perms)]);
@@ -140,12 +142,10 @@ $roles = $stmt->fetchAll();
     <link rel="icon" type="image/webp" href="/favicon-DQ.webp">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>产品溯源系统 - 角色管理</title>
+    <title>角色管理</title>
     <style>
         body { font-family: "Microsoft YaHei", Arial, sans-serif; line-height: 1.6; margin: 0; padding: 0; background-color: #f4f4f4; display: flex; min-height: 100vh; }
         .sidebar { width: 220px; background-color: #4a3f69; color: white; height: 100vh; position: fixed; left: 0; top: 0; padding: 20px 0; overflow-y: auto; box-sizing: border-box; }
-        .sidebar-header { padding: 0 20px 20px; border-bottom: 1px solid #6b5a8a; margin-bottom: 20px; }
-        .sidebar-header h2 { color: white; font-size: 18px; margin: 0; text-align: center; }
         .sidebar-menu { list-style: none; padding: 0; margin: 0; }
         .sidebar-menu li { margin: 0; }
         .sidebar-menu a { display: block; padding: 12px 20px; color: white; text-decoration: none; transition: background-color 0.3s; }
@@ -160,7 +160,7 @@ $roles = $stmt->fetchAll();
         .submenu li a:hover { background-color: #3a3154; }
         .submenu li a.active { background-color: #3a3154; border-left: 4px solid #8b7aa8; }
         .main-content { flex: 1; margin-left: 220px; padding: 20px; }
-        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
         h1 { color: #4a3f69; font-size: 28px; font-weight: bold; border-bottom: 2px solid #4a3f69; padding-bottom: 10px; margin: 0 0 20px 0; }
         .section { background: #f5f3fa; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
         .section h2 { color: #4a3f69; font-size: 16px; margin-top: 0; }
@@ -178,7 +178,7 @@ $roles = $stmt->fetchAll();
         .error { background-color: #f2dede; color: #a94442; padding: 15px; margin-bottom: 20px; border-radius: 4px; border-left: 4px solid #a94442; }
         .form-group { margin-bottom: 12px; }
         .form-group label { display: block; font-weight: bold; color: #555; margin-bottom: 5px; }
-        .form-group input[type="text"] { width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; box-sizing: border-box; }
+        .form-group input[type="text"], .form-group select { width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; box-sizing: border-box; }
         .perms-group { background: #fff; padding: 12px; border-radius: 6px; margin-bottom: 10px; border: 1px solid #ddd; }
         .perms-group h3 { font-size: 14px; color: #4a3f69; margin: 0 0 8px 0; }
         .perms-group label { display: inline-block; margin-right: 15px; font-weight: normal; font-size: 13px; cursor: pointer; }
@@ -191,7 +191,7 @@ $roles = $stmt->fetchAll();
     <?php $activePage = 'admin_roles.php'; include __DIR__ . '/sidebar.php'; ?>
     <div class="main-content">
         <div class="container">
-            <h1>产品溯源系统 - 角色管理</h1>
+            <h1>角色管理</h1>
             <?php if ($success): ?><div class="success"><?php echo htmlspecialchars($success); ?></div><?php endif; ?>
             <?php if ($error): ?><div class="error"><?php echo htmlspecialchars($error); ?></div><?php endif; ?>
 
@@ -236,7 +236,16 @@ $roles = $stmt->fetchAll();
                 <h2>添加新角色</h2>
                 <form method="post">
                     <?php if (isSuperAdmin()): ?>
-                    <div class="form-group"><label>所属企业 ID（0=平台）</label><input type="text" name="tenant_id" value="0"></div>
+                    <div class="form-group">
+                        <label>所属企业 *</label>
+                        <select name="tenant_id" required>
+                            <option value="">-- 请选择企业 --</option>
+                            <?php $allTenants = $pdo->query("SELECT id, name FROM tenants WHERE status = 1 ORDER BY id")->fetchAll(); ?>
+                            <?php foreach ($allTenants as $t): ?>
+                            <option value="<?php echo $t['id']; ?>"><?php echo htmlspecialchars($t['name']); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
                     <?php endif; ?>
                     <div class="form-group"><label>角色名称 *</label><input type="text" name="name" required></div>
                     <div class="form-group"><label>权限配置</label>

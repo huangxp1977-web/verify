@@ -202,90 +202,6 @@ try {
             display: flex;
             min-height: 100vh;
         }
-        /* 左侧导航栏 */
-        .sidebar {
-            width: 220px;
-            background-color: #4a3f69;
-            color: white;
-            height: 100vh;
-            position: fixed;
-            left: 0;
-            top: 0;
-            padding: 20px 0;
-            overflow-y: auto;
-            box-sizing: border-box;
-        }
-        .sidebar-header {
-            padding: 0 20px 20px;
-            border-bottom: 1px solid #6b5a8a;
-            margin-bottom: 20px;
-        }
-        .sidebar-header h2 {
-            color: white;
-            font-size: 18px;
-            margin: 0;
-            text-align: center;
-        }
-        .sidebar-menu {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }
-        .sidebar-menu li {
-            margin: 0;
-        }
-        .sidebar-menu a {
-            display: block;
-            padding: 12px 20px;
-            color: white;
-            text-decoration: none;
-            transition: background-color 0.3s;
-        }
-        .sidebar-menu a:hover {
-            background-color: #3a3154;
-        }
-        .sidebar-menu a.active {
-            background-color: #3a3154;
-            border-left: 4px solid #fff;
-        }
-        /* 二级菜单样式 */
-        .has-submenu > a {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .has-submenu .arrow {
-            font-size: 12px;
-            transition: transform 0.3s;
-        }
-        .has-submenu.open .arrow {
-            transform: rotate(180deg);
-        }
-        .submenu {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.3s ease;
-            background-color: #4a3f69;
-        }
-        .has-submenu.open .submenu {
-            max-height: none;
-        }
-        .submenu li a {
-            padding-left: 40px;
-            font-size: 14px;
-            background-color: transparent;
-        }
-        .submenu li a:hover {
-            background-color: #3a3154;
-        }
-        .submenu li a.active {
-            background-color: #3a3154;
-            border-left: 4px solid #8b7aa8;
-        }
-        /* 主内容区域 */
         .main-content {
             flex: 1;
             margin-left: 220px;
@@ -500,7 +416,6 @@ try {
         <div class="container">
             <div class="header">
                 <h1>经销商管理</h1>
-                <a href="/warehouse/warehouse_scan.php" target="_blank" class="btn">出库扫码</a>
             </div>
         
         <?php if (!empty($success)): ?>

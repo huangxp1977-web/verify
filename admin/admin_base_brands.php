@@ -168,88 +168,12 @@ $base_brands = getBrands($pdo, true); // 获取所有品牌（包括禁用的）
     <style>
         body {
             font-family: "Microsoft YaHei", Arial, sans-serif;
-            background-color: #f4f4f4;
+            line-height: 1.6;
             margin: 0;
             padding: 0;
+            background-color: #f4f4f4;
             display: flex;
             min-height: 100vh;
-        }
-        .sidebar {
-            width: 220px;
-            background-color: #4a3f69;
-            color: white;
-            position: fixed;
-            height: 100%;
-            overflow-y: auto;
-            box-sizing: border-box;
-        }
-        .sidebar-header {
-            padding: 20px;
-            text-align: center;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-        }
-        .sidebar-header h2 {
-            color: white;
-            font-size: 18px;
-            margin: 0;
-            padding-bottom: 0;
-            border-bottom: none;
-        }
-        .sidebar-menu {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }
-        .sidebar-menu li {
-            border-bottom: 1px solid rgba(255,255,255,0.05);
-        }
-        .sidebar-menu a {
-            display: block;
-            padding: 15px 20px;
-            color: white;
-            text-decoration: none;
-            transition: background 0.3s;
-        }
-        .sidebar-menu a:hover, .sidebar-menu a.active {
-            background-color: #3a3154;
-            border-left: 4px solid #fff;
-        }
-        /* 二级菜单样式 */
-        .has-submenu > a {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .has-submenu .arrow {
-            font-size: 12px;
-            transition: transform 0.3s;
-        }
-        .has-submenu.open .arrow {
-            transform: rotate(180deg);
-        }
-        .submenu {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.3s ease;
-            background-color: #4a3f69;
-        }
-        .has-submenu.open .submenu {
-            max-height: none;
-        }
-        .submenu li a {
-            padding-left: 40px;
-            font-size: 14px;
-            background-color: transparent;
-        }
-        .submenu li a:hover {
-            background-color: #3a3154;
-        }
-        .submenu li a.active {
-            background-color: #3a3154;
-            border-left: 4px solid #8b7aa8;
         }
         .main-content {
             flex: 1;

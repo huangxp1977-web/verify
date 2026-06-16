@@ -5,16 +5,21 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/tenant.php';
 resolveTenant($pdo);
 
-// 检查登录状态
-if (!isset($_SESSION['warehouse_staff_logged_in']) || $_SESSION['warehouse_staff_logged_in'] !== true) {
-    header('Location: warehouse_login.php');
+// 检查登录状态（使用后台管理员登录）
+if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
+    header('Location: /login.php');
     exit;
 }
 
-// 处理退出
+// 权限检查
+if (!isSuperAdmin() && !hasPermission('brand_warehouse')) {
+    header('Location: /admin/admin.php');
+    exit;
+}
+
+// 返回后台
 if (isset($_GET['action']) && $_GET['action'] == 'logout') {
-    session_destroy();
-    header('Location: warehouse_login.php');
+    header('Location: /admin/admin.php');
     exit;
 }
 
@@ -617,11 +622,11 @@ try {
     <div class="container">
         <div class="header">
             <h1>产品出库扫码</h1>
-            <button class="logout-trigger" id="logoutTrigger">ⓧ</button>
+            <a href="/admin/admin.php" class="logout-trigger" style="text-decoration:none;color:#999" title="返回后台">ⓧ</a>
         </div>
         
         <div class="staff-info">
-            <p class="welcome">欢迎，<?php echo htmlspecialchars($_SESSION['warehouse_staff_name']); ?>！</p>
+            <p class="welcome">欢迎，<?php echo htmlspecialchars($_SESSION['admin_username'] ?? ''); ?>！</p>
         </div>
         
         <?php if (!empty($success)): ?>

@@ -83,22 +83,10 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>产品溯源系统 - 背景设计</title>
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: Arial, sans-serif; background: #f4f4f4; display: flex; min-height: 100vh; }
-        .sidebar { width: 200px; background: #4a3f69; color: white; position: fixed; top: 0; left: 0; bottom: 0; overflow-y: auto; z-index: 100; }
-        .sidebar-header { padding: 20px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.1); }
-        .sidebar-header h2 { font-size: 16px; }
-        .sidebar-menu { list-style: none; }
-        .sidebar-menu li a { display: block; padding: 12px 20px; color: white; text-decoration: none; border-bottom: 1px solid rgba(255,255,255,0.1); }
-        .sidebar-menu li a:hover { background: rgba(255,255,255,0.1); }
-        .sidebar-menu li a.active { background: rgba(255,255,255,0.2); border-left: 3px solid #fff; }
-        .has-submenu .submenu { display: none; background: rgba(0,0,0,0.1); }
-        .has-submenu.open .submenu { display: block; }
-        .has-submenu .submenu a { padding-left: 35px; font-size: 13px; }
-        .arrow { float: right; transition: transform 0.3s; }
-        .has-submenu.open .arrow { transform: rotate(180deg); }
+        body, .main-content, .container, .bg-panel, .props-panel, input, select, textarea, button { box-sizing: border-box; }
+        body { font-family: "Microsoft YaHei", Arial, sans-serif; line-height: 1.6; margin: 0; padding: 0; background-color: #f4f4f4; display: flex; min-height: 100vh; }
         
-        .main-content { margin-left: 200px; padding: 20px; flex: 1; display: flex; gap: 20px; }
+        .main-content { margin-left: 220px; padding: 20px; flex: 1; display: flex; gap: 20px; }
         
         /* 左侧背景选择 */
         .bg-panel { width: 200px; background: white; border-radius: 8px; padding: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); max-height: calc(100vh - 40px); overflow-y: auto; }

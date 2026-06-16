@@ -18,10 +18,4 @@ return [
     'CERT_APP_ID'     => 'wx开头的appId',
     'CERT_APP_SECRET' => '微信appSecret',
 
-    // 七牛云（可选，也可通过后台管理页面配置）
-    'QINIU_ACCESS_KEY' => '',
-    'QINIU_SECRET_KEY' => '',
-    'QINIU_BUCKET'     => '',
-    'QINIU_DOMAIN'     => '',
-    'QINIU_ENABLED'    => false,
 ];

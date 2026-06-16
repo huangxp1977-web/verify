@@ -15,17 +15,19 @@ $error = '';
 if (isset($_SESSION['flash_success'])) { $success = $_SESSION['flash_success']; unset($_SESSION['flash_success']); }
 if (isset($_SESSION['flash_error'])) { $error = $_SESSION['flash_error']; unset($_SESSION['flash_error']); }
 
-// 获取可用角色列表
+// 获取可用角色列表（平台角色 + 各企业角色，用于按企业筛选）
 $roleParams = [];
 $roleSql = "SELECT id, name, tenant_id FROM roles WHERE status = 1" . tenantWhere($roleParams) . " ORDER BY tenant_id, id";
 $roleStmt = $pdo->prepare($roleSql);
 $roleStmt->execute($roleParams);
-$availableRoles = $roleStmt->fetchAll();
+$allRoles = $roleStmt->fetchAll();
 
 // 获取企业列表（平台管理员用）
 $tenantsList = [];
+$tenantNameMap = [0 => '平台'];
 if (isSuperAdmin()) {
     $tenantsList = $pdo->query("SELECT id, name FROM tenants WHERE status = 1 ORDER BY id")->fetchAll();
+    foreach ($tenantsList as $t) { $tenantNameMap[$t['id']] = $t['name']; }
 }
 
 // ========== 添加用户 ==========
@@ -184,12 +186,10 @@ $users = $stmt->fetchAll();
     <link rel="icon" type="image/webp" href="/favicon-DQ.webp">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>产品溯源系统 - 用户管理</title>
+    <title>用户管理</title>
     <style>
         body { font-family: "Microsoft YaHei", Arial, sans-serif; line-height: 1.6; margin: 0; padding: 0; background-color: #f4f4f4; display: flex; min-height: 100vh; }
         .sidebar { width: 220px; background-color: #4a3f69; color: white; height: 100vh; position: fixed; left: 0; top: 0; padding: 20px 0; overflow-y: auto; box-sizing: border-box; }
-        .sidebar-header { padding: 0 20px 20px; border-bottom: 1px solid #6b5a8a; margin-bottom: 20px; }
-        .sidebar-header h2 { color: white; font-size: 18px; margin: 0; text-align: center; }
         .sidebar-menu { list-style: none; padding: 0; margin: 0; }
         .sidebar-menu li { margin: 0; }
         .sidebar-menu a { display: block; padding: 12px 20px; color: white; text-decoration: none; transition: background-color 0.3s; }
@@ -204,7 +204,7 @@ $users = $stmt->fetchAll();
         .submenu li a:hover { background-color: #3a3154; }
         .submenu li a.active { background-color: #3a3154; border-left: 4px solid #8b7aa8; }
         .main-content { flex: 1; margin-left: 220px; padding: 20px; }
-        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
         h1 { color: #4a3f69; font-size: 28px; font-weight: bold; border-bottom: 2px solid #4a3f69; padding-bottom: 10px; margin: 0 0 20px 0; }
         .section { background: #f5f3fa; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
         .section h2 { color: #4a3f69; font-size: 16px; margin-top: 0; }
@@ -237,7 +237,7 @@ $users = $stmt->fetchAll();
     <?php $activePage = 'admin_users.php'; include __DIR__ . '/sidebar.php'; ?>
     <div class="main-content">
         <div class="container">
-            <h1>产品溯源系统 - 用户管理</h1>
+            <h1>用户管理</h1>
             <?php if ($success): ?><div class="success"><?php echo htmlspecialchars($success); ?></div><?php endif; ?>
             <?php if ($error): ?><div class="error"><?php echo htmlspecialchars($error); ?></div><?php endif; ?>
 
@@ -266,8 +266,10 @@ $users = $stmt->fetchAll();
                         <label>分配角色</label>
                         <select name="role_id">
                             <option value="0">-- 无角色 --</option>
-                            <?php foreach ($availableRoles as $r): ?>
+                            <?php foreach ($allRoles as $r): ?>
+                            <?php if ($r['tenant_id'] == 0 || $r['tenant_id'] == $edit_user['tenant_id']): ?>
                             <option value="<?php echo $r['id']; ?>" <?php if ($r['id'] == $edit_user['role_id']) echo 'selected'; ?>><?php echo htmlspecialchars($r['name']); ?></option>
+                            <?php endif; ?>
                             <?php endforeach; ?>
                         </select>
                     </div>
@@ -291,20 +293,10 @@ $users = $stmt->fetchAll();
                         <div class="form-col"><div class="form-group"><label>密码 *</label><input type="password" name="password" required minlength="6"></div></div>
                     </div>
                     <div class="form-row">
-                        <div class="form-col">
-                            <div class="form-group"><label>分配角色</label>
-                                <select name="role_id">
-                                    <option value="0">-- 无角色 --</option>
-                                    <?php foreach ($availableRoles as $r): ?>
-                                    <option value="<?php echo $r['id']; ?>"><?php echo htmlspecialchars($r['name']); ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                        </div>
                         <?php if (isSuperAdmin() && !empty($tenantsList)): ?>
                         <div class="form-col">
                             <div class="form-group"><label>所属企业</label>
-                                <select name="tenant_id">
+                                <select name="tenant_id" id="add_tenant_select" onchange="filterRoles(this.value, 'add_role_select')">
                                     <option value="0">-- 平台 --</option>
                                     <?php foreach ($tenantsList as $t): ?>
                                     <option value="<?php echo $t['id']; ?>"><?php echo htmlspecialchars($t['name']); ?></option>
@@ -313,6 +305,16 @@ $users = $stmt->fetchAll();
                             </div>
                         </div>
                         <?php endif; ?>
+                        <div class="form-col">
+                            <div class="form-group"><label>分配角色</label>
+                                <select name="role_id" id="add_role_select">
+                                    <option value="0">-- 无角色 --</option>
+                                    <?php foreach ($allRoles as $r): ?>
+                                    <option value="<?php echo $r['id']; ?>" data-tenant="<?php echo $r['tenant_id']; ?>"><?php echo htmlspecialchars($r['name']); ?> (<?php echo $tenantNameMap[$r['tenant_id']] ?? '未知'; ?>)</option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                        </div>
                     </div>
                     <button type="submit" name="add_user" class="btn">创建用户</button>
                 </form>
@@ -339,7 +341,6 @@ $users = $stmt->fetchAll();
                         <th>用户名</th>
                         <?php if (isSuperAdmin()): ?><th>所属企业</th><?php endif; ?>
                         <th>角色</th>
-                        <th>类型</th>
                         <th>状态</th>
                         <th>最后登录</th>
                         <th>操作</th>
@@ -352,7 +353,6 @@ $users = $stmt->fetchAll();
                         <td><?php echo htmlspecialchars($u['username']); ?></td>
                         <?php if (isSuperAdmin()): ?><td><?php echo htmlspecialchars($u['tenant_name'] ?? '平台'); ?></td><?php endif; ?>
                         <td><?php echo $u['is_super_admin'] ? '超级管理员' : htmlspecialchars($u['role_name'] ?? '未分配'); ?></td>
-                        <td><span class="badge <?php echo $u['is_super_admin'] ? 'badge-super' : ($u['role_name'] ? 'badge-active' : 'badge-disabled'); ?>"><?php echo $u['is_super_admin'] ? '超级管理员' : ($u['role_name'] ?: '未分配角色'); ?></span></td>
                         <td><span class="badge <?php echo $u['status'] == 1 ? 'badge-active' : 'badge-disabled'; ?>"><?php echo $u['status'] == 1 ? '正常' : '禁用'; ?></span></td>
                         <td><?php echo $u['last_login'] ? date('m-d H:i', strtotime($u['last_login'])) : '-'; ?></td>
                         <td>
@@ -363,11 +363,48 @@ $users = $stmt->fetchAll();
                         </td>
                     </tr>
                 <?php endforeach; ?>
-                <?php if (empty($users)): ?><tr><td colspan="8">暂无用户数据</td></tr><?php endif; ?>
+                <?php if (empty($users)): ?><tr><td colspan="7">暂无用户数据</td></tr><?php endif; ?>
                 </tbody>
             </table>
             <?php endif; ?>
         </div>
     </div>
+<script>
+function filterRoles(tenantId, selectId) {
+    var select = document.getElementById(selectId);
+    var options = select.options;
+    for (var i = 0; i < options.length; i++) {
+        var opt = options[i];
+        var optTenant = opt.getAttribute('data-tenant');
+        if (!optTenant) { opt.style.display = ''; continue; }
+        // 选了具体企业：只显示该企业的角色 + 平台角色
+        if (tenantId && tenantId !== '0') {
+            opt.style.display = (optTenant === '0' || optTenant === tenantId) ? '' : 'none';
+        } else {
+            // 选了"平台"：只显示平台角色
+            opt.style.display = (optTenant === '0') ? '' : 'none';
+        }
+    }
+    // 如果当前选中的被隐藏了，重置为无角色
+    if (select.selectedOptions[0] && select.selectedOptions[0].style.display === 'none') {
+        select.value = '0';
+    }
+}
+// 页面加载时初始化筛选
+document.addEventListener('DOMContentLoaded', function() {
+    var tenantSelect = document.getElementById('add_tenant_select');
+    if (tenantSelect) filterRoles(tenantSelect.value, 'add_role_select');
+});
+</script>
+<style>.pw-toggle{position:relative;display:inline-block;width:100%}.pw-toggle input[type="password"],.pw-toggle input[type="text"]{padding-right:40px}.pw-toggle .eye-btn{position:absolute;right:8px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:18px;user-select:none}</style>
+<script>
+document.querySelectorAll('input[type="password"]').forEach(function(input){
+    var wrapper=document.createElement('div');wrapper.className='pw-toggle';
+    input.parentNode.insertBefore(wrapper,input);wrapper.appendChild(input);
+    var eye=document.createElement('span');eye.className='eye-btn';eye.textContent='👁';
+    eye.addEventListener('click',function(){if(input.type==='password'){input.type='text';eye.textContent='🙈';}else{input.type='password';eye.textContent='👁';}});
+    wrapper.appendChild(eye);
+});
+</script>
 </body>
 </html>

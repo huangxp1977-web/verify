@@ -306,22 +306,10 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>产品溯源系统 - 图片素材</title>
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: Arial, sans-serif; background: #f4f4f4; display: flex; min-height: 100vh; }
-        .sidebar { width: 200px; background: #4a3f69; color: white; position: fixed; top: 0; left: 0; bottom: 0; overflow-y: auto; }
-        .sidebar-header { padding: 20px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.1); }
-        .sidebar-header h2 { font-size: 16px; }
-        .sidebar-menu { list-style: none; }
-        .sidebar-menu li a { display: block; padding: 12px 20px; color: white; text-decoration: none; border-bottom: 1px solid rgba(255,255,255,0.1); }
-        .sidebar-menu li a:hover { background: rgba(255,255,255,0.1); }
-        .sidebar-menu li a.active { background: rgba(255,255,255,0.2); border-left: 3px solid #fff; }
-        .has-submenu .submenu { display: none; background: rgba(0,0,0,0.1); }
-        .has-submenu.open .submenu { display: block; }
-        .has-submenu .submenu a { padding-left: 35px; font-size: 13px; }
-        .arrow { float: right; transition: transform 0.3s; }
-        .has-submenu.open .arrow { transform: rotate(180deg); }
-        .main-content { margin-left: 200px; padding: 20px; flex: 1; }
-        .container { max-width: 1200px; margin: 0 auto; }
+        body, .main-content, .container, .image-item, .image-item-info, .upload-area, .modal, .modal img, input, select, textarea, button { box-sizing: border-box; }
+        body { font-family: "Microsoft YaHei", Arial, sans-serif; line-height: 1.6; margin: 0; padding: 0; background-color: #f4f4f4; display: flex; min-height: 100vh; }
+        .main-content { margin-left: 220px; padding: 20px; flex: 1; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
         h1 {
             color: #4a3f69;
             font-size: 28px;

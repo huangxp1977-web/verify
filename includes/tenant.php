@@ -48,8 +48,10 @@ function canLoginOnDomain($pdo, $user) {
     $stmt->execute([$host]);
     $allowedTenants = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
-    // 域名未注册（旧域名兼容），只允许 tenant_id=0 的用户
+    // 域名未注册：本地开发环境允许所有用户，其他域名只允许 tenant_id=0
     if (empty($allowedTenants)) {
+        $devHosts = ['localhost', '127.0.0.1', 'verify.local'];
+        if (in_array($host, $devHosts)) return true;
         return ($user['tenant_id'] ?? 0) == 0;
     }
 

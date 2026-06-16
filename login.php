@@ -46,6 +46,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // 超级管理员拥有全部权限
                 if (!empty($user['is_super_admin'])) {
                     $permissions = ['modules' => ['brand', 'oem', 'system', 'platform'], 'actions' => []];
+                } else {
+                    // 用企业的开通模块过滤角色权限
+                    $tenantModules = [];
+                    if (!empty($user['tenant_id'])) {
+                        $tmStmt = $pdo->prepare("SELECT modules FROM tenants WHERE id = ?");
+                        $tmStmt->execute([$user['tenant_id']]);
+                        $tmRow = $tmStmt->fetch();
+                        if ($tmRow) $tenantModules = json_decode($tmRow['modules'], true) ?: [];
+                    }
+                    // 角色模块 ∩ 企业模块 = 实际可用模块
+                    $roleModules = $permissions['modules'] ?? [];
+                    $permissions['modules'] = array_values(array_intersect($roleModules, $tenantModules));
+                    // 移除不可用模块的操作权限（system 和 platform 是基础模块，不过滤）
+                    $skipModules = ['system', 'platform'];
+                    foreach (($permissions['actions'] ?? []) as $key => $actions) {
+                        $module = explode('_', $key)[0]; // brand_list → brand
+                        if (in_array($module, $skipModules)) continue;
+                        if (!in_array($module, $permissions['modules'])) {
+                            unset($permissions['actions'][$key]);
+                        }
+                    }
                 }
 
                 // 写入 session
@@ -61,7 +82,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // 更新最后登录时间
                 $pdo->prepare("UPDATE sys_users SET last_login = NOW() WHERE id = ?")->execute([$user['id']]);
 
+                // 根据开通模块决定默认页面
+            $modules = $permissions['modules'] ?? [];
+            if (in_array('brand', $modules)) {
+                header('Location: admin/admin.php');  // 品牌业务 → 数据概览
+            } elseif (in_array('oem', $modules)) {
+                header('Location: admin/admin_query_codes.php');  // 仅代工 → 查询码管理
+            } else {
                 header('Location: admin/admin.php');
+            }
                 exit;
             }
         } elseif ($user && $user['status'] == 0) {
@@ -187,5 +216,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <a href="index.php">返回查询页面</a>
         </div>
     </div>
+<style>.pw-toggle{position:relative;display:block;width:100%}.pw-toggle input[type="password"],.pw-toggle input[type="text"]{padding-right:40px;box-sizing:border-box;width:100%}.pw-toggle .eye-btn{position:absolute;right:8px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:18px;user-select:none}</style>
+<script>
+document.querySelectorAll('input[type="password"]').forEach(function(input){
+    var wrapper=document.createElement('div');wrapper.className='pw-toggle';
+    input.parentNode.insertBefore(wrapper,input);wrapper.appendChild(input);
+    var eye=document.createElement('span');eye.className='eye-btn';eye.textContent='👁';
+    eye.addEventListener('click',function(){if(input.type==='password'){input.type='text';eye.textContent='🙈';}else{input.type='password';eye.textContent='👁';}});
+    wrapper.appendChild(eye);
+});
+</script>
 </body>
 </html>
