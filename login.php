@@ -110,113 +110,136 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="icon" type="image/webp" href="/favicon-DQ.webp">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>管理员登录 - 产品溯源系统</title>
+    <title>登录 - 产品溯源系统</title>
     <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: Arial, sans-serif;
+            font-family: "Microsoft YaHei", Arial, sans-serif;
             line-height: 1.6;
-            margin: 0;
-            padding: 0;
-            background-color: #f4f4f4;
+            background: linear-gradient(135deg, #4a3f69 0%, #6b5a8a 50%, #4a3f69 100%);
+            min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
+            padding: 20px;
         }
         .login-container {
             background: white;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-            width: 350px;
+            padding: 40px 36px;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            width: 400px;
+            max-width: 100%;
         }
-        h1 {
-            color: #333;
+        .login-header {
             text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 32px;
+        }
+        .login-header h1 {
+            color: #4a3f69;
+            font-size: 22px;
+            font-weight: bold;
+            margin: 0 0 6px 0;
+        }
+        .login-header p {
+            color: #999;
+            font-size: 13px;
+            margin: 0;
         }
         .form-group {
-            margin-bottom: 20px;
+            margin-bottom: 18px;
         }
         label {
             display: block;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
             font-weight: bold;
             color: #555;
+            font-size: 14px;
         }
         input[type="text"],
         input[type="password"] {
             width: 100%;
-            padding: 10px;
+            padding: 10px 12px;
             border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 16px;
+            border-radius: 6px;
+            font-size: 15px;
+            transition: border-color 0.3s;
+        }
+        input[type="text"]:focus,
+        input[type="password"]:focus {
+            border-color: #4a3f69;
+            outline: none;
         }
         .btn {
             width: 100%;
             padding: 12px;
-            background: #3498db;
+            background: #4a3f69;
             color: white;
             border: none;
-            border-radius: 4px;
+            border-radius: 6px;
             cursor: pointer;
             font-size: 16px;
+            font-weight: bold;
             transition: background 0.3s;
+            margin-top: 8px;
         }
         .btn:hover {
-            background: #2980b9;
+            background: #3a3154;
         }
         .error {
             background-color: #f2dede;
             border: 1px solid #ebccd1;
             color: #a94442;
-            padding: 10px;
-            border-radius: 4px;
-            margin-bottom: 20px;
+            padding: 10px 14px;
+            border-radius: 6px;
+            margin-bottom: 18px;
             text-align: center;
+            font-size: 14px;
         }
         .link {
             text-align: center;
             margin-top: 20px;
+            padding-top: 16px;
+            border-top: 1px solid #eee;
         }
         a {
-            color: #3498db;
+            color: #4a3f69;
             text-decoration: none;
+            font-size: 13px;
         }
         a:hover {
             text-decoration: underline;
         }
+        .pw-toggle { position: relative; display: block; width: 100%; }
+        .pw-toggle input[type="password"],
+        .pw-toggle input[type="text"] { padding-right: 40px; box-sizing: border-box; width: 100%; }
+        .pw-toggle .eye-btn { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer; font-size: 18px; user-select: none; }
     </style>
 </head>
 <body>
     <div class="login-container">
-        <h1>管理员登录</h1>
-        
+        <div class="login-header">
+            <h1>产品溯源系统</h1>
+            <p>用户登录</p>
+        </div>
+
         <?php if (!empty($error)): ?>
-            <div class="error">
-                <?php echo htmlspecialchars($error); ?>
-            </div>
+            <div class="error"><?php echo htmlspecialchars($error); ?></div>
         <?php endif; ?>
-        
+
         <form method="post" action="">
             <div class="form-group">
                 <label for="username">用户名</label>
-                <input type="text" id="username" name="username" required>
+                <input type="text" id="username" name="username" required placeholder="请输入用户名">
             </div>
-            
             <div class="form-group">
                 <label for="password">密码</label>
-                <input type="password" id="password" name="password" required>
+                <input type="password" id="password" name="password" required placeholder="请输入密码">
             </div>
-            
             <button type="submit" class="btn">登录</button>
         </form>
-        
-        <div class="link">
-            <a href="index.php">返回查询页面</a>
-        </div>
+
     </div>
-<style>.pw-toggle{position:relative;display:block;width:100%}.pw-toggle input[type="password"],.pw-toggle input[type="text"]{padding-right:40px;box-sizing:border-box;width:100%}.pw-toggle .eye-btn{position:absolute;right:8px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:18px;user-select:none}</style>
 <script>
 document.querySelectorAll('input[type="password"]').forEach(function(input){
     var wrapper=document.createElement('div');wrapper.className='pw-toggle';

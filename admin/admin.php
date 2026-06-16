@@ -748,8 +748,7 @@ $stats = [
     'total_boxes' => 0,
     'total_cartons' => 0,
     'total_products' => 0,
-    'total_base_distributors' => 0,
-    'total_warehouse_staff' => 0
+    'total_base_distributors' => 0
 ];
 
 try {
@@ -774,11 +773,6 @@ try {
     $stmt->execute($params);
     $stats['total_base_distributors'] = $stmt->fetchColumn();
 
-    // 获取出库人员数量
-    $params = [];
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM warehouse_staff WHERE 1=1" . tenantWhere($params));
-    $stmt->execute($params);
-    $stats['total_warehouse_staff'] = $stmt->fetchColumn();
 } catch(PDOException $e) {
     $messages['error'][] = "获取统计数据出错: " . $e->getMessage();
 }
@@ -1193,10 +1187,6 @@ function exportAsExcel($data, $title) {
                         <h3>经销商总数</h3>
                         <div class="stat-value"><?php echo $stats['total_base_distributors']; ?></div>
                     </div>
-                    <div class="stat-box">
-                        <h3>出库人员数</h3>
-                        <div class="stat-value"><?php echo $stats['total_warehouse_staff']; ?></div>
-                    </div>
                 </div>
                 
                 <!-- 管理链接区域 -->
@@ -1207,7 +1197,6 @@ function exportAsExcel($data, $title) {
                     <a href="#dcyt2">导出一套二</a>
                     <a href="admin_list.php">溯源数据</a>
                     <a href="admin_base_distributors.php">经销商管理</a>
-                    <a href="admin_warehouse_staff.php">出库人员管理</a>
                     <a href="admin_base_certificates.php" target="_blank">证书管理</a>
                 </div>
         
