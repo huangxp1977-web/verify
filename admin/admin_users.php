@@ -109,13 +109,30 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_user'])) {
                 }
             }
         }
-        // 更新角色
-        if (isSuperAdmin()) {
-            $stmt = $pdo->prepare("UPDATE sys_users SET role_id = ? WHERE id = ?");
-            $stmt->execute([$roleId, $id]);
-        } else {
-            $stmt = $pdo->prepare("UPDATE sys_users SET role_id = ? WHERE id = ? AND tenant_id = ?");
-            $stmt->execute([$roleId, $id, getCurrentTenantId()]);
+        // 更新角色（保护唯一管理员）
+        $isChangingRole = ($roleId != $edit_user['role_id']);
+        if ($isChangingRole && $edit_user['tenant_id'] > 0) {
+            // 检查当前用户是否是企业管理员
+            $crStmt = $pdo->prepare("SELECT is_system FROM roles WHERE id = ?");
+            $crStmt->execute([$edit_user['role_id']]);
+            $crRow = $crStmt->fetch();
+            if ($crRow && $crRow['is_system'] == 1) {
+                // 检查企业是否还有其他管理员
+                $acStmt = $pdo->prepare("SELECT COUNT(*) FROM sys_users u JOIN roles r ON u.role_id = r.id WHERE u.tenant_id = ? AND r.is_system = 1 AND u.status = 1 AND u.id != ?");
+                $acStmt->execute([$edit_user['tenant_id'], $id]);
+                if ($acStmt->fetchColumn() == 0) {
+                    $error = '该用户是企业唯一的管理员，不能更改角色';
+                }
+            }
+        }
+        if (empty($error)) {
+            if (isSuperAdmin()) {
+                $stmt = $pdo->prepare("UPDATE sys_users SET role_id = ? WHERE id = ?");
+                $stmt->execute([$roleId, $id]);
+            } else {
+                $stmt = $pdo->prepare("UPDATE sys_users SET role_id = ? WHERE id = ? AND tenant_id = ?");
+                $stmt->execute([$roleId, $id, getCurrentTenantId()]);
+            }
         }
 
         if (!empty($newPassword)) {
