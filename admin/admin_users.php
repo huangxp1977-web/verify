@@ -22,12 +22,21 @@ $roleStmt = $pdo->prepare($roleSql);
 $roleStmt->execute($roleParams);
 $allRoles = $roleStmt->fetchAll();
 
-// 获取企业列表（平台管理员用）
+// 获取企业列表
 $tenantsList = [];
 $tenantNameMap = [0 => '平台'];
 if (isSuperAdmin()) {
     $tenantsList = $pdo->query("SELECT id, name FROM tenants WHERE status = 1 ORDER BY id")->fetchAll();
     foreach ($tenantsList as $t) { $tenantNameMap[$t['id']] = $t['name']; }
+} else {
+    // 企业管理员：加载当前企业名称
+    $tid = getCurrentTenantId();
+    if ($tid > 0) {
+        $tStmt = $pdo->prepare("SELECT name FROM tenants WHERE id = ?");
+        $tStmt->execute([$tid]);
+        $tRow = $tStmt->fetch();
+        if ($tRow) $tenantNameMap[$tid] = $tRow['name'];
+    }
 }
 
 // ========== 添加用户 ==========
@@ -262,16 +271,46 @@ $users = $stmt->fetchAll();
                         <small style="color:#999">超级管理员拥有所有权限，不可更改角色</small>
                     </div>
                     <?php else: ?>
+                    <?php
+                    // 检查是否是该企业唯一的管理员（保护初始管理员）
+                    $isAdminRole = false;
+                    $adminCount = 0;
+                    $isOnlyAdmin = false;
+                    if ($edit_user['role_id'] > 0) {
+                        $arStmt = $pdo->prepare("SELECT is_system FROM roles WHERE id = ?");
+                        $arStmt->execute([$edit_user['role_id']]);
+                        $arRow = $arStmt->fetch();
+                        $isAdminRole = ($arRow && $arRow['is_system'] == 1);
+                    }
+                    if ($isAdminRole && $edit_user['tenant_id'] > 0) {
+                        $acStmt = $pdo->prepare("SELECT COUNT(*) FROM sys_users u JOIN roles r ON u.role_id = r.id WHERE u.tenant_id = ? AND r.is_system = 1 AND u.status = 1");
+                        $acStmt->execute([$edit_user['tenant_id']]);
+                        $adminCount = $acStmt->fetchColumn();
+                        $isOnlyAdmin = ($adminCount <= 1);
+                    }
+                    ?>
                     <div class="form-group">
                         <label>分配角色</label>
+                        <?php if ($isOnlyAdmin): ?>
+                        <select name="role_id" disabled>
+                            <?php foreach ($allRoles as $r): ?>
+                            <?php if ($r['id'] == $edit_user['role_id']): ?>
+                            <option value="<?php echo $r['id']; ?>" selected><?php echo htmlspecialchars($r['name']); ?></option>
+                            <?php endif; ?>
+                            <?php endforeach; ?>
+                        </select>
+                        <input type="hidden" name="role_id" value="<?php echo $edit_user['role_id']; ?>">
+                        <small style="color:#e74c3c">该企业唯一的管理员，不可更改角色</small>
+                        <?php else: ?>
                         <select name="role_id">
                             <option value="0">-- 无角色 --</option>
                             <?php foreach ($allRoles as $r): ?>
-                            <?php if ($r['tenant_id'] == 0 || $r['tenant_id'] == $edit_user['tenant_id']): ?>
+                            <?php if ($r['tenant_id'] == $edit_user['tenant_id']): ?>
                             <option value="<?php echo $r['id']; ?>" <?php if ($r['id'] == $edit_user['role_id']) echo 'selected'; ?>><?php echo htmlspecialchars($r['name']); ?></option>
                             <?php endif; ?>
                             <?php endforeach; ?>
                         </select>
+                        <?php endif; ?>
                     </div>
                     <div class="form-group">
                         <label>重置密码（留空则不修改）</label>
@@ -310,7 +349,7 @@ $users = $stmt->fetchAll();
                                 <select name="role_id" id="add_role_select">
                                     <option value="0">-- 无角色 --</option>
                                     <?php foreach ($allRoles as $r): ?>
-                                    <option value="<?php echo $r['id']; ?>" data-tenant="<?php echo $r['tenant_id']; ?>"><?php echo htmlspecialchars($r['name']); ?> (<?php echo $tenantNameMap[$r['tenant_id']] ?? '未知'; ?>)</option>
+                                    <option value="<?php echo $r['id']; ?>" data-tenant="<?php echo $r['tenant_id']; ?>"><?php echo htmlspecialchars($r['name']); ?><?php if (isSuperAdmin()): ?> (<?php echo $tenantNameMap[$r['tenant_id']] ?? '未知'; ?>)<?php endif; ?></option>
                                     <?php endforeach; ?>
                                 </select>
                             </div>
