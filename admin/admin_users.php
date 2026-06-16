@@ -377,9 +377,9 @@ function filterRoles(tenantId, selectId) {
         var opt = options[i];
         var optTenant = opt.getAttribute('data-tenant');
         if (!optTenant) { opt.style.display = ''; continue; }
-        // 选了具体企业：只显示该企业的角色 + 平台角色
         if (tenantId && tenantId !== '0') {
-            opt.style.display = (optTenant === '0' || optTenant === tenantId) ? '' : 'none';
+            // 选了具体企业：只显示该企业的角色，不显示平台角色
+            opt.style.display = (optTenant === tenantId) ? '' : 'none';
         } else {
             // 选了"平台"：只显示平台角色
             opt.style.display = (optTenant === '0') ? '' : 'none';
