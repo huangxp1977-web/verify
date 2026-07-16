@@ -85,6 +85,21 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_tenant'])) {
             $stmt = $pdo->prepare("INSERT INTO sys_users (username, password_hash, role, status, tenant_id, is_super_admin, role_id) VALUES (?, ?, 'admin', 1, ?, 0, ?)");
             $stmt->execute([$adminUser, $hash, $tenantId, $roleId]);
 
+            // 域名绑定
+            $adminDomain = trim($_POST['domain_admin'] ?? '');
+            $portalDomain = trim($_POST['domain_portal'] ?? '');
+            $domainAdminStatus = isset($_POST['domain_admin_status']) ? 1 : 0;
+            $domainPortalStatus = isset($_POST['domain_portal_status']) ? 1 : 0;
+
+            if (!empty($adminDomain)) {
+                $stmt = $pdo->prepare("INSERT INTO tenant_domains (tenant_id, domain, type, status) VALUES (?, ?, 'admin', ?)");
+                $stmt->execute([$tenantId, $adminDomain, $domainAdminStatus]);
+            }
+            if (!empty($portalDomain)) {
+                $stmt = $pdo->prepare("INSERT INTO tenant_domains (tenant_id, domain, type, status) VALUES (?, ?, 'portal', ?)");
+                $stmt->execute([$tenantId, $portalDomain, $domainPortalStatus]);
+            }
+
             $pdo->commit();
             $_SESSION['flash_success'] = "企业【{$name}】创建成功！管理员账号：{$adminUser}，密码：{$adminPass}（请首次登录后修改）";
             header("Location: admin_tenants.php");
@@ -112,6 +127,50 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_tenant'])) {
         try {
             $stmt = $pdo->prepare("UPDATE tenants SET name=?, contact_name=?, contact_phone=?, contact_email=?, modules=? WHERE id=?");
             $stmt->execute([$name, $contact_name, $contact_phone, $contact_email, $modulesJson, $id]);
+
+            // 域名绑定处理
+            $adminDomain = trim($_POST['domain_admin'] ?? '');
+            $portalDomain = trim($_POST['domain_portal'] ?? '');
+            $domainAdminStatus = isset($_POST['domain_admin_status']) ? 1 : 0;
+            $domainPortalStatus = isset($_POST['domain_portal_status']) ? 1 : 0;
+
+            // 查询已有域名
+            $domStmt = $pdo->prepare("SELECT * FROM tenant_domains WHERE tenant_id = ?");
+            $domStmt->execute([$id]);
+            $existingDomains = [];
+            while ($row = $domStmt->fetch()) {
+                $existingDomains[$row['type']] = $row;
+            }
+
+            // 处理 admin 域名
+            if (!empty($adminDomain)) {
+                if (isset($existingDomains['admin'])) {
+                    $stmt = $pdo->prepare("UPDATE tenant_domains SET domain=?, status=? WHERE id=?");
+                    $stmt->execute([$adminDomain, $domainAdminStatus, $existingDomains['admin']['id']]);
+                } else {
+                    $stmt = $pdo->prepare("INSERT INTO tenant_domains (tenant_id, domain, type, status) VALUES (?, ?, 'admin', ?)");
+                    $stmt->execute([$id, $adminDomain, $domainAdminStatus]);
+                }
+            } elseif (isset($existingDomains['admin'])) {
+                // 清空域名则禁用记录
+                $stmt = $pdo->prepare("UPDATE tenant_domains SET status=0 WHERE id=?");
+                $stmt->execute([$existingDomains['admin']['id']]);
+            }
+
+            // 处理 portal 域名
+            if (!empty($portalDomain)) {
+                if (isset($existingDomains['portal'])) {
+                    $stmt = $pdo->prepare("UPDATE tenant_domains SET domain=?, status=? WHERE id=?");
+                    $stmt->execute([$portalDomain, $domainPortalStatus, $existingDomains['portal']['id']]);
+                } else {
+                    $stmt = $pdo->prepare("INSERT INTO tenant_domains (tenant_id, domain, type, status) VALUES (?, ?, 'portal', ?)");
+                    $stmt->execute([$id, $portalDomain, $domainPortalStatus]);
+                }
+            } elseif (isset($existingDomains['portal'])) {
+                $stmt = $pdo->prepare("UPDATE tenant_domains SET status=0 WHERE id=?");
+                $stmt->execute([$existingDomains['portal']['id']]);
+            }
+
             $_SESSION['flash_success'] = "企业【{$name}】更新成功";
             header("Location: admin_tenants.php");
             exit;
@@ -150,6 +209,13 @@ if (isset($_GET['action']) && $_GET['action'] == 'edit' && isset($_GET['id'])) {
     $stmt->execute([$id]);
     $edit_tenant = $stmt->fetch();
     if ($edit_tenant) {
+        // 查询域名绑定
+        $domStmt = $pdo->prepare("SELECT * FROM tenant_domains WHERE tenant_id = ?");
+        $domStmt->execute([$edit_tenant['id']]);
+        $domainBindings = [];
+        while ($row = $domStmt->fetch()) {
+            $domainBindings[$row['type']] = $row;
+        }
     }
 }
 
@@ -243,6 +309,35 @@ $tenants = $stmt->fetchAll();
                         <label style="display:inline;margin-right:15px;font-weight:normal"><input type="checkbox" name="modules[]" value="brand" <?php if (in_array('brand',$modules)) echo 'checked'; ?>> 品牌业务</label>
                         <label style="display:inline;font-weight:normal"><input type="checkbox" name="modules[]" value="oem" <?php if (in_array('oem',$modules)) echo 'checked'; ?>> 代工业务</label>
                     </div>
+                    <!-- ========== 域名绑定 ========== -->
+                    <div style="background:#fff;padding:12px;border-radius:6px;margin-bottom:12px;border:1px solid #ddd">
+                        <h3 style="font-size:14px;color:#4a3f69;margin:0 0 8px 0">🔒 域名绑定</h3>
+                        <div class="form-row">
+                            <div class="form-col">
+                                <div class="form-group">
+                                    <label>🔒 后台登录域名（admin）</label>
+                                    <div style="display:flex;gap:8px;align-items:center">
+                                        <input type="text" name="domain_admin" value="<?php echo htmlspecialchars($domainBindings['admin']['domain'] ?? ''); ?>" placeholder="例如：admin.example.com" style="flex:1">
+                                        <label style="white-space:nowrap;font-weight:normal;font-size:13px">
+                                            <input type="checkbox" name="domain_admin_status" value="1" <?php echo (isset($domainBindings['admin']) && $domainBindings['admin']['status'] == 1) ? 'checked' : ''; ?>> 启用
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-col">
+                                <div class="form-group">
+                                    <label>📱 扫码查询域名（portal）</label>
+                                    <div style="display:flex;gap:8px;align-items:center">
+                                        <input type="text" name="domain_portal" value="<?php echo htmlspecialchars($domainBindings['portal']['domain'] ?? ''); ?>" placeholder="例如：verify.example.com" style="flex:1">
+                                        <label style="white-space:nowrap;font-weight:normal;font-size:13px">
+                                            <input type="checkbox" name="domain_portal_status" value="1" <?php echo (isset($domainBindings['portal']) && $domainBindings['portal']['status'] == 1) ? 'checked' : ''; ?>> 启用
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <button type="submit" name="edit_tenant" class="btn">保存修改</button>
                     <a href="admin_tenants.php" class="btn btn-secondary">返回列表</a>
                 </form>
@@ -274,6 +369,35 @@ $tenants = $stmt->fetchAll();
                             <div class="form-col"><div class="form-group"><label>初始密码</label><input type="password" name="admin_password" value="Admin@123456" placeholder="默认 Admin@123456"></div></div>
                         </div>
                         <small style="color:#999">管理员首次登录后建议修改密码</small>
+                    </div>
+
+                    <!-- ========== 域名绑定 ========== -->
+                    <div style="background:#fff;padding:12px;border-radius:6px;margin-bottom:12px;border:1px solid #ddd">
+                        <h3 style="font-size:14px;color:#4a3f69;margin:0 0 8px 0">🔒 域名绑定</h3>
+                        <div class="form-row">
+                            <div class="form-col">
+                                <div class="form-group">
+                                    <label>🔒 后台登录域名（admin）</label>
+                                    <div style="display:flex;gap:8px;align-items:center">
+                                        <input type="text" name="domain_admin" placeholder="例如：admin.example.com" style="flex:1">
+                                        <label style="white-space:nowrap;font-weight:normal;font-size:13px">
+                                            <input type="checkbox" name="domain_admin_status" value="1" checked> 启用
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-col">
+                                <div class="form-group">
+                                    <label>📱 扫码查询域名（portal）</label>
+                                    <div style="display:flex;gap:8px;align-items:center">
+                                        <input type="text" name="domain_portal" placeholder="例如：verify.example.com" style="flex:1">
+                                        <label style="white-space:nowrap;font-weight:normal;font-size:13px">
+                                            <input type="checkbox" name="domain_portal_status" value="1" checked> 启用
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <button type="submit" name="add_tenant" class="btn">创建企业</button>
