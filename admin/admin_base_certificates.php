@@ -18,10 +18,16 @@ function generateUniqueCode() {
     return md5(uniqid(mt_rand(), true));
 }
 
-function generateCertQueryUrl($certNo, $uniqueCode) {
-    // 强制使用生产域名（防止本地开发环境生成 localhost 链接）
-    // $host = $_SERVER['HTTP_HOST'];
-    $host = 'guokonghuayi.com';
+function generateCertQueryUrl($certNo, $uniqueCode, $tenantId = null) {
+    if ($tenantId === null) {
+        $tenantId = getCurrentTenantId();
+    }
+    global $pdo;
+    // 从 tenant_domains 取 portal 域名，没有则用默认兜底
+    $stmt = $pdo->prepare("SELECT domain FROM tenant_domains WHERE tenant_id = ? AND type = 'portal' AND status = 1 LIMIT 1");
+    $stmt->execute([$tenantId]);
+    $row = $stmt->fetch();
+    $host = $row ? $row['domain'] : 'guokonghuayi.com';
     return "https://{$host}/cert/fw.php?cert_no=" . urlencode($certNo) . "&code=" . $uniqueCode;
 }
 

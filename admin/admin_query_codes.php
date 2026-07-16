@@ -94,8 +94,14 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
 // 重置扫码次数
 if (isset($_GET['action']) && $_GET['action'] == 'reset_count' && isset($_GET['id'])) {
     $id = intval($_GET['id']);
-    $resetStmt = $pdo->prepare("UPDATE certificate_links SET query_count = 0, last_scan_time = NULL WHERE id = ? AND tenant_id = ?");
-    $resetStmt->execute([$id, getCurrentTenantId()]);
+    // 超管可以重置任意租户的记录，租户管理员只能重置自己的
+    if (isSuperAdmin()) {
+        $resetStmt = $pdo->prepare("UPDATE certificate_links SET query_count = 0, last_scan_time = NULL WHERE id = ?");
+        $resetStmt->execute([$id]);
+    } else {
+        $resetStmt = $pdo->prepare("UPDATE certificate_links SET query_count = 0, last_scan_time = NULL WHERE id = ? AND tenant_id = ?");
+        $resetStmt->execute([$id, getCurrentTenantId()]);
+    }
     echo "<script>alert('重置成功！'); window.location.href='admin_query_codes.php';</script>";
     exit;
 }
