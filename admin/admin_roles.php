@@ -22,7 +22,7 @@ $permGroups = [
         'brand_products' => '产品管理', 'brand_warehouse' => '出库扫码',
     ]],
     'oem' => ['label' => '代工业务', 'items' => [
-        'oem_certificates' => '证书管理', 'oem_query_codes' => '查询码管理',
+        'oem_certificates' => '证书管理', 'oem_query_codes' => '电子监管码',
     ]],
     'system' => ['label' => '系统设置', 'items' => [
         'system_images' => '图片素材', 'system_scan_editor' => '背景设计',
@@ -30,6 +30,25 @@ $permGroups = [
         'system_users' => '用户管理', 'system_roles' => '角色管理',
     ]],
 ];
+
+// 根据当前租户已开通的模块过滤权限分组，未开通的模块不显示
+if (!isSuperAdmin()) {
+    $tenantId = getCurrentTenantId();
+    if ($tenantId > 0) {
+        $stmt = $pdo->prepare("SELECT modules FROM tenants WHERE id = ?");
+        $stmt->execute([$tenantId]);
+        $tenant = $stmt->fetch();
+        if ($tenant) {
+            $enabledModules = json_decode($tenant['modules'], true) ?: [];
+            foreach ($permGroups as $modKey => $group) {
+                // system 模块始终显示（系统设置不依赖租户模块开关）
+                if ($modKey !== 'system' && !in_array($modKey, $enabledModules)) {
+                    unset($permGroups[$modKey]);
+                }
+            }
+        }
+    }
+}
 
 function buildPermsFromPost($permGroups) {
     $modules = [];

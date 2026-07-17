@@ -112,7 +112,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'reset_count' && isset($_GET['i
     <link rel="icon" type="image/webp" href="/favicon-DQ.webp">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>产品溯源系统 - 查询码管理</title>
+    <title>产品溯源系统 - 电子监管码</title>
     <style>
         body {
             font-family: "Microsoft YaHei", Arial, sans-serif;
@@ -401,7 +401,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'reset_count' && isset($_GET['i
     
     <div class="main-content">
         <div class="container">
-            <h1>查询码管理</h1>
+            <h1>电子监管码</h1>
             
             <!-- 搜索区域 -->
             <form class="search-box" method="get">

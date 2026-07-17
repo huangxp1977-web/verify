@@ -452,7 +452,7 @@ try {
         $title = '产品列表';
         // $breadcrumb[] = ['name' => '箱子列表', 'url' => 'admin_list.php?level=box'];
         
-        // 构建查询条件（优化箱子防伪码查询逻辑）
+        // 构建查询条件（优化箱子溯源码查询逻辑）
         // 构建查询条件（已优化：只显示status=1的记录）
         $where_clause = ' WHERE boxes.status = 1';
         $params = [];
@@ -462,7 +462,7 @@ try {
         }
         
         if (!empty($box_code)) {
-            // 先尝试精确匹配（处理包含特殊字符的完整防伪码）
+            // 先尝试精确匹配（处理包含特殊字符的完整溯源码）
             $exactParams2 = [':box_code' => $box_code];
             if (!isSuperAdmin()) $exactParams2[':tenant_id'] = getCurrentTenantId();
             $exactTenant = isSuperAdmin() ? "" : " AND tenant_id = :tenant_id";
@@ -566,7 +566,7 @@ try {
         // 获取总记录数
         $cartonParams = [':box_id' => $id];
         if (!isSuperAdmin()) $cartonParams[':tenant_id'] = getCurrentTenantId();
-        $cartonTenant = isSuperAdmin() ? "" : " AND tenant_id = :tenant_id";
+        $cartonTenant = isSuperAdmin() ? "" : " AND cartons.tenant_id = :tenant_id";
         $stmt = $pdo->prepare("SELECT COUNT(*) FROM cartons WHERE box_id = :box_id AND status = 1" . $cartonTenant);
         $stmt->execute($cartonParams);
         $total_records = $stmt->fetchColumn();
@@ -646,7 +646,7 @@ try {
         // 获取总记录数
         $productParams = [':carton_id' => $id];
         if (!isSuperAdmin()) $productParams[':tenant_id'] = getCurrentTenantId();
-        $productTenant = isSuperAdmin() ? "" : " AND tenant_id = :tenant_id";
+        $productTenant = isSuperAdmin() ? "" : " AND products.tenant_id = :tenant_id";
         $stmt = $pdo->prepare("SELECT COUNT(*) FROM products WHERE carton_id = :carton_id AND status = 1" . $productTenant);
         $stmt->execute($productParams);
         $total_records = $stmt->fetchColumn();
@@ -732,15 +732,15 @@ function generate_pagination($current_page, $total_pages, $base_url, $total_reco
 
 // 导出为TXT文件
 function exportAsTxt($data, $title, $level) {
-    $filename = $title . '防伪码_' . date('YmdHis') . '.txt';
+    $filename = $title . '溯源码_' . date('YmdHis') . '.txt';
     
     header('Content-Type: text/plain; charset=utf-8');
     header('Content-Disposition: attachment; filename="' . $filename . '"');
     
     if ($level == 'product') {
-        echo "防伪码\t产品名称\t生产地区\t批号\t生产日期\t查询网址\n";
+        echo "溯源码\t产品名称\t生产地区\t批号\t生产日期\t查询网址\n";
     } else {
-        echo "防伪码\t批号\t生产日期\t查询网址\n";
+        echo "溯源码\t批号\t生产日期\t查询网址\n";
     }
     
     foreach ($data as $item) {
@@ -763,7 +763,7 @@ function exportAsTxt($data, $title, $level) {
 
 // 导出为Excel文件（CSV格式）
 function exportAsExcel($data, $title, $level) {
-    $filename = $title . '防伪码_' . date('YmdHis') . '.csv';
+    $filename = $title . '溯源码_' . date('YmdHis') . '.csv';
     
     header('Content-Type: application/vnd.ms-excel; charset=utf-8');
     header('Content-Disposition: attachment; filename="' . $filename . '"');
@@ -772,9 +772,9 @@ function exportAsExcel($data, $title, $level) {
     fwrite($fp, chr(0xEF) . chr(0xBB) . chr(0xBF));
     
     if ($level == 'product') {
-        fputcsv($fp, ['防伪码', '产品名称', '生产地区', '批号', '生产日期', '查询网址']);
+        fputcsv($fp, ['溯源码', '产品名称', '生产地区', '批号', '生产日期', '查询网址']);
     } else {
-        fputcsv($fp, ['防伪码', '批号', '生产日期', '查询网址']);
+        fputcsv($fp, ['溯源码', '批号', '生产日期', '查询网址']);
     }
     
     foreach ($data as $item) {
@@ -818,7 +818,7 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
     <link rel="icon" type="image/webp" href="/favicon-DQ.webp">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>产品溯源系统 - 溯源数据</title>
+    <title>产品溯源系统 - 溯源码管理</title>
     <style>
         body {
             font-family: "Microsoft YaHei", Arial, sans-serif;
@@ -1128,7 +1128,7 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
     <div class="main-content">
         <div class="container">
             <div class="header">
-                <h1>溯源数据</h1>
+                <h1>溯源码管理</h1>
             </div>
         
         <!-- 面包屑导航 -->
@@ -1154,7 +1154,7 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
         <div class="filter-form" style="background: #f5f3fa; padding: 15px; border-radius: 8px; margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 15px; align-items: center;">
             <form method="get" action="" style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap; width: 100%;">
                 <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
-                    <label for="box_code" style="white-space: nowrap;">箱子防伪码：</label>
+                    <label for="box_code" style="white-space: nowrap;">箱子溯源码：</label>
                     <input type="text" id="box_code" name="box_code" value="<?php echo htmlspecialchars($box_code); ?>" placeholder="支持精确匹配和模糊查询" style="width: 150px; padding: 8px 12px;">
                 </div>
                 <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
@@ -1198,7 +1198,7 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
                     <tr>
                         <?php if ($level == 'box'): ?>
                             <th style="vertical-align: middle;"><div style="display: flex; flex-direction: column; align-items: center; gap: 4px;"><span>全选</span><input type="checkbox" id="selectAll" class="select-checkbox"></div></th>
-                            <th>箱子防伪码</th>
+                            <th>箱子溯源码</th>
                             <th>批号</th>
                             <th>生产日期</th>
                             <th>经销商</th>
@@ -1206,7 +1206,7 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
                             <th>操作</th>
                         <?php elseif ($level == 'carton'): ?>
                             <th style="vertical-align: middle;"><div style="display: flex; flex-direction: column; align-items: center; gap: 4px;"><span>全选</span><input type="checkbox" id="selectAll" class="select-checkbox"></div></th>
-                            <th>盒子防伪码</th>
+                            <th>盒子溯源码</th>
                             <th>批号</th>
                             <th>生产日期</th>
                             <th>经销商</th>
@@ -1214,7 +1214,7 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
                             <th>操作</th>
                         <?php elseif ($level == 'product'): ?>
                             <th style="vertical-align: middle;"><div style="display: flex; flex-direction: column; align-items: center; gap: 4px;"><span>全选</span><input type="checkbox" id="selectAll" class="select-checkbox"></div></th>
-                            <th>产品防伪码</th>
+                            <th>产品溯源码</th>
                             <th>产品名称</th>
                             <th>生产地区</th>
                             <th>批号</th>

@@ -11,14 +11,20 @@ try {
     $signPackage = ['appId' => '', 'timestamp' => time(), 'nonceStr' => '', 'signature' => ''];
 }
 
-// 读取扫码页背景配置
-$layoutConfigFile = __DIR__ . '/../config/scan_layout.json';
+// 读取扫码页背景配置（按租户隔离）
 $scanBgUrl = '/uploads/backgrounds/newbg.png'; // 默认值
 
-if (file_exists($layoutConfigFile)) {
-    $config = json_decode(file_get_contents($layoutConfigFile), true);
-    if (!empty($config['background'])) {
-        $scanBgUrl = $config['background'];
+global $pdo;
+$domainTenant = getTenantByDomain($pdo);
+if ($domainTenant && !empty($domainTenant['tenant_id'])) {
+    $stmt = $pdo->prepare("SELECT scan_layout FROM tenants WHERE id = ?");
+    $stmt->execute([$domainTenant['tenant_id']]);
+    $tenant = $stmt->fetch();
+    if ($tenant && !empty($tenant['scan_layout'])) {
+        $config = json_decode($tenant['scan_layout'], true);
+        if (!empty($config['background'])) {
+            $scanBgUrl = $config['background'];
+        }
     }
 }
 

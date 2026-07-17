@@ -14,7 +14,8 @@ $menuGroups = [];
 if (hasModule('brand')) {
     $items = [];
     $items[] = ['file' => 'admin.php', 'label' => '数据概览', 'key' => 'dashboard'];
-    if (hasPermission('brand_list'))        $items[] = ['file' => 'admin_list.php', 'label' => '溯源数据', 'key' => 'brand_list'];
+    if (hasPermission('brand_list'))        $items[] = ['file' => 'admin_code_generate.php', 'label' => '溯源码生成', 'key' => 'brand_code_generate'];
+    if (hasPermission('brand_list'))        $items[] = ['file' => 'admin_list.php', 'label' => '溯源码管理', 'key' => 'brand_list'];
     if (hasPermission('brand_distributors')) $items[] = ['file' => 'admin_base_distributors.php', 'label' => '经销商管理', 'key' => 'brand_distributors'];
     if (hasPermission('brand_brands'))      $items[] = ['file' => 'admin_base_brands.php', 'label' => '品牌管理', 'key' => 'brand_brands'];
     if (hasPermission('brand_products'))    $items[] = ['file' => 'admin_base_products.php', 'label' => '产品管理', 'key' => 'brand_products'];
@@ -27,7 +28,7 @@ if (hasModule('brand')) {
 // 代工业务
 if (hasModule('oem')) {
     $items = [];
-    if (hasPermission('oem_query_codes'))  $items[] = ['file' => 'admin_query_codes.php', 'label' => '查询码管理', 'key' => 'oem_query_codes'];
+    if (hasPermission('oem_query_codes'))  $items[] = ['file' => 'admin_query_codes.php', 'label' => '电子监管码', 'key' => 'oem_query_codes'];
     if (hasPermission('oem_certificates')) $items[] = ['file' => 'admin_base_certificates.php', 'label' => '证书管理', 'key' => 'oem_certificates'];
     if (!empty($items)) {
         $menuGroups[] = ['label' => '代工业务', 'items' => $items];

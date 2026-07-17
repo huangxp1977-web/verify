@@ -907,9 +907,9 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
                                         <?php 
                                         $status = isset($cert['status']) ? $cert['status'] : 1;
                                         if ($status == 1): ?>
-                                            <a href="admin_base_certificates.php?action=export_url&id=<?php echo $cert['id']; ?>" class="btn">生成查询码</a>
+                                            <a href="admin_base_certificates.php?action=export_url&id=<?php echo $cert['id']; ?>" class="btn">生成监管码</a>
                                         <?php else: ?>
-                                            <span class="btn btn-disabled" title="证书已禁用，无法生成查询码">生成查询码</span>
+                                            <span class="btn btn-disabled" title="证书已禁用，无法生成监管码">生成监管码</span>
                                         <?php endif; ?>
                                         <?php 
                                         // 根据是否有查询码决定显示删除还是禁用/启用

@@ -104,13 +104,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['export'])) {
  * 导出为TXT文件
  */
 function exportAsTxt($data, $type) {
-    $filename = ($type === 'box' ? '箱子' : '盒子') . '防伪码_' . date('YmdHis') . '.txt';
+    $filename = ($type === 'box' ? '箱子' : '盒子') . '溯源码_' . date('YmdHis') . '.txt';
     
     header('Content-Type: text/plain; charset=utf-8');
     header('Content-Disposition: attachment; filename="' . $filename . '"');
     
     // 写入表头
-    echo "防伪码\t批号\t生产日期\t查询网址\n";
+    echo "溯源码\t批号\t生产日期\t查询网址\n";
     
     // 写入数据
     foreach ($data as $item) {
@@ -126,7 +126,7 @@ function exportAsTxt($data, $type) {
  * 导出为Excel文件（CSV格式，兼容Excel）
  */
 function exportAsExcel($data, $type) {
-    $filename = ($type === 'box' ? '箱子' : '盒子') . '防伪码_' . date('YmdHis') . '.csv';
+    $filename = ($type === 'box' ? '箱子' : '盒子') . '溯源码_' . date('YmdHis') . '.csv';
     
     header('Content-Type: application/vnd.ms-excel; charset=utf-8');
     header('Content-Disposition: attachment; filename="' . $filename . '"');
@@ -138,7 +138,7 @@ function exportAsExcel($data, $type) {
     fwrite($fp, chr(0xEF) . chr(0xBB) . chr(0xBF));
     
     // 写入表头
-    fputcsv($fp, ['防伪码', '批号', '生产日期', '查询网址']);
+    fputcsv($fp, ['溯源码', '批号', '生产日期', '查询网址']);
     
     // 写入数据
     foreach ($data as $item) {
@@ -184,7 +184,7 @@ try {
     <link rel="icon" type="image/webp" href="/favicon-DQ.webp">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>产品溯源系统 - 导出防伪码</title>
+    <title>产品溯源系统 - 导出溯源码</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -247,7 +247,7 @@ try {
 </head>
 <body>
     <div class="container">
-        <h1>导出防伪码信息</h1>
+        <h1>导出溯源码信息</h1>
         
         <?php if (isset($error)): ?>
             <div class="error"><?php echo htmlspecialchars($error); ?></div>

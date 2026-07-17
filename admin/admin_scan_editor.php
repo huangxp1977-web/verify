@@ -3,6 +3,7 @@ session_start();
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/tenant.php';
+require_once __DIR__ . '/../includes/qiniu_helper.php';
 resolveTenant($pdo);
 
 // 引入统一域名鉴权
@@ -21,9 +22,20 @@ if (!isSuperAdmin() && !hasPermission('system_scan_editor')) {
 
 $messages = ['success' => [], 'error' => []];
 
-// 配置文件路径
-$configFile = __DIR__ . '/../config/scan_layout.json';
-$bgDir = __DIR__ . '/../uploads/backgrounds/';
+$tenantId = getCurrentTenantId();
+$isSuper = isSuperAdmin();
+
+// 确定租户背景目录（与 admin_images.php 一致）
+$bgSubDir = 'uploads/backgrounds/';
+if (!$isSuper && $tenantId > 0) {
+    $bgSubDir = 'uploads/backgrounds/tenant_' . $tenantId . '/';
+}
+$bgDir = __DIR__ . '/../' . $bgSubDir;
+
+// 确保目录存在
+if (!file_exists($bgDir)) {
+    mkdir($bgDir, 0755, true);
+}
 
 // 默认配置
 $defaultConfig = [
@@ -32,21 +44,50 @@ $defaultConfig = [
     'inputBtn' => ['x' => 390, 'y' => 750, 'width' => 260, 'height' => 260]
 ];
 
-// 读取当前配置
+// 从数据库读取当前租户的扫码布局配置
 function loadConfig() {
-    global $configFile, $defaultConfig;
-    if (file_exists($configFile)) {
-        $config = json_decode(file_get_contents($configFile), true);
-        return array_merge($defaultConfig, $config);
+    global $pdo, $tenantId, $defaultConfig;
+
+    // 尝试自动迁移遗留全局配置（仅限 tenant_id=1 华医，且尚未有独立配置时）
+    $legacyFile = __DIR__ . '/../config/scan_layout.json';
+    if (file_exists($legacyFile) && $tenantId == 1) {
+        $stmt = $pdo->prepare("SELECT scan_layout FROM tenants WHERE id = ?");
+        $stmt->execute([1]);
+        $existing = $stmt->fetch();
+        if (!$existing || empty($existing['scan_layout'])) {
+            $legacy = json_decode(file_get_contents($legacyFile), true);
+            if ($legacy) {
+                $merged = array_merge($defaultConfig, $legacy);
+                $json = json_encode($merged, JSON_UNESCAPED_UNICODE);
+                $stmt = $pdo->prepare("UPDATE tenants SET scan_layout = ? WHERE id = ?");
+                $stmt->execute([$json, 1]);
+                // 迁移后删除遗留文件
+                @unlink($legacyFile);
+                return $merged;
+            }
+        }
+    }
+
+    $stmt = $pdo->prepare("SELECT scan_layout FROM tenants WHERE id = ?");
+    $stmt->execute([$tenantId]);
+    $tenant = $stmt->fetch();
+
+    if ($tenant && !empty($tenant['scan_layout'])) {
+        $parsed = json_decode($tenant['scan_layout'], true);
+        if ($parsed) {
+            return array_merge($defaultConfig, $parsed);
+        }
     }
     return $defaultConfig;
 }
 
-// 保存配置
+// 保存配置到数据库
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['config'])) {
     $config = json_decode($_POST['config'], true);
     if ($config) {
-        file_put_contents($configFile, json_encode($config, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+        $json = json_encode($config, JSON_UNESCAPED_UNICODE);
+        $stmt = $pdo->prepare("UPDATE tenants SET scan_layout = ? WHERE id = ?");
+        $stmt->execute([$json, $tenantId]);
         $messages['success'][] = "配置保存成功";
     } else {
         $messages['error'][] = "配置格式错误";
@@ -55,15 +96,59 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['config'])) {
 
 $config = loadConfig();
 
-// 获取背景图列表
+// 获取背景图列表（按租户隔离，兼容七牛云）
 $bgImages = [];
-if (is_dir($bgDir)) {
-    $files = scandir($bgDir);
+$localFiles = []; // 用于去重
+
+// 扫描单个目录的函数
+function scanBgDir($dir, $subDir, &$localFiles, &$bgImages) {
+    if (!is_dir($dir)) return;
+    $files = scandir($dir);
     foreach ($files as $file) {
         if ($file === '.' || $file === '..') continue;
         $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
         if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
-            $bgImages[] = '/uploads/backgrounds/' . $file;
+            $localFiles[$file] = true;
+            $bgImages[] = '/' . $subDir . $file;
+        }
+    }
+}
+
+// 1. 扫描本地文件
+if ($isSuper) {
+    // 超管：扫描根目录 + 所有租户子目录
+    scanBgDir($bgDir, $bgSubDir, $localFiles, $bgImages);
+    $rootDir = __DIR__ . '/../uploads/backgrounds/';
+    if (is_dir($rootDir)) {
+        $entries = scandir($rootDir);
+        foreach ($entries as $entry) {
+            if ($entry === '.' || $entry === '..') continue;
+            if (strpos($entry, 'tenant_') === 0 && is_dir($rootDir . $entry)) {
+                $tenantSubDir = 'uploads/backgrounds/' . $entry . '/';
+                scanBgDir($rootDir . $entry . '/', $tenantSubDir, $localFiles, $bgImages);
+            }
+        }
+    }
+} else {
+    scanBgDir($bgDir, $bgSubDir, $localFiles, $bgImages);
+}
+
+// 2. 如果七牛云启用，读取已同步的文件索引（按租户隔离）
+if (isQiniuEnabled()) {
+    $indexFile = __DIR__ . '/../config/qiniu_index' . ($isSuper || $tenantId == 0 ? '' : '_' . $tenantId) . '.json';
+    if (file_exists($indexFile)) {
+        $index = json_decode(file_get_contents($indexFile), true) ?: [];
+        $qiniuConfig = getQiniuConfig();
+        $domain = rtrim($qiniuConfig['domain'] ?? '', '/');
+
+        foreach ($index as $item) {
+            // 只显示背景分类的文件
+            if (strpos($item['key'], ltrim($bgSubDir, '/')) === 0) {
+                $fileName = basename($item['key']);
+                if (!isset($localFiles[$fileName])) {
+                    $bgImages[] = $domain . '/' . $item['key'];
+                }
+            }
         }
     }
 }

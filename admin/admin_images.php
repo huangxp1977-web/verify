@@ -21,6 +21,11 @@ if (!isSuperAdmin() && !hasPermission('system_images')) {
     exit;
 }
 
+// 当前租户信息
+$tenantId = getCurrentTenantId();
+$isSuper = isSuperAdmin();
+$hasOem = hasModule('oem');
+
 // Flash消息处理（从session读取后清除）
 $messages = ['success' => [], 'error' => []];
 if (isset($_SESSION['flash_messages'])) {
@@ -29,15 +34,26 @@ if (isset($_SESSION['flash_messages'])) {
 }
 
 // 分类配置
-$categories = [
-    'certificates' => ['name' => '证书图片', 'dir' => 'uploads/certificates/', 'prefix' => 'cert_'],
-    'products' => ['name' => '产品图片', 'dir' => 'uploads/products/', 'prefix' => 'prod_'],
-    'backgrounds' => ['name' => '扫码背景', 'dir' => 'uploads/backgrounds/', 'prefix' => 'bg_'],
-    'banners' => ['name' => '轮播图', 'dir' => 'uploads/banners/', 'prefix' => 'banner_']
-];
+$categories = [];
+if ($isSuper || $hasOem) {
+    $categories['certificates'] = ['name' => '证书图片', 'dir' => 'uploads/certificates/', 'prefix' => 'cert_'];
+}
+$categories['products'] = ['name' => '产品图片', 'dir' => 'uploads/products/', 'prefix' => 'prod_'];
+$categories['backgrounds'] = ['name' => '扫码背景', 'dir' => 'uploads/backgrounds/', 'prefix' => 'bg_'];
+$categories['banners'] = ['name' => '轮播图', 'dir' => 'uploads/banners/', 'prefix' => 'banner_'];
+
+// 非超管租户使用子目录隔离
+$tenantSuffix = '';
+if (!$isSuper && $tenantId > 0) {
+    $tenantSuffix = 'tenant_' . $tenantId . '/';
+    // 产品、背景、轮播图使用租户子目录，证书图片共享
+    foreach (['products', 'backgrounds', 'banners'] as $catKey) {
+        $categories[$catKey]['dir'] = 'uploads/' . $catKey . '/' . $tenantSuffix;
+    }
+}
 
 // 当前分类
-$currentCat = isset($_GET['cat']) && isset($categories[$_GET['cat']]) ? $_GET['cat'] : 'certificates';
+$currentCat = isset($_GET['cat']) && isset($categories[$_GET['cat']]) ? $_GET['cat'] : array_key_first($categories);
 $catConfig = $categories[$currentCat];
 $uploadDir = __DIR__ . '/../' . $catConfig['dir'];
 
@@ -46,34 +62,42 @@ if (!file_exists($uploadDir)) {
     mkdir($uploadDir, 0755, true);
 }
 
-// 背景配置文件
-$bgConfigFile = __DIR__ . '/../config/scan_bg.json';
-
-// 获取当前扫码背景
+// 获取当前扫码背景（按租户从数据库读取）
 function getCurrentBg() {
-    global $bgConfigFile;
-    if (file_exists($bgConfigFile)) {
-        $config = json_decode(file_get_contents($bgConfigFile), true);
-        return $config['deoumeiti'] ?? '/wx/static/images/newbg.png';
+    global $pdo;
+    $tenantId = isSuperAdmin() ? intval($_GET['tenant_id'] ?? $_SESSION['admin_tenant_id'] ?? 0) : getCurrentTenantId();
+    if ($tenantId > 0) {
+        $stmt = $pdo->prepare("SELECT scan_layout FROM tenants WHERE id = ?");
+        $stmt->execute([$tenantId]);
+        $tenant = $stmt->fetch();
+        if ($tenant && !empty($tenant['scan_layout'])) {
+            $config = json_decode($tenant['scan_layout'], true);
+            if (!empty($config['background'])) {
+                return $config['background'];
+            }
+        }
     }
     return '/wx/static/images/newbg.png';
 }
 
-// 保存背景配置
+// 保存背景配置到数据库（按租户）
 function saveBgConfig($url) {
-    global $bgConfigFile;
-    $config = ['deoumeiti' => $url, 'updated_at' => date('Y-m-d H:i:s')];
-    file_put_contents($bgConfigFile, json_encode($config, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
-    
-    // 同时更新 scan_layout.json（scan.php 读取的配置文件）
-    $layoutConfigFile = __DIR__ . '/../config/scan_layout.json';
-    if (file_exists($layoutConfigFile)) {
-        $layoutConfig = json_decode(file_get_contents($layoutConfigFile), true) ?: [];
-    } else {
-        $layoutConfig = [];
+    global $pdo;
+    $tenantId = isSuperAdmin() ? intval($_POST['tenant_id'] ?? $_SESSION['admin_tenant_id'] ?? 0) : getCurrentTenantId();
+    if ($tenantId <= 0) return;
+
+    // 读取当前 scan_layout 配置
+    $stmt = $pdo->prepare("SELECT scan_layout FROM tenants WHERE id = ?");
+    $stmt->execute([$tenantId]);
+    $tenant = $stmt->fetch();
+    $config = [];
+    if ($tenant && !empty($tenant['scan_layout'])) {
+        $config = json_decode($tenant['scan_layout'], true) ?: [];
     }
-    $layoutConfig['background'] = $url;
-    file_put_contents($layoutConfigFile, json_encode($layoutConfig, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    $config['background'] = $url;
+    $json = json_encode($config, JSON_UNESCAPED_UNICODE);
+    $stmt = $pdo->prepare("UPDATE tenants SET scan_layout = ? WHERE id = ?");
+    $stmt->execute([$json, $tenantId]);
 }
 
 // 处理设置为扫码背景
@@ -83,16 +107,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
     $messages['success'][] = "扫码背景已更新";
 }
 
+// 获取七牛云索引文件路径（按租户隔离）
+function getQiniuIndexFile() {
+    global $isSuper, $tenantId;
+    return __DIR__ . '/../config/qiniu_index' . ($isSuper || $tenantId == 0 ? '' : '_' . $tenantId) . '.json';
+}
+
 // 处理图片上传
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['image'])) {
     $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
     $maxFileSize = 5 * 1024 * 1024;
-    
+
     $file = $_FILES['image'];
-    
+
     if ($file['error'] === UPLOAD_ERR_OK) {
         $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-        
+
         if (!in_array($extension, $allowedExtensions)) {
             $messages['error'][] = "不支持的文件格式，仅允许：" . implode(', ', $allowedExtensions);
         } elseif ($file['size'] > $maxFileSize) {
@@ -100,24 +130,24 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['image'])) {
         } else {
             $filename = $catConfig['prefix'] . date('YmdHis') . '_' . uniqid() . '.' . $extension;
             $destination = $uploadDir . $filename;
-            
+
             if (move_uploaded_file($file['tmp_name'], $destination)) {
                 $messages['success'][] = "图片上传成功：{$filename}";
-                
+
                 // 如果七牛云开启，自动上传到七牛云
                 if (isQiniuEnabled()) {
-                    $qiniuKey = $catConfig['dir'] . $filename;
+                    $qiniuKey = ltrim($catConfig['dir'], '/') . $filename;
                     // 获取文件信息（在删除前）
                     $fileSize = filesize($destination);
                     $fileTime = time();
-                    
+
                     $result = uploadToQiniu($destination, $qiniuKey);
                     if ($result['success']) {
                         // 删除本地文件（与同步逻辑保持一致）
                         @unlink($destination);
                         $messages['success'][] = "已同步到七牛云";
-                        // 更新索引文件
-                        $indexFile = __DIR__ . '/../config/qiniu_index.json';
+                        // 更新索引文件（按租户隔离）
+                        $indexFile = getQiniuIndexFile();
                         $index = [];
                         if (file_exists($indexFile)) {
                             $index = json_decode(file_get_contents($indexFile), true) ?: [];
@@ -139,7 +169,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['image'])) {
     } else {
         $messages['error'][] = "上传出错，错误代码：" . $file['error'];
     }
-    
+
     // 保存消息到session并重定向（PRG模式）
     $_SESSION['flash_messages'] = $messages;
     header("Location: admin_images.php?cat={$currentCat}");
@@ -151,42 +181,74 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['file']
     $filename = basename($_GET['file']);
     $filepath = $uploadDir . $filename;
     $imageUrl = '/' . $catConfig['dir'] . $filename;
-    $qiniuKey = $catConfig['dir'] . $filename; // 七牛云的key（不带前导/）
-    
+    $qiniuKey = ltrim($catConfig['dir'], '/') . $filename; // 七牛云的key（不带前导/）
+
+    // 超管删除背景图时，如果文件不在当前目录，搜索所有 tenant_*/ 子目录
+    if ($isSuper && $currentCat == 'backgrounds' && !file_exists($filepath)) {
+        $rootDir = __DIR__ . '/../uploads/backgrounds/';
+        if (is_dir($rootDir)) {
+            $entries = scandir($rootDir);
+            foreach ($entries as $entry) {
+                if ($entry === '.' || $entry === '..') continue;
+                if (strpos($entry, 'tenant_') === 0 && is_dir($rootDir . $entry)) {
+                    $candidate = $rootDir . $entry . '/' . $filename;
+                    if (file_exists($candidate)) {
+                        $filepath = $candidate;
+                        $imageUrl = '/uploads/backgrounds/' . $entry . '/' . $filename;
+                        $qiniuKey = 'uploads/backgrounds/' . $entry . '/' . $filename;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
     $qiniuEnabled = isQiniuEnabled();
     $canDelete = true;
     $reason = '';
-    
-    // 证书图片：检查是否被证书使用（全局检查，防止跨租户误删）
+
+    // 证书图片：检查是否被证书使用（仅限当前租户）
     if ($currentCat == 'certificates') {
         $certParams = ['%' . $filename];
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM base_certificates WHERE image_url LIKE ?");
+        $sql = "SELECT COUNT(*) FROM base_certificates WHERE image_url LIKE ?";
+        // 非超管只检查本租户的证书
+        if (!$isSuper && $tenantId > 0) {
+            $sql .= " AND tenant_id = ?";
+            $certParams[] = $tenantId;
+        }
+        $stmt = $pdo->prepare($sql);
         $stmt->execute($certParams);
         if ($stmt->fetchColumn() > 0) {
             $canDelete = false;
             $reason = "该图片正在被证书使用";
         }
     }
-    
-    // 背景图片：检查是否正在使用
+
+    // 背景图片：检查是否正在使用（按租户隔离）
     if ($currentCat == 'backgrounds') {
         if (getCurrentBg() == $imageUrl) {
             $canDelete = false;
             $reason = "该图片正在作为扫码背景使用";
         }
     }
-    
-    // 产品图片：检查是否被产品使用（全局检查，防止跨租户误删）
+
+    // 产品图片：检查是否被产品使用（仅限当前租户）
     if ($currentCat == 'products') {
         $prodParams = ['%' . $filename];
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM base_products WHERE image_url LIKE ?");
+        $sql = "SELECT COUNT(*) FROM base_products WHERE image_url LIKE ?";
+        // 非超管只检查本租户的产品
+        if (!$isSuper && $tenantId > 0) {
+            $sql .= " AND tenant_id = ?";
+            $prodParams[] = $tenantId;
+        }
+        $stmt = $pdo->prepare($sql);
         $stmt->execute($prodParams);
         if ($stmt->fetchColumn() > 0) {
             $canDelete = false;
             $reason = "该图片正在被产品使用";
         }
     }
-    
+
     if (!$canDelete) {
         $messages['error'][] = $reason . "，无法删除";
     } else {
@@ -200,8 +262,8 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['file']
                 if (file_exists($filepath)) {
                     @unlink($filepath);
                 }
-                // 从索引文件中移除该条记录
-                $indexFile = __DIR__ . '/../config/qiniu_index.json';
+                // 从索引文件中移除该条记录（按租户隔离）
+                $indexFile = getQiniuIndexFile();
                 if (file_exists($indexFile)) {
                     $index = json_decode(file_get_contents($indexFile), true) ?: [];
                     $index = array_filter($index, function($item) use ($qiniuKey) {
@@ -225,7 +287,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['file']
             }
         }
     }
-    
+
     // 保存消息到session并重定向（PRG模式）
     $_SESSION['flash_messages'] = $messages;
     header("Location: admin_images.php?cat={$currentCat}");
@@ -237,17 +299,18 @@ $images = [];
 $localFiles = []; // 用于去重
 
 // 1. 扫描本地文件
-if (is_dir($uploadDir)) {
-    $files = scandir($uploadDir);
+function scanLocalDir($dir, $subDir, &$localFiles, &$images) {
+    if (!is_dir($dir)) return;
+    $files = scandir($dir);
     foreach ($files as $file) {
         if ($file === '.' || $file === '..') continue;
         $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
         if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
-            $filepath = $uploadDir . $file;
+            $filepath = $dir . $file;
             $localFiles[$file] = true;
             $images[] = [
                 'name' => $file,
-                'url' => '/' . $catConfig['dir'] . $file,
+                'url' => '/' . $subDir . $file,
                 'size' => filesize($filepath),
                 'time' => filemtime($filepath),
                 'source' => 'local'
@@ -256,18 +319,37 @@ if (is_dir($uploadDir)) {
     }
 }
 
-// 2. 如果七牛云启用，读取已同步的文件索引
+if ($isSuper && $currentCat == 'backgrounds') {
+    // 超管查看背景图：扫描根目录 + 所有租户子目录
+    scanLocalDir($uploadDir, $catConfig['dir'], $localFiles, $images);
+    $rootDir = __DIR__ . '/../uploads/backgrounds/';
+    if (is_dir($rootDir)) {
+        $entries = scandir($rootDir);
+        foreach ($entries as $entry) {
+            if ($entry === '.' || $entry === '..') continue;
+            if (strpos($entry, 'tenant_') === 0 && is_dir($rootDir . $entry)) {
+                $tenantDir = $rootDir . $entry . '/';
+                $tenantSubDir = 'uploads/backgrounds/' . $entry . '/';
+                scanLocalDir($tenantDir, $tenantSubDir, $localFiles, $images);
+            }
+        }
+    }
+} else {
+    scanLocalDir($uploadDir, $catConfig['dir'], $localFiles, $images);
+}
+
+// 2. 如果七牛云启用，读取已同步的文件索引（按租户隔离）
 require_once __DIR__ . '/../includes/qiniu_helper.php';
 if (isQiniuEnabled()) {
-    $indexFile = __DIR__ . '/../config/qiniu_index.json';
+    $indexFile = getQiniuIndexFile();
     if (file_exists($indexFile)) {
         $index = json_decode(file_get_contents($indexFile), true) ?: [];
         $qiniuConfig = getQiniuConfig();
         $domain = rtrim($qiniuConfig['domain'] ?? '', '/');
-        
+
         foreach ($index as $item) {
             // 只显示当前分类的文件
-            if (strpos($item['key'], $catConfig['dir']) === 0) {
+            if (strpos($item['key'], ltrim($catConfig['dir'], '/')) === 0) {
                 $fileName = basename($item['key']);
                 // 如果本地不存在该文件，则显示七牛云的
                 if (!isset($localFiles[$fileName])) {
@@ -321,13 +403,13 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
         }
         .success { background: #d4edda; color: #155724; padding: 10px 15px; border-radius: 4px; margin-bottom: 15px; }
         .error { background: #f8d7da; color: #721c24; padding: 10px 15px; border-radius: 4px; margin-bottom: 15px; }
-        
+
         /* 分类标签 */
         .cat-tabs { display: flex; gap: 10px; margin-bottom: 20px; }
         .cat-tab { padding: 10px 20px; background: white; border: 1px solid #ddd; border-radius: 4px; text-decoration: none; color: #333; }
         .cat-tab:hover { background: #f5f3fa; }
         .cat-tab.active { background: #4a3f69; color: white; border-color: #4a3f69; }
-        
+
         .upload-section {
             padding: 15px;
             border-radius: 8px;
@@ -358,7 +440,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
         .btn-danger { background: #fdf0f0; color: #e74c3c; border: 1px solid #e74c3c; }
         .btn-danger:hover { background: #fce4e4; }
         .btn-success { background: #d4edda; color: #155724; border: 1px solid #28a745; }
-        
+
         .stats { margin-bottom: 15px; color: #666; }
         .image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; }
         .image-item { background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
@@ -368,7 +450,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
         .image-item-info small { color: #999; display: block; margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .image-item-actions { display: flex; gap: 5px; flex-wrap: wrap; }
         .image-item-actions form { margin: 0; }
-        
+
         /* 图片放大 */
         .modal { 
             display: none; 
@@ -411,7 +493,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
             font-size: 12px;
             pointer-events: none;
         }
-        
+
         /* 当前背景提示 */
         .current-bg-label { background: #28a745; color: white; padding: 2px 8px; border-radius: 3px; font-size: 11px; margin-left: 5px; }
     </style>
