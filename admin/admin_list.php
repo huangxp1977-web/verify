@@ -25,11 +25,19 @@ if (!isSuperAdmin() && !hasPermission('brand_list')) {
 // 获取当前层级和ID
 $level = isset($_GET['level']) ? $_GET['level'] : 'box';
 $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
+$box_id = isset($_GET['box_id']) ? intval($_GET['box_id']) : 0;
+
+// level=carton时，优先用 box_id 作为箱子ID（搜索跳转传 id=carton_id&box_id=box_id）
+// $_GET["id"] 仅作为向后兼容 fallback（面包屑导航仍传 id=box_id）
+if ($level == 'carton' && $box_id > 0) {
+    $id = $box_id;
+}
 
 // 获取筛选参数
 $batch_number = isset($_GET['batch_number']) ? trim($_GET['batch_number']) : '';
 $production_date = isset($_GET['production_date']) ? trim($_GET['production_date']) : '';
 $box_code = isset($_GET['box_code']) ? trim($_GET['box_code']) : '';
+$carton_code = isset($_GET['carton_code']) ? trim($_GET['carton_code']) : '';
 $distributor = isset($_GET['distributor']) ? trim($_GET['distributor']) : '';
 $selected_backup_date = isset($_POST['backup_date']) ? trim($_POST['backup_date']) : '';
 
@@ -564,24 +572,32 @@ try {
         ];
         
         // 获取总记录数
-        $cartonParams = [':box_id' => $id];
-        if (!isSuperAdmin()) $cartonParams[':tenant_id'] = getCurrentTenantId();
-        $cartonTenant = isSuperAdmin() ? "" : " AND cartons.tenant_id = :tenant_id";
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM cartons WHERE box_id = :box_id AND status = 1" . $cartonTenant);
-        $stmt->execute($cartonParams);
-        $total_records = $stmt->fetchColumn();
-        
-        // 获取盒子数据
-        $cartonDataParams = [':box_id' => $id];
-        if (!isSuperAdmin()) $cartonDataParams[':tenant_id'] = getCurrentTenantId();
-        $stmt = $pdo->prepare("
-            SELECT cartons.*, base_distributors.name as distributor_name
-            FROM cartons
-            LEFT JOIN base_distributors ON cartons.distributor_id = base_distributors.id
-            WHERE box_id = :box_id AND cartons.status = 1" . $cartonTenant . "
-            ORDER BY carton_code ASC
-            LIMIT :offset, :page_size
-        ");
+                $cartonParams = [':box_id' => $id];
+                if (!isSuperAdmin()) $cartonParams[':tenant_id'] = getCurrentTenantId();
+                $cartonTenant = isSuperAdmin() ? "" : " AND cartons.tenant_id = :tenant_id";
+                $cartonFilter = '';
+                if (!empty($carton_code)) {
+                    $cartonFilter = ' AND cartons.carton_code = :carton_code';
+                    $cartonParams[':carton_code'] = $carton_code;
+                }
+                $stmt = $pdo->prepare("SELECT COUNT(*) FROM cartons WHERE box_id = :box_id AND status = 1" . $cartonTenant . $cartonFilter);
+                $stmt->execute($cartonParams);
+                $total_records = $stmt->fetchColumn();
+
+                // 获取盒子数据
+                $cartonDataParams = [':box_id' => $id];
+                if (!isSuperAdmin()) $cartonDataParams[':tenant_id'] = getCurrentTenantId();
+                if (!empty($carton_code)) {
+                    $cartonDataParams[':carton_code'] = $carton_code;
+                }
+                $stmt = $pdo->prepare("
+                    SELECT cartons.*, base_distributors.name as distributor_name
+                    FROM cartons
+                    LEFT JOIN base_distributors ON cartons.distributor_id = base_distributors.id
+                    WHERE box_id = :box_id AND cartons.status = 1" . $cartonTenant . $cartonFilter . "
+                    ORDER BY carton_code ASC
+                    LIMIT :offset, :page_size
+                ");
         foreach ($cartonDataParams as $k => $v) { $stmt->bindValue($k, $v); }
         $stmt->bindValue(':offset', (int)$offset, PDO::PARAM_INT);
         $stmt->bindValue(':page_size', (int)$page_size, PDO::PARAM_INT);

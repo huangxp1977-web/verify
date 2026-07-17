@@ -12,7 +12,7 @@ try {
 }
 
 // 读取扫码页背景配置（按租户隔离）
-$scanBgUrl = '/uploads/backgrounds/newbg.png'; // 默认值
+$scanBgUrl = '/wx/static/images/default_bg.png'; // 中性默认背景图
 
 global $pdo;
 $domainTenant = getTenantByDomain($pdo);

@@ -39,7 +39,7 @@ if (!file_exists($bgDir)) {
 
 // 默认配置
 $defaultConfig = [
-    'background' => '/wx/static/images/newbg.png',
+    'background' => '/wx/static/images/default_bg.png',
     'scanBtn' => ['x' => 100, 'y' => 750, 'width' => 260, 'height' => 260],
     'inputBtn' => ['x' => 390, 'y' => 750, 'width' => 260, 'height' => 260]
 ];
@@ -442,7 +442,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
     function resetConfig() {
         if (confirm('确定重置为默认配置？')) {
             config = {
-                background: '/wx/static/images/newbg.png',
+                background: '/wx/static/images/default_bg.png',
                 scanBtn: { x: 100, y: 750, width: 260, height: 260 },
                 inputBtn: { x: 390, y: 750, width: 260, height: 260 }
             };

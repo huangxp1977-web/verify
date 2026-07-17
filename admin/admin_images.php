@@ -77,7 +77,7 @@ function getCurrentBg() {
             }
         }
     }
-    return '/wx/static/images/newbg.png';
+    return '/wx/static/images/default_bg.png';
 }
 
 // 保存背景配置到数据库（按租户）

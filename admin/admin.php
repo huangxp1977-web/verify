@@ -49,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['search_code'])) {
                 $stmt->execute($params);
                 $result = $stmt->fetch(PDO::FETCH_ASSOC);
                 if ($result) {
-                    header("Location: admin_list.php?type=box&id={$result['id']}");
+                    header("Location: admin_list.php?level=box&id={$result['id']}");
                     exit;
                 } else {
                     $messages['error'][] = "未找到溯源码为【{$search_code}】的箱子";
@@ -61,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['search_code'])) {
                 $stmt->execute($params);
                 $result = $stmt->fetch(PDO::FETCH_ASSOC);
                 if ($result) {
-                    header("Location: admin_list.php?type=carton&id={$result['id']}&box_id={$result['box_id']}");
+                    header("Location: admin_list.php?level=carton&id={$result['id']}&box_id={$result['box_id']}&carton_code=" . urlencode($search_code));
                     exit;
                 } else {
                     $messages['error'][] = "未找到溯源码为【{$search_code}】的盒子";
@@ -266,26 +266,7 @@ try {
         .messages-container {
             margin-bottom: 20px;
         }
-        .management-links {
-            display: flex;
-            gap: 15px;
-            margin-bottom: 30px;
-            flex-wrap: wrap;
-        }
-        .management-links a {
-            flex: 1;
-            min-width: 200px;
-            text-align: center;
-            padding: 15px;
-            background: #4a3f69;
-            color: white;
-            text-decoration: none;
-            border-radius: 4px;
-            transition: background-color 0.3s;
-        }
-        .management-links a:hover {
-            background: #3a3154;
-        }
+
         @media (max-width: 768px) {
             .main-content {
                 margin-left: 220px;
@@ -336,14 +317,6 @@ try {
                     <h3>经销商总数</h3>
                     <div class="stat-value"><?php echo $stats['total_base_distributors']; ?></div>
                 </div>
-            </div>
-
-            <!-- 管理链接区域 -->
-            <div class="management-links">
-                <a href="admin_code_generate.php">溯源码生成</a>
-                <a href="admin_list.php">溯源数据</a>
-                <a href="admin_base_distributors.php">经销商管理</a>
-                <a href="admin_base_certificates.php" target="_blank">证书管理</a>
             </div>
 
             <!-- 搜索功能区域 -->
