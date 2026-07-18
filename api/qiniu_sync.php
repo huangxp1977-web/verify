@@ -27,7 +27,7 @@ $action = $_GET['action'] ?? 'sync';
 
 if ($action === 'list') {
     // 列出待同步文件（不需要验证七牛云是否启用）
-    $files = scanUploadsDirectory();
+    $files = scanUploadsDirectory(null, $_SESSION['admin_tenant_id'] ?? 0);
     echo json_encode([
         'success' => true,
         'count' => count($files),
@@ -44,7 +44,7 @@ if ($action === 'sync') {
     }
     
     // 执行同步
-    $files = scanUploadsDirectory();
+    $files = scanUploadsDirectory(null, $_SESSION['admin_tenant_id'] ?? 0);
     $results = [
         'total' => count($files),
         'success' => 0,

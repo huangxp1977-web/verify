@@ -275,7 +275,7 @@ function deleteLocalFile($filePath) {
 }
 
 // 扫描目录获取所有文件
-function scanUploadsDirectory($dir = null) {
+function scanUploadsDirectory($dir = null, $tenantId = null) {
     if ($dir === null) {
         $dir = $_SERVER['DOCUMENT_ROOT'] . '/uploads';
     }
@@ -295,6 +295,14 @@ function scanUploadsDirectory($dir = null) {
             // 获取相对于 DOCUMENT_ROOT 的路径
             $relativePath = str_replace($_SERVER['DOCUMENT_ROOT'], '', $file->getPathname());
             $relativePath = str_replace('\\', '/', $relativePath);
+            
+            // 指定租户时，只返回该租户子目录内的文件（路径含 /tenant_{id}/）
+            if ($tenantId > 0) {
+                if (strpos($relativePath, '/tenant_' . $tenantId . '/') === false) {
+                    continue;
+                }
+            }
+            
             $files[] = [
                 'path' => $relativePath,
                 'key' => ltrim($relativePath, '/'),
