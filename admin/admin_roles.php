@@ -20,7 +20,7 @@ $permGroups = [
     'brand' => ['label' => '品牌业务', 'items' => [
         'brand_code_generate' => '溯源码生成', 'brand_list' => '溯源码管理',
         'brand_distributors' => '经销商管理', 'brand_brands' => '品牌管理',
-        'brand_products' => '产品管理', 'brand_warehouse' => '出库扫码',
+        'brand_products' => '产品管理',
     ]],
     'oem' => ['label' => '代工业务', 'items' => [
         'oem_certificates' => '证书管理', 'oem_query_codes' => '电子监管码',

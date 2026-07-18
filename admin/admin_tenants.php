@@ -66,7 +66,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_tenant'])) {
                     'brand_distributors' => ['view','create','edit','delete'],
                     'brand_brands' => ['view','create','edit','delete'],
                     'brand_products' => ['view','create','edit','delete'],
-                    'brand_warehouse' => ['view','create','edit','delete'],
                     'oem_certificates' => ['view','create','edit','delete','export_url'],
                     'oem_query_codes' => ['view','export'],
                     'system_images' => ['view','upload','delete'],

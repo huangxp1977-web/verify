@@ -56,6 +56,17 @@ try {
     $stmt->execute($params);
     $product_lib = $stmt->fetchAll(PDO::FETCH_ASSOC);
     $product_lib_json = json_encode($product_lib);
+
+    // 获取产品与批号对应关系（用于按产品导出）
+    $product_batches = [];
+    $params2 = [];
+    $stmt = $pdo->prepare("SELECT DISTINCT p.product_name, p.batch_number FROM products p WHERE 1=1" . tenantWhere($params2, 'p') . " ORDER BY p.product_name, p.batch_number DESC");
+    $stmt->execute($params2);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($rows as $row) {
+        $product_batches[$row['product_name']][] = $row['batch_number'];
+    }
+    $product_batches_json = json_encode($product_batches);
 } catch(PDOException $e) {
     $messages['error'][] = "获取数据出错: " . $e->getMessage();
 }
@@ -70,8 +81,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_products'])) 
     $p_name_input = isset($_POST['product_name_input']) ? trim($_POST['product_name_input']) : '';
     $product_name = ($p_name_select === 'custom' || empty($p_name_select)) ? $p_name_input : $p_name_select;
 
-    $region = isset($_POST['region']) ? trim($_POST['region']) : '默认地区';
-    $image_url = isset($_POST['image_url']) ? trim($_POST['image_url']) : '';
+    // 从产品库获取包装配置
+    $cartons_per_box = 100;
+    $units_per_carton = 5;
+    if ($p_name_select !== 'custom' && !empty($p_name_select)) {
+        foreach ($product_lib as $p) {
+            if ($p['product_name'] === $p_name_select) {
+                $cartons_per_box = intval($p['cartons_per_box'] ?? 100);
+                $units_per_carton = intval($p['units_per_carton'] ?? 5);
+                break;
+            }
+        }
+    }
 
     $prefix_box = isset($_POST['prefix_box']) ? trim($_POST['prefix_box']) : 'BOX';
     $prefix_carton = isset($_POST['prefix_carton']) ? trim($_POST['prefix_carton']) : 'CARTON';
@@ -137,9 +158,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_products'])) 
                     $box_code = $box_codes[$b];
                     $box_id = $box_code_to_id[$box_code];
 
-                    for ($c = 1; $c <= 100; $c++) {
+                    for ($c = 1; $c <= $cartons_per_box; $c++) {
                         do {
-                            $carton_code = generate_custom_code($prefix_carton, $batch_number, ($processed_boxes + $b) * 100 + $c, $width_carton);
+                            $carton_code = generate_custom_code($prefix_carton, $batch_number, ($processed_boxes + $b) * $cartons_per_box + $c, $width_carton);
                             $stmt = $pdo->prepare("SELECT 1 FROM cartons WHERE carton_code = ?");
                             $stmt->execute([$carton_code]);
                             $exists = $stmt->fetchColumn();
@@ -177,15 +198,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_products'])) 
                 }
 
                 $product_params = [];
-                $product_index = $processed_boxes * 100 * 5;
+                $product_index = $processed_boxes * $cartons_per_box * $units_per_carton;
                 $carton_index = 0;
                 for ($b = 0; $b < $batch_size; $b++) {
-                    for ($c = 1; $c <= 100; $c++) {
+                    for ($c = 1; $c <= $cartons_per_box; $c++) {
                         $carton_code = $carton_codes[$carton_index];
                         $carton_id = $carton_code_to_id[$carton_code];
                         $carton_index++;
 
-                        for ($p = 1; $p <= 5; $p++) {
+                        for ($p = 1; $p <= $units_per_carton; $p++) {
                             do {
                                 $product_code = generate_custom_code($prefix_product, $batch_number, $product_index++, $width_product);
                                 $stmt = $pdo->prepare("SELECT 1 FROM products WHERE product_code = ?");
@@ -193,12 +214,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_products'])) 
                                 $exists = $stmt->fetchColumn();
                             } while ($exists);
 
-                            $product_params[] = [$product_code, $carton_id, $product_name, $region, $production_date, $image_url, $batch_number];
+                            $product_params[] = [$product_code, $carton_id, $product_name, $production_date, $batch_number];
                         }
                     }
                 }
 
-                $batch_insert('products', ['product_code', 'carton_id', 'product_name', 'region', 'production_date', 'image_url', 'batch_number', 'tenant_id'], array_map(function($row) use ($tenantId) { $row[] = $tenantId; return $row; }, $product_params), $pdo);
+                $batch_insert('products', ['product_code', 'carton_id', 'product_name', 'production_date', 'batch_number', 'tenant_id'], array_map(function($row) use ($tenantId) { $row[] = $tenantId; return $row; }, $product_params), $pdo);
 
                 $pdo->commit();
                 $processed_boxes += $batch_size;
@@ -211,7 +232,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_products'])) 
                 usleep(10000);
             }
 
-            $messages['success'][] = "成功生成 {$num_boxes} 箱产品，共 " . ($num_boxes * 100) . " 盒，" . ($num_boxes * 100 * 5) . " 支。";
+            $messages['success'][] = "成功生成 {$num_boxes} 箱产品，共 " . ($num_boxes * $cartons_per_box) . " 盒，" . ($num_boxes * $cartons_per_box * $units_per_carton) . " 支。";
         } catch(PDOException $e) {
             $pdo->rollBack();
             $messages['error'][] = "生成产品出错: " . $e->getMessage();
@@ -240,18 +261,19 @@ function generate_custom_code($prefix, $batch, $index, $width) {
 
 // ====================== 导出一套三 ======================
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_data'])) {
-    $export_type = isset($_POST['export_type']) ? $_POST['export_type'] : 'box';
+    $product_filter = isset($_POST['dc_product_name']) ? trim($_POST['dc_product_name']) : '';
     $batch_filter = isset($_POST['batch_filter']) ? $_POST['batch_filter'] : '';
     $file_format = isset($_POST['file_format']) && in_array($_POST['file_format'], ['txt', 'csv'])
         ? $_POST['file_format']
         : 'txt';
 
-    if ($export_type != 'box') {
-        $messages['error'][] = "当前仅支持按箱导出";
+    if (empty($product_filter)) {
+        $messages['error'][] = "请选择要导出的产品";
     } else {
         try {
             $params = [];
-            $whereExtra = "";
+            $whereExtra = " AND p.product_name = ?";
+            $params[] = $product_filter;
             if (!empty($batch_filter)) {
                 $whereExtra .= " AND b.batch_number = ?";
                 $params[] = $batch_filter;
@@ -263,8 +285,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_data'])) {
             $queryUrl = $protocol . $domain . "/index.php?code=";
 
             $boxStmt = $pdo->prepare("
-                SELECT b.id AS box_id, b.box_code, b.batch_number, DATE(b.production_date) AS production_date
+                SELECT DISTINCT b.id AS box_id, b.box_code, b.batch_number, DATE(b.production_date) AS production_date
                 FROM boxes b
+                JOIN cartons c ON b.id = c.box_id
+                JOIN products p ON c.id = p.carton_id
                 WHERE 1=1 {$whereExtra}
                 ORDER BY b.box_code ASC
             ");
@@ -343,7 +367,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_data'])) {
                     }
 
                     $listContent = "导出时间: " . date('Y-m-d H:i:s') . "\n";
-                    $listContent .= "筛选条件: " . (empty($batch_filter) ? "全部批号" : "批号: {$batch_filter}") . "\n\n";
+                    $listContent .= "筛选条件: 产品: {$product_filter} / " . (empty($batch_filter) ? "全部批号" : "批号: {$batch_filter}") . "\n\n";
                     $listContent .= "总览统计:\n";
                     $listContent .= "总箱数: {$totalBoxes} 箱\n";
                     $listContent .= "总盒数: {$totalCartons} 盒\n";
@@ -416,8 +440,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_zero_product'
     $z_name_select = isset($_POST['zero_product_name_select']) ? trim($_POST['zero_product_name_select']) : '';
     $z_name_input = isset($_POST['zero_product_name_input']) ? trim($_POST['zero_product_name_input']) : '';
     $product_name = ($z_name_select === 'custom' || empty($z_name_select)) ? $z_name_input : $z_name_select;
-    $region = isset($_POST['zero_region']) ? trim($_POST['zero_region']) : '默认地区';
-    $image_url = isset($_POST['zero_image_url']) ? trim($_POST['zero_image_url']) : '';
+
+    // 从产品库获取包装配置（套二只有盒数，没有支数）
+    $z_cartons_per_box = 100;
+    if ($z_name_select !== 'custom' && !empty($z_name_select)) {
+        foreach ($product_lib as $p) {
+            if ($p['product_name'] === $z_name_select) {
+                $z_cartons_per_box = intval($p['cartons_per_box'] ?? 100);
+                break;
+            }
+        }
+    }
 
     $prefix_box_zero = isset($_POST['prefix_box_zero']) ? trim($_POST['prefix_box_zero']) : 'BOX-ZERO';
     $prefix_carton_zero = isset($_POST['prefix_carton_zero']) ? trim($_POST['prefix_carton_zero']) : 'CARTON-ZERO';
@@ -448,8 +481,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_zero_product'
             }
 
             if (!empty($box_codes)) {
-                $placeholders = rtrim(str_repeat('(?, ?, ?, ?),', count($box_codes)), ',');
-                $box_sql = "INSERT INTO boxes (box_code, production_date, batch_number, tenant_id) VALUES {$placeholders}";
+                $placeholders = rtrim(str_repeat('(?, ?, ?, ?, ?),', count($box_codes)), ',');
+                $box_sql = "INSERT INTO boxes (box_code, production_date, batch_number, tenant_id, product_name) VALUES {$placeholders}";
                 $stmt = $pdo->prepare($box_sql);
 
                 $params = [];
@@ -459,6 +492,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_zero_product'
                     $params[] = $production_date;
                     $params[] = $batch_number;
                     $params[] = $tenantId;
+                    $params[] = $product_name;
                 }
                 $stmt->execute($params);
             } else {
@@ -486,8 +520,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_zero_product'
                 }
                 $box_id = $box_code_to_id[$box_code];
 
-                for ($c = 1; $c <= 100; $c++) {
-                    $carton_index = ($start_index + $total_processed + $box_index) * 100 + $c;
+                for ($c = 1; $c <= $z_cartons_per_box; $c++) {
+                    $carton_index = ($start_index + $total_processed + $box_index) * $z_cartons_per_box + $c;
 
                     do {
                         $carton_code = generate_custom_code($prefix_carton_zero, $batch_number, $carton_index, $width_carton_zero);
@@ -520,8 +554,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_zero_product'
             usleep(5000);
         }
 
-        $total_cartons = $num_boxes * 100;
-        $messages['success'][] = "成功生成 {$num_boxes} 箱产品，每箱100盒，共 {$total_cartons} 盒。";
+        $total_cartons = $num_boxes * $z_cartons_per_box;
+        $messages['success'][] = "成功生成 {$num_boxes} 箱产品，每箱{$z_cartons_per_box}盒，共 {$total_cartons} 盒。";
     } catch(PDOException $e) {
         $pdo->rollBack();
         $messages['error'][] = "生成不含支码产品出错: " . $e->getMessage();
@@ -533,6 +567,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_zero_product'
 
 // ====================== 导出一套二 ======================
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_zero_data'])) {
+    $zero_product_filter = isset($_POST['dc_zero_product_name']) ? trim($_POST['dc_zero_product_name']) : '';
     $zero_batch_filter = isset($_POST['zero_batch_filter']) ? $_POST['zero_batch_filter'] : '';
     $zero_file_format = isset($_POST['zero_file_format']) && in_array($_POST['zero_file_format'], ['txt', 'csv'])
         ? $_POST['zero_file_format']
@@ -541,6 +576,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_zero_data'])) {
     try {
         $params = [];
         $whereExtra = "";
+        if (!empty($zero_product_filter)) {
+            $whereExtra .= " AND b.product_name = ?";
+            $params[] = $zero_product_filter;
+        }
         if (!empty($zero_batch_filter)) {
             $whereExtra .= " AND b.batch_number = ?";
             $params[] = $zero_batch_filter;
@@ -572,7 +611,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_zero_data'])) {
                 $messages['error'][] = "导出需要PHP ZIP扩展，请联系管理员开启";
             } else {
                 $zero_list_content = "导出时间: " . date('Y-m-d H:i:s') . "\n";
-                $zero_list_content .= "筛选条件: " . (empty($zero_batch_filter) ? "全部批号" : "批号: {$zero_batch_filter}") . "\n\n";
+                $zero_list_content .= "筛选条件: " . (empty($zero_product_filter) ? "全部产品" : "产品: {$zero_product_filter}") . (empty($zero_batch_filter) ? "" : " | 批号: {$zero_batch_filter}") . "\n\n";
                 $zero_list_content .= "总览统计:\n";
                 $zero_list_content .= "符合条件的箱数: " . count($zero_data) . " 箱\n";
                 $zero_list_content .= "每箱配置: 100盒不含支码\n\n";
@@ -630,10 +669,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_zero_data'])) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>产品溯源系统 - 溯源码生成</title>
     <script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
-    <script src="https://cdn.bootcdn.net/ajax/libs/distpicker/2.0.7/distpicker.min.js"></script>
     <style>
-        .distpicker-wrap { display: flex; gap: 10px; }
-        .distpicker-wrap select { flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
         body {
             font-family: "Microsoft YaHei", Arial, sans-serif;
             line-height: 1.6;
@@ -667,6 +703,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_zero_data'])) {
             padding-bottom: 20px;
         }
         .form-group { margin-bottom: 20px; }
+        .form-row { display: flex; gap: 20px; }
         label { display: block; margin-bottom: 8px; font-weight: bold; color: #555; font-size: 14px; }
         input, select, textarea {
             width: 100%;
@@ -800,71 +837,66 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_zero_data'])) {
             <div class="section" id="yt3">
                 <h2>批量生成一套三溯源码</h2>
                 <form method="post" action="">
-                    <div class="form-group">
-                        <label for="num_boxes">生成箱数</label>
-                        <input type="number" id="num_boxes" name="num_boxes" min="1" max="200" value="1" required>
-                        <small>每箱包含100盒，每盒包含5支产品</small>
-                    </div>
 
-                    <div class="form-group">
-                        <label for="batch_number">批号</label>
-                        <input type="text" id="batch_number" name="batch_number" value="<?php echo date('Ymd'); ?>" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="production_date">生产日期</label>
-                        <input type="datetime-local" id="production_date" name="production_date"
-                               value="<?php echo date('Y-m-d\TH:i'); ?>" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="product_name">产品名称</label>
-                        <div style="display: flex; gap: 10px;">
-                            <select id="product_name_select" name="product_name_select" style="flex: 1;">
-                                <option value="">-- 请选择产品 --</option>
-                                <?php foreach ($product_lib as $p): ?>
-                                    <option value="<?php echo htmlspecialchars($p['product_name']); ?>"
-                                            data-img="<?php echo htmlspecialchars($p['default_image_url']); ?>">
-                                        <?php echo htmlspecialchars($p['product_name']); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                                <option value="custom">-- 手动输入 --</option>
-                            </select>
-                            <input type="text" id="product_name_input" name="product_name_input" placeholder="输入新产品名称" style="flex: 1; display: none;">
+                    <div class="form-row">
+                        <div class="form-group" style="flex:1">
+                            <label for="product_name">产品名称</label>
+                            <div style="display: flex; gap: 10px;">
+                                <select id="product_name_select" name="product_name_select" style="flex: 1;">
+                                    <option value="">-- 请选择产品 --</option>
+                                    <?php foreach ($product_lib as $p): ?>
+                                        <option value="<?php echo htmlspecialchars($p['product_name']); ?>">
+                                            <?php echo htmlspecialchars($p['product_name']); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                    <option value="custom">-- 手动输入 --</option>
+                                </select>
+                                <input type="text" id="product_name_input" name="product_name_input" placeholder="输入新产品名称" style="flex: 1; display: none;">
+                            </div>
+                        </div>
+                        <div class="form-group" style="flex:1">
+                            <label for="num_boxes">生成箱数</label>
+                            <input type="number" id="num_boxes" name="num_boxes" min="1" max="200" value="1" required>
+                            <small id="yt3_packaging_info">正在加载包装信息...</small>
                         </div>
                     </div>
 
-                    <div class="form-group">
-                        <label for="region">生产地区</label>
-                        <input type="hidden" id="region" name="region" value="">
-                        <div id="distpicker1" class="distpicker-wrap">
-                            <select id="province1" data-province=""></select>
-                            <select id="city1" data-city=""></select>
-                            <select id="district1" data-district=""></select>
+                    <div class="form-row">
+                        <div class="form-group" style="flex:1">
+                            <label for="batch_number">批号</label>
+                            <input type="text" id="batch_number" name="batch_number" value="<?php echo date('Ymd'); ?>" required>
                         </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="image_url">产品图片URL</label>
-                        <input type="url" id="image_url" name="image_url" placeholder="http://example.com/product.jpg">
+                        <div class="form-group" style="flex:1">
+                            <label for="production_date">生产日期</label>
+                            <input type="date" id="production_date" name="production_date"
+                                   value="<?php echo date('Y-m-d'); ?>" required>
+                        </div>
                     </div>
 
                     <fieldset>
                         <legend>自定义编码设置</legend>
-                        <div class="form-group">
-                            <label>箱子编码</label>
-                            <input type="text" name="prefix_box" value="BOX" placeholder="前缀">
-                            <input type="number" name="width_box" value="12" min="6" max="32" placeholder="总长度">
-                        </div>
-                        <div class="form-group">
-                            <label>盒子编码</label>
-                            <input type="text" name="prefix_carton" value="CARTON" placeholder="前缀">
-                            <input type="number" name="width_carton" value="12" min="6" max="32" placeholder="总长度">
-                        </div>
-                        <div class="form-group">
-                            <label>支码编码</label>
-                            <input type="text" name="prefix_product" value="PROD" placeholder="前缀">
-                            <input type="number" name="width_product" value="12" min="6" max="32" placeholder="总长度">
+                        <div class="form-row">
+                            <div class="form-group" style="flex:1">
+                                <label>箱子编码</label>
+                                <div style="display:flex;gap:6px">
+                                    <input type="text" name="prefix_box" value="BOX" placeholder="前缀" style="flex:1">
+                                    <input type="number" name="width_box" value="12" min="6" max="32" placeholder="总长度" style="width:80px">
+                                </div>
+                            </div>
+                            <div class="form-group" style="flex:1">
+                                <label>盒子编码</label>
+                                <div style="display:flex;gap:6px">
+                                    <input type="text" name="prefix_carton" value="CARTON" placeholder="前缀" style="flex:1">
+                                    <input type="number" name="width_carton" value="12" min="6" max="32" placeholder="总长度" style="width:80px">
+                                </div>
+                            </div>
+                            <div class="form-group" style="flex:1">
+                                <label>支码编码</label>
+                                <div style="display:flex;gap:6px">
+                                    <input type="text" name="prefix_product" value="PROD" placeholder="前缀" style="flex:1">
+                                    <input type="number" name="width_product" value="12" min="6" max="32" placeholder="总长度" style="width:80px">
+                                </div>
+                            </div>
                         </div>
                     </fieldset>
 
@@ -876,60 +908,58 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_zero_data'])) {
             <div class="section" id="yt2">
                 <h2>批量生成一套二溯源码</h2>
                 <form method="post" action="">
-                    <div class="form-group">
-                        <label for="zero_num_boxes">生成箱数</label>
-                        <input type="number" id="zero_num_boxes" name="zero_num_boxes" min="1" max="1000" value="1" required>
-                        <small>每箱包含100盒，每盒不含支码</small>
-                    </div>
-                    <div class="form-group">
-                        <label for="zero_batch_number">批号</label>
-                        <input type="text" id="zero_batch_number" name="zero_batch_number" value="<?php echo date('Ymd'); ?>" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="zero_production_date">生产日期</label>
-                        <input type="datetime-local" id="zero_production_date" name="zero_production_date"
-                               value="<?php echo date('Y-m-d\TH:i'); ?>" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="zero_product_name">产品名称</label>
-                        <div style="display: flex; gap: 10px;">
-                            <select id="zero_product_name_select" name="zero_product_name_select" style="flex: 1;">
-                                <option value="">-- 请选择产品 --</option>
-                                <?php foreach ($product_lib as $p): ?>
-                                    <option value="<?php echo htmlspecialchars($p['product_name']); ?>"
-                                            data-img="<?php echo htmlspecialchars($p['default_image_url']); ?>">
-                                        <?php echo htmlspecialchars($p['product_name']); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                                <option value="custom">-- 手动输入 --</option>
-                            </select>
-                            <input type="text" id="zero_product_name_input" name="zero_product_name_input" placeholder="输入新产品名称" style="flex: 1; display: none;">
+
+                    <div class="form-row">
+                        <div class="form-group" style="flex:1">
+                            <label for="zero_product_name">产品名称</label>
+                            <div style="display: flex; gap: 10px;">
+                                <select id="zero_product_name_select" name="zero_product_name_select" style="flex: 1;">
+                                    <option value="">-- 请选择产品 --</option>
+                                    <?php foreach ($product_lib as $p): ?>
+                                        <option value="<?php echo htmlspecialchars($p['product_name']); ?>">
+                                            <?php echo htmlspecialchars($p['product_name']); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                    <option value="custom">-- 手动输入 --</option>
+                                </select>
+                                <input type="text" id="zero_product_name_input" name="zero_product_name_input" placeholder="输入新产品名称" style="flex: 1; display: none;">
+                            </div>
+                        </div>
+                        <div class="form-group" style="flex:1">
+                            <label for="zero_num_boxes">生成箱数</label>
+                            <input type="number" id="zero_num_boxes" name="zero_num_boxes" min="1" max="1000" value="1" required>
+                            <small id="yt2_packaging_info">正在加载包装信息...</small>
                         </div>
                     </div>
-                    <div class="form-group">
-                        <label for="zero_region">生产地区</label>
-                        <input type="hidden" id="zero_region" name="zero_region" value="">
-                        <div id="distpicker2" class="distpicker-wrap">
-                            <select id="province2" data-province=""></select>
-                            <select id="city2" data-city=""></select>
-                            <select id="district2" data-district=""></select>
+
+                    <div class="form-row">
+                        <div class="form-group" style="flex:1">
+                            <label for="zero_batch_number">批号</label>
+                            <input type="text" id="zero_batch_number" name="zero_batch_number" value="<?php echo date('Ymd'); ?>" required>
                         </div>
-                    </div>
-                    <div class="form-group">
-                        <label for="zero_image_url">产品图片URL</label>
-                        <input type="url" id="zero_image_url" name="zero_image_url" placeholder="http://example.com/product.jpg">
+                        <div class="form-group" style="flex:1">
+                            <label for="zero_production_date">生产日期</label>
+                            <input type="date" id="zero_production_date" name="zero_production_date"
+                                   value="<?php echo date('Y-m-d'); ?>" required>
+                        </div>
                     </div>
                     <fieldset>
                         <legend>自定义编码设置</legend>
-                        <div class="form-group">
-                            <label>箱子编码</label>
-                            <input type="text" name="prefix_box_zero" value="BOX-ZERO" placeholder="前缀">
-                            <input type="number" name="width_box_zero" value="12" min="6" max="32" placeholder="总长度">
-                        </div>
-                        <div class="form-group">
-                            <label>盒子编码</label>
-                            <input type="text" name="prefix_carton_zero" value="CARTON-ZERO" placeholder="前缀">
-                            <input type="number" name="width_carton_zero" value="12" min="6" max="32" placeholder="总长度">
+                        <div class="form-row">
+                            <div class="form-group" style="flex:1">
+                                <label>箱子编码</label>
+                                <div style="display:flex;gap:6px">
+                                    <input type="text" name="prefix_box_zero" value="BOX-ZERO" placeholder="前缀" style="flex:1">
+                                    <input type="number" name="width_box_zero" value="12" min="6" max="32" placeholder="总长度" style="width:80px">
+                                </div>
+                            </div>
+                            <div class="form-group" style="flex:1">
+                                <label>盒子编码</label>
+                                <div style="display:flex;gap:6px">
+                                    <input type="text" name="prefix_carton_zero" value="CARTON-ZERO" placeholder="前缀" style="flex:1">
+                                    <input type="number" name="width_carton_zero" value="12" min="6" max="32" placeholder="总长度" style="width:80px">
+                                </div>
+                            </div>
                         </div>
                     </fieldset>
                     <button type="submit" name="generate_zero_product" class="btn">生成数据</button>
@@ -937,42 +967,51 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_zero_data'])) {
             </div>
 
             <!-- 导出一套三 -->
-            <div class="section" id="dcyt3">
-                <h2>导出一套三溯源码</h2>
-                <form method="post" action="">
-                    <div class="form-group">
-                        <label for="export_type">导出类型</label>
-                        <select id="export_type" name="export_type" required>
-                            <option value="box">按箱导出（每箱一个文件）</option>
-                        </select>
-                    </div>
-                    <div class="filter-item">
-                        <label for="batch_filter">按批号筛选</label>
-                        <select id="batch_filter" name="batch_filter">
-                            <option value="">全部批号</option>
-                            <?php foreach ($batches as $batch): ?>
-                                <option value="<?php echo htmlspecialchars($batch); ?>"><?php echo htmlspecialchars($batch); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="format-group">
-                        <label>导出格式</label><br>
-                        <label style="display: inline-block; margin-right: 20px;">
-                            <input type="radio" name="file_format" value="txt" checked> TXT文件
-                        </label>
-                        <label style="display: inline-block;">
-                            <input type="radio" name="file_format" value="csv"> Excel文件 (CSV)
-                        </label>
-                    </div>
-                    <button type="submit" name="export_data" class="btn">导出数据</button>
-                    <p><small>导出内容包含：箱码、盒码、支码及其查询链接</small></p>
-                </form>
-            </div>
+                        <div class="section" id="dcyt3">
+                            <h2>导出一套三溯源码</h2>
+                            <form method="post" action="">
+                                <div class="filter-item">
+                                    <label for="dc_product_name">产品名称</label>
+                                    <select id="dc_product_name" name="dc_product_name" required>
+                                        <option value="">-- 请选择产品 --</option>
+                                        <?php foreach ($product_lib as $p): ?>
+                                            <option value="<?php echo htmlspecialchars($p['product_name']); ?>"><?php echo htmlspecialchars($p['product_name']); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div class="filter-item">
+                                    <label for="batch_filter">按批号筛选</label>
+                                    <select id="batch_filter" name="batch_filter">
+                                        <option value="">全部批号</option>
+                                    </select>
+                                </div>
+                                <div class="format-group">
+                                    <label>导出格式</label><br>
+                                    <label style="display: inline-block; margin-right: 20px;">
+                                        <input type="radio" name="file_format" value="txt" checked> TXT文件
+                                    </label>
+                                    <label style="display: inline-block;">
+                                        <input type="radio" name="file_format" value="csv"> Excel文件 (CSV)
+                                    </label>
+                                </div>
+                                <button type="submit" name="export_data" class="btn">导出数据</button>
+                                <p><small>导出内容包含：箱码、盒码、支码及其查询链接</small></p>
+                            </form>
+                        </div>
 
             <!-- 导出一套二 -->
             <div class="section" id="dcyt2">
                 <h2>导出一套二溯源码</h2>
                 <form method="post" action="">
+                    <div class="filter-item">
+                        <label for="dc_zero_product_name">产品名称</label>
+                        <select id="dc_zero_product_name" name="dc_zero_product_name" required>
+                            <option value="">-- 请选择产品 --</option>
+                            <?php foreach ($product_lib as $p): ?>
+                                <option value="<?php echo htmlspecialchars($p['product_name']); ?>"><?php echo htmlspecialchars($p['product_name']); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
                     <div class="filter-item">
                         <label for="zero_batch_filter">按批号筛选</label>
                         <select id="zero_batch_filter" name="zero_batch_filter">
@@ -999,58 +1038,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_zero_data'])) {
     </div>
 
     <script>
+        // 产品库数据，包含包装配置
+        var productLib = <?php echo $product_lib_json; ?>;
+        // 产品与批号对应关系（用于按产品导出）
+        var productBatches = <?php echo $product_batches_json; ?>;
+
         $(function() {
-            $('#distpicker1').distpicker({ placeholder: true });
-            $('#distpicker2').distpicker({ placeholder: true });
-
-            function updateRegion1() {
-                var p = $('#province1').val() || '';
-                var c = $('#city1').val() || '';
-                var d = $('#district1').val() || '';
-                var val = '';
-                if(p) val += p;
-                if(c) val += ' ' + c;
-                if(d) val += ' ' + d;
-                $('#region').val(val);
-            }
-            $('#distpicker1 select').change(updateRegion1);
-
-            function updateRegion2() {
-                var p = $('#province2').val() || '';
-                var c = $('#city2').val() || '';
-                var d = $('#district2').val() || '';
-                var val = '';
-                if(p) val += p;
-                if(c) val += ' ' + c;
-                if(d) val += ' ' + d;
-                $('#zero_region').val(val);
-            }
-            $('#distpicker2 select').change(updateRegion2);
-
-            $('#product_name_select').change(function() {
-                var val = $(this).val();
-                if (val === 'custom') {
-                    $('#product_name_input').show().prop('required', true);
-                } else {
-                    $('#product_name_input').hide().prop('required', false);
-                    var option = $(this).find('option:selected');
-                    var img = option.data('img');
-                    if(img) $('#image_url').val(img);
-                }
-            });
-
-            $('#zero_product_name_select').change(function() {
-                var val = $(this).val();
-                if (val === 'custom') {
-                    $('#zero_product_name_input').show().prop('required', true);
-                } else {
-                    $('#zero_product_name_input').hide().prop('required', false);
-                    var option = $(this).find('option:selected');
-                    var img = option.data('img');
-                    if(img) $('#zero_image_url').val(img);
-                }
-            });
-
             // Tab switching
             // Initially show only the first tab
             $('.section[id]').not('#yt3').hide();
@@ -1061,7 +1054,74 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_zero_data'])) {
                 $('.section[id]').hide();
                 $('#' + target).show();
             });
+
+            // 产品选择时更新包装信息（一套三）
+            $('#product_name_select').on('change', function() {
+                var val = $(this).val();
+                if (val === 'custom') {
+                    $('#product_name_input').show().prop('required', true);
+                } else {
+                    $('#product_name_input').hide().prop('required', false);
+                }
+                updatePackagingInfo('yt3');
+            });
+            // 产品选择时更新包装信息（一套二）
+            $('#zero_product_name_select').on('change', function() {
+                var val = $(this).val();
+                if (val === 'custom') {
+                    $('#zero_product_name_input').show().prop('required', true);
+                } else {
+                    $('#zero_product_name_input').hide().prop('required', false);
+                }
+                updatePackagingInfo('yt2');
+            });
+
+            // 初始化包装信息
+            updatePackagingInfo('yt3');
+            updatePackagingInfo('yt2');
+
+            // 导出一套三 - 产品选择时更新批号列表
+            $('#dc_product_name').on('change', function() {
+                var product = $(this).val();
+                var batchSelect = $('#batch_filter');
+                batchSelect.empty();
+                batchSelect.append('<option value="">全部批号</option>');
+                if (product && productBatches[product]) {
+                    $.each(productBatches[product], function(i, batch) {
+                        batchSelect.append('<option value="' + batch + '">' + batch + '</option>');
+                    });
+                }
+            });
         });
+
+        function updatePackagingInfo(tab) {
+            var isYt3 = (tab === 'yt3');
+            var selectId = isYt3 ? '#product_name_select' : '#zero_product_name_select';
+            var infoId = isYt3 ? '#yt3_packaging_info' : '#yt2_packaging_info';
+            var selectedName = $(selectId).val();
+
+            var cartonsPerBox = 100;
+            var unitsPerCarton = isYt3 ? 5 : 0;
+
+            if (selectedName && selectedName !== 'custom' && selectedName !== '') {
+                for (var i = 0; i < productLib.length; i++) {
+                    if (productLib[i].product_name === selectedName) {
+                        cartonsPerBox = parseInt(productLib[i].cartons_per_box) || 100;
+                        if (isYt3) {
+                            unitsPerCarton = parseInt(productLib[i].units_per_carton) || 5;
+                        }
+                        break;
+                    }
+                }
+                if (isYt3) {
+                    $(infoId).text('每箱包含' + cartonsPerBox + '盒，每盒包含' + unitsPerCarton + '支产品');
+                } else {
+                    $(infoId).text('每箱包含' + cartonsPerBox + '盒，每盒不含支码');
+                }
+            } else {
+                $(infoId).text('请先选择产品');
+            }
+        }
     </script>
 </body>
 </html>

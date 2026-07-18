@@ -201,7 +201,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['file']
     // 产品图片：检查是否被产品使用（仅限当前租户）
     if ($currentCat == 'products') {
         $prodParams = ['%' . $filename];
-        $sql = "SELECT COUNT(*) FROM base_products WHERE image_url LIKE ?";
+        $sql = "SELECT COUNT(*) FROM base_products WHERE product_images LIKE ?";
         if ($tenantId > 0) {
             $sql .= " AND tenant_id = ?";
             $prodParams[] = $tenantId;
@@ -312,6 +312,29 @@ usort($images, function($a, $b) {
 });
 
 $currentBg = getCurrentBg();
+
+// 预计算各分类下被引用的文件名（用于UI显示删除按钮状态）
+$referencedFilenames = [];
+if ($currentCat == 'certificates') {
+    $stmt = $pdo->prepare("SELECT image_url FROM base_certificates WHERE image_url LIKE ?" . ($tenantId > 0 ? " AND tenant_id = ?" : ""));
+    $params = ['%' . $catConfig['prefix'] . '%'];
+    if ($tenantId > 0) $params[] = $tenantId;
+    $stmt->execute($params);
+    while ($row = $stmt->fetch()) {
+        $referencedFilenames[basename($row['image_url'])] = true;
+    }
+} elseif ($currentCat == 'products') {
+    $stmt = $pdo->prepare("SELECT product_images FROM base_products WHERE product_images LIKE ?" . ($tenantId > 0 ? " AND tenant_id = ?" : ""));
+    $params = ['%' . $catConfig['prefix'] . '%'];
+    if ($tenantId > 0) $params[] = $tenantId;
+    $stmt->execute($params);
+    while ($row = $stmt->fetch()) {
+        $images = json_decode($row['product_images'], true) ?: [];
+        foreach ($images as $imgUrl) {
+            $referencedFilenames[basename($imgUrl)] = true;
+        }
+    }
+}
 
 // 退出登录
 if (isset($_GET['action']) && $_GET['action'] == 'logout') {
@@ -515,9 +538,19 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
                                             </form>
                                         <?php endif; ?>
                                     <?php endif; ?>
-                                    <a href="?cat=<?php echo $currentCat; ?>&action=delete&file=<?php echo urlencode($img['name']); ?>" 
-                                       class="btn btn-sm btn-danger" 
-                                       onclick="return confirm('确定删除此图片？');">删除</a>
+                                    <?php
+                                    $imgReferenced = isset($referencedFilenames[$img['name']]);
+                                    if ($currentCat == 'backgrounds' && $currentBg == $img['url']) {
+                                        $imgReferenced = true;
+                                    }
+                                    ?>
+                                    <?php if ($imgReferenced): ?>
+                                        <span class="btn btn-sm" style="background:#eee;color:#999;border-color:#ddd;cursor:not-allowed;">使用中</span>
+                                    <?php else: ?>
+                                        <a href="?cat=<?php echo $currentCat; ?>&action=delete&file=<?php echo urlencode($img['name']); ?>" 
+                                           class="btn btn-sm btn-danger" 
+                                           onclick="return confirm('确定删除此图片？');">删除</a>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                         </div>

@@ -1375,9 +1375,9 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
                     </div>
                     
                     <div class="form-group">
-                        <label for="production_date">生产日期</label>
-                        <input type="text" id="production_date" name="production_date" required>
-                    </div>
+                                            <label for="production_date">生产日期</label>
+                                            <input type="date" id="production_date" name="production_date" required>
+                                        </div>
                 <?php endif; ?>
                 
                 <?php if ($level == 'product'): ?>
