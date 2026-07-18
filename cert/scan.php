@@ -1,7 +1,28 @@
 <?php
 require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../includes/tenant.php';
+
+// 域名解析租户，获取 oem 微信配置
+$certAppId = defined('CERT_APP_ID') ? CERT_APP_ID : '';
+$certAppSecret = defined('CERT_APP_SECRET') ? CERT_APP_SECRET : '';
+if (isset($pdo)) {
+    $domainTenant = getTenantByDomain($pdo);
+    if ($domainTenant && $domainTenant['tenant_id'] > 0) {
+        $stmt = $pdo->prepare("SELECT base_config FROM tenants WHERE id = ?");
+        $stmt->execute([$domainTenant['tenant_id']]);
+        $tenant = $stmt->fetch();
+        if ($tenant && !empty($tenant['base_config'])) {
+            $bc = json_decode($tenant['base_config'], true);
+            if (!empty($bc['wechat']['oem']['app_id']) && !empty($bc['wechat']['oem']['app_secret'])) {
+                $certAppId = $bc['wechat']['oem']['app_id'];
+                $certAppSecret = $bc['wechat']['oem']['app_secret'];
+            }
+        }
+    }
+}
+
 require_once "jssdk.php";
-$jssdk = new JSSDK(CERT_APP_ID, CERT_APP_SECRET);
+$jssdk = new JSSDK($certAppId, $certAppSecret);
 $signPackage = $jssdk->GetSignPackage();
 ?>
 <!DOCTYPE html>

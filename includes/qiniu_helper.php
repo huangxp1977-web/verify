@@ -4,7 +4,7 @@
  * 提供上传、删除、URL获取等功能
  */
 
-// 获取七牛云配置（从当前企业 tenants.qiniu_config 读取）
+// 获取七牛云配置（从当前企业 tenants.base_config 读取，兼容旧 qiniu_config）
 function getQiniuConfig() {
     static $config = null;
     if ($config !== null) return $config;
@@ -25,20 +25,37 @@ function getQiniuConfig() {
     if ($tenantId > 0) {
         global $pdo;
         if (isset($pdo)) {
-            $stmt = $pdo->prepare("SELECT qiniu_config FROM tenants WHERE id = ?");
+            $stmt = $pdo->prepare("SELECT base_config, qiniu_config FROM tenants WHERE id = ?");
             $stmt->execute([$tenantId]);
             $tenant = $stmt->fetch();
-            if ($tenant && !empty($tenant['qiniu_config'])) {
-                $tc = json_decode($tenant['qiniu_config'], true);
-                if (!empty($tc['access_key'])) {
-                    $config = [
-                        'access_key' => $tc['access_key'] ?? '',
-                        'secret_key' => $tc['secret_key'] ?? '',
-                        'bucket'     => $tc['bucket'] ?? '',
-                        'domain'     => $tc['domain'] ?? '',
-                        'enabled'    => !empty($tc['enabled']),
-                    ];
-                    return $config;
+            if ($tenant) {
+                // 优先从 base_config 读取
+                if (!empty($tenant['base_config'])) {
+                    $bc = json_decode($tenant['base_config'], true);
+                    if (!empty($bc['qiniu']['access_key'])) {
+                        $config = [
+                            'access_key' => $bc['qiniu']['access_key'] ?? '',
+                            'secret_key' => $bc['qiniu']['secret_key'] ?? '',
+                            'bucket'     => $bc['qiniu']['bucket'] ?? '',
+                            'domain'     => $bc['qiniu']['domain'] ?? '',
+                            'enabled'    => !empty($bc['qiniu']['enabled']),
+                        ];
+                        return $config;
+                    }
+                }
+                // 后备：从旧的 qiniu_config 读取
+                if (!empty($tenant['qiniu_config'])) {
+                    $tc = json_decode($tenant['qiniu_config'], true);
+                    if (!empty($tc['access_key'])) {
+                        $config = [
+                            'access_key' => $tc['access_key'] ?? '',
+                            'secret_key' => $tc['secret_key'] ?? '',
+                            'bucket'     => $tc['bucket'] ?? '',
+                            'domain'     => $tc['domain'] ?? '',
+                            'enabled'    => !empty($tc['enabled']),
+                        ];
+                        return $config;
+                    }
                 }
             }
         }

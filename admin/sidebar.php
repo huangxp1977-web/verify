@@ -10,48 +10,65 @@ $activePage = $activePage ?? '';
 // 定义菜单结构
 $menuGroups = [];
 
-// 品牌业务
-if (hasModule('brand')) {
-    $items = [];
-    $items[] = ['file' => 'admin.php', 'label' => '数据概览', 'key' => 'dashboard'];
-    if (hasPermission('brand_list'))        $items[] = ['file' => 'admin_code_generate.php', 'label' => '溯源码生成', 'key' => 'brand_code_generate'];
-    if (hasPermission('brand_list'))        $items[] = ['file' => 'admin_list.php', 'label' => '溯源码管理', 'key' => 'brand_list'];
-    if (hasPermission('brand_distributors')) $items[] = ['file' => 'admin_base_distributors.php', 'label' => '经销商管理', 'key' => 'brand_distributors'];
-    if (hasPermission('brand_brands'))      $items[] = ['file' => 'admin_base_brands.php', 'label' => '品牌管理', 'key' => 'brand_brands'];
-    if (hasPermission('brand_products'))    $items[] = ['file' => 'admin_base_products.php', 'label' => '产品管理', 'key' => 'brand_products'];
-    if (hasPermission('brand_warehouse'))   $items[] = ['file' => '/warehouse/warehouse_scan.php', 'label' => '出库扫码', 'key' => 'brand_warehouse'];
-    if (!empty($items)) {
-        $menuGroups[] = ['label' => '品牌业务', 'items' => $items];
+if (isSuperAdmin()) {
+    // 超管：只显示平台管理 + 系统设置（角色管理/用户管理/修改密码）
+    // 平台管理放在前面
+    if (file_exists(__DIR__ . '/admin_tenants.php')) {
+        $menuGroups[] = ['label' => '平台管理', 'items' => [
+            ['file' => 'admin_tenants.php', 'label' => '企业管理', 'key' => 'platform_tenants'],
+        ]];
     }
-}
-
-// 代工业务
-if (hasModule('oem')) {
-    $items = [];
-    if (hasPermission('oem_query_codes'))  $items[] = ['file' => 'admin_query_codes.php', 'label' => '电子监管码', 'key' => 'oem_query_codes'];
-    if (hasPermission('oem_certificates')) $items[] = ['file' => 'admin_base_certificates.php', 'label' => '证书管理', 'key' => 'oem_certificates'];
-    if (!empty($items)) {
-        $menuGroups[] = ['label' => '代工业务', 'items' => $items];
+    // 系统设置（仅限角色管理/用户管理/修改密码）
+    $sysItems = [];
+    if (file_exists(__DIR__ . '/admin_roles.php'))       $sysItems[] = ['file' => 'admin_roles.php', 'label' => '角色管理', 'key' => 'system_roles'];
+    if (file_exists(__DIR__ . '/admin_users.php'))       $sysItems[] = ['file' => 'admin_users.php', 'label' => '用户管理', 'key' => 'system_users'];
+    $sysItems[] = ['file' => 'admin_password.php', 'label' => '修改密码', 'key' => 'system_password'];
+    if (!empty($sysItems)) {
+        $menuGroups[] = ['label' => '系统设置', 'items' => $sysItems];
     }
-}
+} else {
+    // 品牌业务
+    if (hasModule('brand')) {
+        $items = [];
+        $items[] = ['file' => 'admin.php', 'label' => '数据概览', 'key' => 'dashboard'];
+        if (hasPermission('brand_list'))        $items[] = ['file' => 'admin_code_generate.php', 'label' => '溯源码生成', 'key' => 'brand_code_generate'];
+        if (hasPermission('brand_list'))        $items[] = ['file' => 'admin_list.php', 'label' => '溯源码管理', 'key' => 'brand_list'];
+        if (hasPermission('brand_distributors')) $items[] = ['file' => 'admin_base_distributors.php', 'label' => '经销商管理', 'key' => 'brand_distributors'];
+        if (hasPermission('brand_brands'))      $items[] = ['file' => 'admin_base_brands.php', 'label' => '品牌管理', 'key' => 'brand_brands'];
+        if (hasPermission('brand_products'))    $items[] = ['file' => 'admin_base_products.php', 'label' => '产品管理', 'key' => 'brand_products'];
+        if (!empty($items)) {
+            $menuGroups[] = ['label' => '品牌业务', 'items' => $items];
+        }
+    }
 
-// 系统设置
-$sysItems = [];
-if (hasPermission('system_images') && file_exists(__DIR__ . '/admin_images.php'))      $sysItems[] = ['file' => 'admin_images.php', 'label' => '图片素材', 'key' => 'system_images'];
-if (hasPermission('system_scan_editor') && file_exists(__DIR__ . '/admin_scan_editor.php')) $sysItems[] = ['file' => 'admin_scan_editor.php', 'label' => '背景设计', 'key' => 'system_scan_editor'];
-if (hasPermission('system_qiniu') && file_exists(__DIR__ . '/admin_qiniu.php')) $sysItems[] = ['file' => 'admin_qiniu.php', 'label' => '七牛云接口', 'key' => 'system_qiniu'];
-if (hasPermission('system_users') && file_exists(__DIR__ . '/admin_users.php'))       $sysItems[] = ['file' => 'admin_users.php', 'label' => '用户管理', 'key' => 'system_users'];
-if (hasPermission('system_roles') && file_exists(__DIR__ . '/admin_roles.php'))       $sysItems[] = ['file' => 'admin_roles.php', 'label' => '角色管理', 'key' => 'system_roles'];
-$sysItems[] = ['file' => 'admin_password.php', 'label' => '修改密码', 'key' => 'system_password'];
-if (!empty($sysItems)) {
-    $menuGroups[] = ['label' => '系统设置', 'items' => $sysItems];
-}
+    // 代工业务
+    if (hasModule('oem')) {
+        $items = [];
+        if (hasPermission('oem_certificates')) $items[] = ['file' => 'admin_base_certificates.php', 'label' => '证书管理', 'key' => 'oem_certificates'];
+        if (hasPermission('oem_query_codes'))  $items[] = ['file' => 'admin_query_codes.php', 'label' => '电子监管码', 'key' => 'oem_query_codes'];
+        if (!empty($items)) {
+            $menuGroups[] = ['label' => '代工业务', 'items' => $items];
+        }
+    }
 
-// 平台管理（仅超级管理员）
-if (isSuperAdmin() && file_exists(__DIR__ . '/admin_tenants.php')) {
-    $menuGroups[] = ['label' => '平台管理', 'items' => [
-        ['file' => 'admin_tenants.php', 'label' => '企业管理', 'key' => 'platform_tenants'],
-    ]];
+    // 系统设置
+    $sysItems = [];
+    if (hasPermission('system_qiniu') && file_exists(__DIR__ . '/admin_base_settings.php')) $sysItems[] = ['file' => 'admin_base_settings.php', 'label' => '基础设置', 'key' => 'system_qiniu'];
+    if (hasPermission('system_images') && file_exists(__DIR__ . '/admin_images.php'))      $sysItems[] = ['file' => 'admin_images.php', 'label' => '图片素材', 'key' => 'system_images'];
+    if (hasPermission('system_scan_editor') && file_exists(__DIR__ . '/admin_scan_editor.php')) $sysItems[] = ['file' => 'admin_scan_editor.php', 'label' => '背景设计', 'key' => 'system_scan_editor'];
+    if (hasPermission('system_roles') && file_exists(__DIR__ . '/admin_roles.php'))       $sysItems[] = ['file' => 'admin_roles.php', 'label' => '角色管理', 'key' => 'system_roles'];
+    if (hasPermission('system_users') && file_exists(__DIR__ . '/admin_users.php'))       $sysItems[] = ['file' => 'admin_users.php', 'label' => '用户管理', 'key' => 'system_users'];
+    $sysItems[] = ['file' => 'admin_password.php', 'label' => '修改密码', 'key' => 'system_password'];
+    if (!empty($sysItems)) {
+        $menuGroups[] = ['label' => '系统设置', 'items' => $sysItems];
+    }
+
+    // 平台管理（仅超级管理员）— 普通用户不显示
+    if (isSuperAdmin() && file_exists(__DIR__ . '/admin_tenants.php')) {
+        $menuGroups[] = ['label' => '平台管理', 'items' => [
+            ['file' => 'admin_tenants.php', 'label' => '企业管理', 'key' => 'platform_tenants'],
+        ]];
+    }
 }
 
 // 判断某个 group 中是否包含当前 activePage

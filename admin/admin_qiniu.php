@@ -8,6 +8,8 @@ require_once __DIR__ . '/check_domain.php';
 
 if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) { header('Location: /login.php'); exit; }
 if (!isSuperAdmin() && !hasPermission('system_qiniu')) { header('Location: admin.php'); exit; }
+// 超管不可访问业务页面，跳转企业管理
+if (isSuperAdmin()) { header('Location: admin_tenants.php'); exit; }
 if (isset($_GET['action']) && $_GET['action'] == 'logout') { session_destroy(); header('Location: /login.php'); exit; }
 
 $success = '';
@@ -28,15 +30,25 @@ if (isSuperAdmin()) {
     }
 }
 
-// 读取当前配置
+// 读取当前配置（从 base_config 读取，兼容旧 qiniu_config）
 $qiniuConfig = ['access_key' => '', 'secret_key' => '', 'bucket' => '', 'domain' => '', 'enabled' => false];
 if ($targetTenantId > 0) {
-    $stmt = $pdo->prepare("SELECT qiniu_config FROM tenants WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT base_config, qiniu_config FROM tenants WHERE id = ?");
     $stmt->execute([$targetTenantId]);
     $tenant = $stmt->fetch();
-    if ($tenant && !empty($tenant['qiniu_config'])) {
-        $parsed = json_decode($tenant['qiniu_config'], true);
-        if ($parsed) $qiniuConfig = array_merge($qiniuConfig, $parsed);
+    if ($tenant) {
+        // 优先从 base_config 读取
+        if (!empty($tenant['base_config'])) {
+            $bc = json_decode($tenant['base_config'], true);
+            if (!empty($bc['qiniu'])) {
+                $qiniuConfig = array_merge($qiniuConfig, $bc['qiniu']);
+            }
+        }
+        // 后备：从旧的 qiniu_config 读取
+        if (empty($qiniuConfig['access_key']) && !empty($tenant['qiniu_config'])) {
+            $parsed = json_decode($tenant['qiniu_config'], true);
+            if ($parsed) $qiniuConfig = array_merge($qiniuConfig, $parsed);
+        }
     }
 }
 
@@ -56,8 +68,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_qiniu'])) {
         header("Location: admin_qiniu.php" . (isSuperAdmin() ? "?tenant_id={$tenantId}" : ''));
         exit;
     }
-    $json = json_encode($qiniu);
-    $stmt = $pdo->prepare("UPDATE tenants SET qiniu_config = ? WHERE id = ?");
+    // 读取现有 base_config，合并七牛部分
+    $bcStmt = $pdo->prepare("SELECT base_config, wechat_config FROM tenants WHERE id = ?");
+    $bcStmt->execute([$tenantId]);
+    $bcRow = $bcStmt->fetch();
+    $base = [];
+    if ($bcRow && !empty($bcRow['base_config'])) {
+        $parsed = json_decode($bcRow['base_config'], true);
+        if (is_array($parsed)) $base = $parsed;
+    }
+    $base['qiniu'] = $qiniu;
+    // 如果没有 wechat，设空对象
+    if (!isset($base['wechat'])) $base['wechat'] = new stdClass;
+    $json = json_encode($base, JSON_UNESCAPED_UNICODE);
+    $stmt = $pdo->prepare("UPDATE tenants SET base_config = ? WHERE id = ?");
     $stmt->execute([$json, $tenantId]);
     $_SESSION['flash_success'] = '七牛云配置已保存';
     header("Location: admin_qiniu.php" . (isSuperAdmin() ? "?tenant_id={$tenantId}" : ''));
@@ -66,13 +90,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_qiniu'])) {
 
 // 切换企业后重新加载
 if (isSuperAdmin() && $targetTenantId > 0) {
-    $stmt = $pdo->prepare("SELECT qiniu_config FROM tenants WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT base_config, qiniu_config FROM tenants WHERE id = ?");
     $stmt->execute([$targetTenantId]);
     $tenant = $stmt->fetch();
     $qiniuConfig = ['access_key' => '', 'secret_key' => '', 'bucket' => '', 'domain' => '', 'enabled' => false];
-    if ($tenant && !empty($tenant['qiniu_config'])) {
-        $parsed = json_decode($tenant['qiniu_config'], true);
-        if ($parsed) $qiniuConfig = array_merge($qiniuConfig, $parsed);
+    if ($tenant) {
+        // 优先从 base_config 读取
+        if (!empty($tenant['base_config'])) {
+            $bc = json_decode($tenant['base_config'], true);
+            if (!empty($bc['qiniu'])) {
+                $qiniuConfig = array_merge($qiniuConfig, $bc['qiniu']);
+            }
+        }
+        // 后备：从旧的 qiniu_config 读取
+        if (empty($qiniuConfig['access_key']) && !empty($tenant['qiniu_config'])) {
+            $parsed = json_decode($tenant['qiniu_config'], true);
+            if ($parsed) $qiniuConfig = array_merge($qiniuConfig, $parsed);
+        }
     }
 }
 ?>

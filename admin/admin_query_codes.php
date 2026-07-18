@@ -18,6 +18,12 @@ if (!isSuperAdmin() && !hasPermission('oem_query_codes')) {
     exit;
 }
 
+// 超管不可访问业务页面，跳转企业管理
+if (isSuperAdmin()) {
+    header('Location: admin_tenants.php');
+    exit;
+}
+
 // 分页配置
 $perPage = 30; // 每页显示行数
 $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;

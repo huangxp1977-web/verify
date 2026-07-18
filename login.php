@@ -82,6 +82,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // 更新最后登录时间
                 $pdo->prepare("UPDATE sys_users SET last_login = NOW() WHERE id = ?")->execute([$user['id']]);
 
+                // 超管直接跳转到企业管理
+                if (!empty($user['is_super_admin'])) {
+                    header('Location: admin/admin_tenants.php');
+                    exit;
+                }
+
                 // 根据开通模块决定默认页面
             $modules = $permissions['modules'] ?? [];
             if (in_array('brand', $modules)) {

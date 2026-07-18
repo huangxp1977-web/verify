@@ -21,6 +21,12 @@ if (!isSuperAdmin() && !hasPermission('system_images')) {
     exit;
 }
 
+// 超管不可访问业务页面，跳转企业管理
+if (isSuperAdmin()) {
+    header('Location: admin_tenants.php');
+    exit;
+}
+
 // 当前租户信息
 $tenantId = getCurrentTenantId();
 $isSuper = isSuperAdmin();

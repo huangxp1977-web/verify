@@ -2,9 +2,29 @@
 // 抑制本地开发环境的错误显示
 error_reporting(0);
 require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../includes/tenant.php';
 require_once "jssdk.php";
+
+// 域名解析租户，获取品牌微信配置
+$wxAppId = defined('WX_APP_ID') ? WX_APP_ID : '';
+$wxAppSecret = defined('WX_APP_SECRET') ? WX_APP_SECRET : '';
+global $pdo;
+$domainTenant = getTenantByDomain($pdo);
+if ($domainTenant && !empty($domainTenant['tenant_id'])) {
+    $stmt = $pdo->prepare("SELECT base_config FROM tenants WHERE id = ?");
+    $stmt->execute([$domainTenant['tenant_id']]);
+    $tenant = $stmt->fetch();
+    if ($tenant && !empty($tenant['base_config'])) {
+        $bc = json_decode($tenant['base_config'], true);
+        if (!empty($bc['wechat']['brand']['app_id']) && !empty($bc['wechat']['brand']['app_secret'])) {
+            $wxAppId = $bc['wechat']['brand']['app_id'];
+            $wxAppSecret = $bc['wechat']['brand']['app_secret'];
+        }
+    }
+}
+
 try {
-    $jssdk = new JSSDK(WX_APP_ID, WX_APP_SECRET);
+    $jssdk = new JSSDK($wxAppId, $wxAppSecret);
     $signPackage = $jssdk->GetSignPackage();
 } catch (Exception $e) {
     // 本地开发或非微信环境，使用空配置

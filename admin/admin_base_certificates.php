@@ -43,6 +43,12 @@ if (!isSuperAdmin() && !hasPermission('oem_certificates')) {
     exit;
 }
 
+// 超管不可访问业务页面，跳转企业管理
+if (isSuperAdmin()) {
+    header('Location: admin_tenants.php');
+    exit;
+}
+
 // 初始化消息变量
 $messages = [
     'success' => [],

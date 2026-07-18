@@ -17,6 +17,12 @@ if (!isSuperAdmin() && !hasPermission('brand_warehouse')) {
     exit;
 }
 
+// 超管不可访问业务页面，跳转企业管理
+if (isSuperAdmin()) {
+    header('Location: /admin/admin_tenants.php');
+    exit;
+}
+
 // 返回后台
 if (isset($_GET['action']) && $_GET['action'] == 'logout') {
     header('Location: /admin/admin.php');

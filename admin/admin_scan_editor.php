@@ -20,6 +20,12 @@ if (!isSuperAdmin() && !hasPermission('system_scan_editor')) {
     exit;
 }
 
+// 超管不可访问业务页面，跳转企业管理
+if (isSuperAdmin()) {
+    header('Location: admin_tenants.php');
+    exit;
+}
+
 $messages = ['success' => [], 'error' => []];
 
 $tenantId = getCurrentTenantId();

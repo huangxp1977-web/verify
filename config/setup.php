@@ -15,10 +15,6 @@ $example = [
     'DB_NAME' => 'verify',
     'DB_USER' => '',
     'DB_PASS' => '',
-    'WX_APP_ID' => '',
-    'WX_APP_SECRET' => '',
-    'CERT_APP_ID' => '',
-    'CERT_APP_SECRET' => '',
 ];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -115,30 +111,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="form-row">
                     <label>密码</label>
                     <input type="password" name="DB_PASS" value="<?php echo htmlspecialchars($_POST['DB_PASS'] ?? ''); ?>">
-                </div>
-            </div>
-
-            <div class="section">
-                <h2>微信公众号 - 溯源系统</h2>
-                <div class="form-row optional">
-                    <label>AppID</label>
-                    <input type="text" name="WX_APP_ID" value="<?php echo htmlspecialchars($_POST['WX_APP_ID'] ?? ''); ?>" placeholder="wx开头">
-                </div>
-                <div class="form-row optional">
-                    <label>AppSecret</label>
-                    <input type="password" name="WX_APP_SECRET" value="<?php echo htmlspecialchars($_POST['WX_APP_SECRET'] ?? ''); ?>">
-                </div>
-            </div>
-
-            <div class="section">
-                <h2>微信公众号 - 证书系统</h2>
-                <div class="form-row optional">
-                    <label>AppID</label>
-                    <input type="text" name="CERT_APP_ID" value="<?php echo htmlspecialchars($_POST['CERT_APP_ID'] ?? ''); ?>" placeholder="wx开头">
-                </div>
-                <div class="form-row optional">
-                    <label>AppSecret</label>
-                    <input type="password" name="CERT_APP_SECRET" value="<?php echo htmlspecialchars($_POST['CERT_APP_SECRET'] ?? ''); ?>">
                 </div>
             </div>
 
