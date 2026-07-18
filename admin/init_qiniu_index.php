@@ -83,11 +83,10 @@ foreach ($data['items'] as $item) {
     ];
 }
 
-// 保存索引
-$indexFile = __DIR__ . '/../config/qiniu_index.json';
-file_put_contents($indexFile, json_encode($index, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+// 写入数据库索引（租户ID=0，平台级，包含所有文件）
+$tenantId = intval($_SESSION['admin_tenant_id'] ?? 0);
+replaceQiniuIndexInDb($tenantId, $index);
 
 echo "<h2>初始化完成</h2>";
 echo "<p>已索引 " . count($index) . " 个文件</p>";
-echo "<pre>" . json_encode($index, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) . "</pre>";
 echo "<p><a href='admin_images.php'>返回图片素材</a></p>";

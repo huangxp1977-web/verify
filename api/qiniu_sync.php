@@ -44,62 +44,59 @@ if ($action === 'sync') {
     }
     
     // 执行同步
-    $files = scanUploadsDirectory(null, $_SESSION['admin_tenant_id'] ?? 0);
-    $results = [
-        'total' => count($files),
-        'success' => 0,
-        'failed' => 0,
-        'errors' => []
-    ];
+        $files = scanUploadsDirectory(null, $_SESSION['admin_tenant_id'] ?? 0);
+        $tenantId = intval($_SESSION['admin_tenant_id'] ?? 0);
+        $results = [
+            'total' => count($files),
+            'success' => 0,
+            'failed' => 0,
+            'errors' => []
+        ];
     
-    // 读取现有索引
-        $indexFile = __DIR__ . '/../config/qiniu_index' . ($_SESSION['admin_tenant_id'] > 0 ? '_' . intval($_SESSION['admin_tenant_id']) : '') . '.json';
-        $index = [];
-    if (file_exists($indexFile)) {
-        $index = json_decode(file_get_contents($indexFile), true) ?: [];
-    }
+        // 读取现有索引（保留已有记录）
+        $index = getQiniuIndexFromDb($tenantId);
     
-    foreach ($files as $file) {
-        $localPath = $_SERVER['DOCUMENT_ROOT'] . $file['path'];
-        $key = $file['key'];
+        foreach ($files as $file) {
+            $localPath = $_SERVER['DOCUMENT_ROOT'] . $file['path'];
+            $key = $file['key'];
         
-        // 获取文件信息（在删除前）
-        $fileSize = file_exists($localPath) ? filesize($localPath) : 0;
-        $fileTime = file_exists($localPath) ? filemtime($localPath) : time();
+            // 获取文件信息（在删除前）
+            $fileSize = file_exists($localPath) ? filesize($localPath) : 0;
+            $fileTime = file_exists($localPath) ? filemtime($localPath) : time();
         
-        // 上传到七牛云
-        $result = uploadToQiniu($localPath, $key);
+            // 上传到七牛云
+            $result = uploadToQiniu($localPath, $key);
         
-        if ($result['success']) {
-            // 记录到索引
-            $index[] = [
-                'key' => $key,
-                'size' => $fileSize,
-                'time' => $fileTime,
-                'synced_at' => time()
-            ];
+            if ($result['success']) {
+                // 记录到索引
+                $index[] = [
+                    'key' => $key,
+                    'size' => $fileSize,
+                    'time' => $fileTime,
+                    'synced_at' => time()
+                ];
             
-            // 删除本地文件
-            if (unlink($localPath)) {
-                $results['success']++;
+                // 删除本地文件
+                if (unlink($localPath)) {
+                    $results['success']++;
+                } else {
+                    $results['success']++;
+                    $results['errors'][] = [
+                        'file' => $file['path'],
+                        'error' => '上传成功但删除本地文件失败'
+                    ];
+                }
             } else {
-                $results['success']++;
+                $results['failed']++;
                 $results['errors'][] = [
                     'file' => $file['path'],
-                    'error' => '上传成功但删除本地文件失败'
+                    'error' => $result['error']
                 ];
             }
-        } else {
-            $results['failed']++;
-            $results['errors'][] = [
-                'file' => $file['path'],
-                'error' => $result['error']
-            ];
         }
-    }
     
-    // 保存索引文件
-    file_put_contents($indexFile, json_encode($index, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+        // 写入数据库索引（先清空再批量写入）
+        replaceQiniuIndexInDb($tenantId, $index);
     
     echo json_encode([
         'success' => true,

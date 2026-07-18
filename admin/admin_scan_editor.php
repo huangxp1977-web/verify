@@ -141,9 +141,9 @@ if ($isSuper) {
 
 // 2. 如果七牛云启用，读取已同步的文件索引（按租户隔离）
 if (isQiniuEnabled()) {
-    $indexFile = __DIR__ . '/../config/qiniu_index' . ($isSuper || $tenantId == 0 ? '' : '_' . $tenantId) . '.json';
-    if (file_exists($indexFile)) {
-        $index = json_decode(file_get_contents($indexFile), true) ?: [];
+    $readTenantId = $isSuper ? 0 : $tenantId;
+    $index = getQiniuIndexFromDb($readTenantId);
+    if (!empty($index)) {
         $qiniuConfig = getQiniuConfig();
         $domain = rtrim($qiniuConfig['domain'] ?? '', '/');
 

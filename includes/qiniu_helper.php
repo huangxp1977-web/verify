@@ -314,3 +314,67 @@ function scanUploadsDirectory($dir = null, $tenantId = null) {
     
     return $files;
 }
+
+// ====== 七牛云索引数据库操作（替代文件存储） ======
+
+/**
+ * 从数据库读取某租户的七牛云文件索引
+ * @param int $tenantId
+ * @return array 每项含 file_key, file_size, upload_time
+ */
+function getQiniuIndexFromDb($tenantId) {
+    global $pdo;
+    $stmt = $pdo->prepare("SELECT file_key, file_size, upload_time FROM qiniu_index WHERE tenant_id = ? ORDER BY upload_time DESC");
+    $stmt->execute([$tenantId]);
+    $rows = $stmt->fetchAll();
+    // 转成与旧文件索引兼容的格式
+    $result = [];
+    foreach ($rows as $row) {
+        $result[] = [
+            'key' => $row['file_key'],
+            'size' => (int)$row['file_size'],
+            'time' => (int)$row['upload_time']
+        ];
+    }
+    return $result;
+}
+
+/**
+ * 向数据库写入一条七牛云索引记录
+ */
+function addQiniuIndexToDb($tenantId, $fileKey, $fileSize, $uploadTime) {
+    global $pdo;
+    $stmt = $pdo->prepare("INSERT INTO qiniu_index (tenant_id, file_key, file_size, upload_time) VALUES (?, ?, ?, ?)");
+    $stmt->execute([$tenantId, $fileKey, $fileSize, $uploadTime]);
+}
+
+/**
+ * 从数据库删除一条七牛云索引记录
+ */
+function removeQiniuIndexFromDb($tenantId, $fileKey) {
+    global $pdo;
+    $stmt = $pdo->prepare("DELETE FROM qiniu_index WHERE tenant_id = ? AND file_key = ?");
+    $stmt->execute([$tenantId, $fileKey]);
+}
+
+/**
+ * 批量替换某租户的七牛云索引（先清空再写入，用于同步操作）
+ * @param int $tenantId
+ * @param array $entries 每项含 key, size, time
+ */
+function replaceQiniuIndexInDb($tenantId, $entries) {
+    global $pdo;
+    $pdo->beginTransaction();
+    try {
+        $stmt = $pdo->prepare("DELETE FROM qiniu_index WHERE tenant_id = ?");
+        $stmt->execute([$tenantId]);
+        $insert = $pdo->prepare("INSERT INTO qiniu_index (tenant_id, file_key, file_size, upload_time) VALUES (?, ?, ?, ?)");
+        foreach ($entries as $entry) {
+            $insert->execute([$tenantId, $entry['key'], $entry['size'] ?? 0, $entry['time'] ?? time()]);
+        }
+        $pdo->commit();
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+}

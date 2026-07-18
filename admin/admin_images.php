@@ -35,17 +35,18 @@ if (isset($_SESSION['flash_messages'])) {
 // 分类配置
 $categories = [];
 if ($hasOem) {
-    $categories['certificates'] = ['name' => '证书图片', 'dir' => 'uploads/certificates/', 'prefix' => 'cert_'];
+    $categories['certificates'] = ['name' => '证书图片', 'dir' => 'uploads/certificates/', 'prefix' => 'cert_', 'index_dir' => 'uploads/certificates/'];
 }
-$categories['products'] = ['name' => '产品图片', 'dir' => 'uploads/products/', 'prefix' => 'prod_'];
-$categories['backgrounds'] = ['name' => '扫码背景', 'dir' => 'uploads/backgrounds/', 'prefix' => 'bg_'];
-$categories['banners'] = ['name' => '轮播图', 'dir' => 'uploads/banners/', 'prefix' => 'banner_'];
+$categories['products'] = ['name' => '产品图片', 'dir' => 'uploads/products/', 'prefix' => 'prod_', 'index_dir' => 'uploads/products/'];
+$categories['backgrounds'] = ['name' => '扫码背景', 'dir' => 'uploads/backgrounds/', 'prefix' => 'bg_', 'index_dir' => 'uploads/backgrounds/'];
+$categories['banners'] = ['name' => '轮播图', 'dir' => 'uploads/banners/', 'prefix' => 'banner_', 'index_dir' => 'uploads/banners/'];
 
 // 非超管租户使用子目录隔离
 $tenantSuffix = '';
 if ($tenantId > 0) {
     $tenantSuffix = 'tenant_' . $tenantId . '/';
     // 产品、背景、轮播图使用租户子目录，证书图片共享
+    // index_dir 保留根目录用于七牛云索引匹配（key 无 tenant 前缀，靠不同 bucket 隔离）
     foreach (['products', 'backgrounds', 'banners'] as $catKey) {
         $categories[$catKey]['dir'] = 'uploads/' . $catKey . '/' . $tenantSuffix;
     }
@@ -106,11 +107,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
     $messages['success'][] = "扫码背景已更新";
 }
 
-// 获取七牛云索引文件路径（按租户隔离）
-function getQiniuIndexFile() {
-    global $tenantId;
-    return __DIR__ . '/../config/qiniu_index' . ($tenantId == 0 ? '' : '_' . $tenantId) . '.json';
-}
+// 获取七牛云索引文件路径（按租户隔离）—— 已废弃，改用数据库
+// function getQiniuIndexFile() { ... }
 
 // 处理图片上传
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['image'])) {
@@ -135,7 +133,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['image'])) {
 
                 // 如果七牛云开启，自动上传到七牛云
                 if (isQiniuEnabled()) {
-                    $qiniuKey = ltrim($catConfig['dir'], '/') . $filename;
+                    $qiniuKey = ltrim($catConfig['index_dir'], '/') . $filename;
                     // 获取文件信息（在删除前）
                     $fileSize = filesize($destination);
                     $fileTime = time();
@@ -145,18 +143,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['image'])) {
                         // 删除本地文件（与同步逻辑保持一致）
                         @unlink($destination);
                         $messages['success'][] = "已同步到七牛云";
-                        // 更新索引文件（按租户隔离）
-                        $indexFile = getQiniuIndexFile();
-                        $index = [];
-                        if (file_exists($indexFile)) {
-                            $index = json_decode(file_get_contents($indexFile), true) ?: [];
-                        }
-                        $index[] = [
-                            'key' => $qiniuKey,
-                            'size' => $fileSize,
-                            'time' => $fileTime
-                        ];
-                        file_put_contents($indexFile, json_encode($index, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+                        // 写入索引到数据库（按租户隔离）
+                        addQiniuIndexToDb($tenantId, $qiniuKey, $fileSize, $fileTime);
                     } else {
                         $messages['error'][] = "七牛云同步失败: " . ($result['error'] ?? '未知错误');
                     }
@@ -180,7 +168,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['file']
     $filename = basename($_GET['file']);
     $filepath = $uploadDir . $filename;
     $imageUrl = '/' . $catConfig['dir'] . $filename;
-    $qiniuKey = ltrim($catConfig['dir'], '/') . $filename; // 七牛云的key（不带前导/）
+    $qiniuKey = ltrim($catConfig['index_dir'], '/') . $filename; // 七牛云的key（不带前导/）
 
     $qiniuEnabled = isQiniuEnabled();
     $canDelete = true;
@@ -239,15 +227,8 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['file']
                 if (file_exists($filepath)) {
                     @unlink($filepath);
                 }
-                // 从索引文件中移除该条记录（按租户隔离）
-                $indexFile = getQiniuIndexFile();
-                if (file_exists($indexFile)) {
-                    $index = json_decode(file_get_contents($indexFile), true) ?: [];
-                    $index = array_filter($index, function($item) use ($qiniuKey) {
-                        return $item['key'] !== $qiniuKey;
-                    });
-                    file_put_contents($indexFile, json_encode(array_values($index), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
-                }
+                // 从数据库索引中移除该条记录（按租户隔离）
+                removeQiniuIndexFromDb($tenantId, $qiniuKey);
             } else {
                 $messages['error'][] = "删除失败: " . ($result['error'] ?? '未知错误');
             }
@@ -301,15 +282,14 @@ scanLocalDir($uploadDir, $catConfig['dir'], $localFiles, $images);
 // 2. 如果七牛云启用，读取已同步的文件索引（按租户隔离）
 require_once __DIR__ . '/../includes/qiniu_helper.php';
 if (isQiniuEnabled()) {
-    $indexFile = getQiniuIndexFile();
-    if (file_exists($indexFile)) {
-        $index = json_decode(file_get_contents($indexFile), true) ?: [];
+    $index = getQiniuIndexFromDb($tenantId);
+    if (!empty($index)) {
         $qiniuConfig = getQiniuConfig();
         $domain = rtrim($qiniuConfig['domain'] ?? '', '/');
 
         foreach ($index as $item) {
-            // 只显示当前分类的文件
-            if (strpos($item['key'], ltrim($catConfig['dir'], '/')) === 0) {
+            // 只显示当前分类的文件（用 index_dir 匹配，不含 tenant 前缀）
+            if (strpos($item['key'], ltrim($catConfig['index_dir'], '/')) === 0) {
                 $fileName = basename($item['key']);
                 // 如果本地不存在该文件，则显示七牛云的
                 if (!isset($localFiles[$fileName])) {
@@ -516,6 +496,11 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
                             <div class="image-item-info">
                                 <small>
                                     <?php echo htmlspecialchars($img['name']); ?>
+                                    <?php if ($img['source'] === 'qiniu'): ?>
+                                        <span style="color:#27ae60;font-size:11px;margin-left:4px">七牛云</span>
+                                    <?php else: ?>
+                                        <span style="color:#999;font-size:11px;margin-left:4px">本地</span>
+                                    <?php endif; ?>
                                     <?php if ($currentCat == 'backgrounds' && $currentBg == $img['url']): ?>
                                         <span class="current-bg-label">当前使用</span>
                                     <?php endif; ?>
