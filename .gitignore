@@ -1,6 +1,12 @@
 # 敏感配置
 config/secrets.php
 
+# CyberPanel 自动生成的规则（非源码）
+.htaccess
+
+# 运行时上传文件（已同步到七牛云，非源码）
+uploads/
+
 # 运行时缓存（微信 token）
 wx/access_token.php
 wx/jsapi_ticket.php
