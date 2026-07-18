@@ -30,24 +30,16 @@ if (isSuperAdmin()) {
     }
 }
 
-// 读取当前配置（从 base_config 读取，兼容旧 qiniu_config）
+// 读取当前配置（从 base_config 读取）
 $qiniuConfig = ['access_key' => '', 'secret_key' => '', 'bucket' => '', 'domain' => '', 'enabled' => false];
 if ($targetTenantId > 0) {
-    $stmt = $pdo->prepare("SELECT base_config, qiniu_config FROM tenants WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT base_config FROM tenants WHERE id = ?");
     $stmt->execute([$targetTenantId]);
     $tenant = $stmt->fetch();
-    if ($tenant) {
-        // 优先从 base_config 读取
-        if (!empty($tenant['base_config'])) {
-            $bc = json_decode($tenant['base_config'], true);
-            if (!empty($bc['qiniu'])) {
-                $qiniuConfig = array_merge($qiniuConfig, $bc['qiniu']);
-            }
-        }
-        // 后备：从旧的 qiniu_config 读取
-        if (empty($qiniuConfig['access_key']) && !empty($tenant['qiniu_config'])) {
-            $parsed = json_decode($tenant['qiniu_config'], true);
-            if ($parsed) $qiniuConfig = array_merge($qiniuConfig, $parsed);
+    if ($tenant && !empty($tenant['base_config'])) {
+        $bc = json_decode($tenant['base_config'], true);
+        if (!empty($bc['qiniu'])) {
+            $qiniuConfig = array_merge($qiniuConfig, $bc['qiniu']);
         }
     }
 }
@@ -69,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_qiniu'])) {
         exit;
     }
     // 读取现有 base_config，合并七牛部分
-    $bcStmt = $pdo->prepare("SELECT base_config, wechat_config FROM tenants WHERE id = ?");
+    $bcStmt = $pdo->prepare("SELECT base_config FROM tenants WHERE id = ?");
     $bcStmt->execute([$tenantId]);
     $bcRow = $bcStmt->fetch();
     $base = [];
@@ -90,22 +82,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_qiniu'])) {
 
 // 切换企业后重新加载
 if (isSuperAdmin() && $targetTenantId > 0) {
-    $stmt = $pdo->prepare("SELECT base_config, qiniu_config FROM tenants WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT base_config FROM tenants WHERE id = ?");
     $stmt->execute([$targetTenantId]);
     $tenant = $stmt->fetch();
     $qiniuConfig = ['access_key' => '', 'secret_key' => '', 'bucket' => '', 'domain' => '', 'enabled' => false];
-    if ($tenant) {
-        // 优先从 base_config 读取
-        if (!empty($tenant['base_config'])) {
-            $bc = json_decode($tenant['base_config'], true);
-            if (!empty($bc['qiniu'])) {
-                $qiniuConfig = array_merge($qiniuConfig, $bc['qiniu']);
-            }
-        }
-        // 后备：从旧的 qiniu_config 读取
-        if (empty($qiniuConfig['access_key']) && !empty($tenant['qiniu_config'])) {
-            $parsed = json_decode($tenant['qiniu_config'], true);
-            if ($parsed) $qiniuConfig = array_merge($qiniuConfig, $parsed);
+    if ($tenant && !empty($tenant['base_config'])) {
+        $bc = json_decode($tenant['base_config'], true);
+        if (!empty($bc['qiniu'])) {
+            $qiniuConfig = array_merge($qiniuConfig, $bc['qiniu']);
         }
     }
 }

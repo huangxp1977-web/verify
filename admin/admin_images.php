@@ -16,20 +16,13 @@ if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== tru
 }
 
 // 权限检查
-if (!isSuperAdmin() && !hasPermission('system_images')) {
+if (!hasPermission('system_images')) {
     header('Location: admin.php');
-    exit;
-}
-
-// 超管不可访问业务页面，跳转企业管理
-if (isSuperAdmin()) {
-    header('Location: admin_tenants.php');
     exit;
 }
 
 // 当前租户信息
 $tenantId = getCurrentTenantId();
-$isSuper = isSuperAdmin();
 $hasOem = hasModule('oem');
 
 // Flash消息处理（从session读取后清除）
@@ -41,7 +34,7 @@ if (isset($_SESSION['flash_messages'])) {
 
 // 分类配置
 $categories = [];
-if ($isSuper || $hasOem) {
+if ($hasOem) {
     $categories['certificates'] = ['name' => '证书图片', 'dir' => 'uploads/certificates/', 'prefix' => 'cert_'];
 }
 $categories['products'] = ['name' => '产品图片', 'dir' => 'uploads/products/', 'prefix' => 'prod_'];
@@ -50,7 +43,7 @@ $categories['banners'] = ['name' => '轮播图', 'dir' => 'uploads/banners/', 'p
 
 // 非超管租户使用子目录隔离
 $tenantSuffix = '';
-if (!$isSuper && $tenantId > 0) {
+if ($tenantId > 0) {
     $tenantSuffix = 'tenant_' . $tenantId . '/';
     // 产品、背景、轮播图使用租户子目录，证书图片共享
     foreach (['products', 'backgrounds', 'banners'] as $catKey) {
@@ -71,7 +64,7 @@ if (!file_exists($uploadDir)) {
 // 获取当前扫码背景（按租户从数据库读取）
 function getCurrentBg() {
     global $pdo;
-    $tenantId = isSuperAdmin() ? intval($_GET['tenant_id'] ?? $_SESSION['admin_tenant_id'] ?? 0) : getCurrentTenantId();
+    $tenantId = getCurrentTenantId();
     if ($tenantId > 0) {
         $stmt = $pdo->prepare("SELECT scan_layout FROM tenants WHERE id = ?");
         $stmt->execute([$tenantId]);
@@ -89,7 +82,7 @@ function getCurrentBg() {
 // 保存背景配置到数据库（按租户）
 function saveBgConfig($url) {
     global $pdo;
-    $tenantId = isSuperAdmin() ? intval($_POST['tenant_id'] ?? $_SESSION['admin_tenant_id'] ?? 0) : getCurrentTenantId();
+    $tenantId = getCurrentTenantId();
     if ($tenantId <= 0) return;
 
     // 读取当前 scan_layout 配置
@@ -115,8 +108,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
 
 // 获取七牛云索引文件路径（按租户隔离）
 function getQiniuIndexFile() {
-    global $isSuper, $tenantId;
-    return __DIR__ . '/../config/qiniu_index' . ($isSuper || $tenantId == 0 ? '' : '_' . $tenantId) . '.json';
+    global $tenantId;
+    return __DIR__ . '/../config/qiniu_index' . ($tenantId == 0 ? '' : '_' . $tenantId) . '.json';
 }
 
 // 处理图片上传
@@ -189,26 +182,6 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['file']
     $imageUrl = '/' . $catConfig['dir'] . $filename;
     $qiniuKey = ltrim($catConfig['dir'], '/') . $filename; // 七牛云的key（不带前导/）
 
-    // 超管删除背景图时，如果文件不在当前目录，搜索所有 tenant_*/ 子目录
-    if ($isSuper && $currentCat == 'backgrounds' && !file_exists($filepath)) {
-        $rootDir = __DIR__ . '/../uploads/backgrounds/';
-        if (is_dir($rootDir)) {
-            $entries = scandir($rootDir);
-            foreach ($entries as $entry) {
-                if ($entry === '.' || $entry === '..') continue;
-                if (strpos($entry, 'tenant_') === 0 && is_dir($rootDir . $entry)) {
-                    $candidate = $rootDir . $entry . '/' . $filename;
-                    if (file_exists($candidate)) {
-                        $filepath = $candidate;
-                        $imageUrl = '/uploads/backgrounds/' . $entry . '/' . $filename;
-                        $qiniuKey = 'uploads/backgrounds/' . $entry . '/' . $filename;
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
     $qiniuEnabled = isQiniuEnabled();
     $canDelete = true;
     $reason = '';
@@ -217,8 +190,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['file']
     if ($currentCat == 'certificates') {
         $certParams = ['%' . $filename];
         $sql = "SELECT COUNT(*) FROM base_certificates WHERE image_url LIKE ?";
-        // 非超管只检查本租户的证书
-        if (!$isSuper && $tenantId > 0) {
+        if ($tenantId > 0) {
             $sql .= " AND tenant_id = ?";
             $certParams[] = $tenantId;
         }
@@ -242,8 +214,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['file']
     if ($currentCat == 'products') {
         $prodParams = ['%' . $filename];
         $sql = "SELECT COUNT(*) FROM base_products WHERE image_url LIKE ?";
-        // 非超管只检查本租户的产品
-        if (!$isSuper && $tenantId > 0) {
+        if ($tenantId > 0) {
             $sql .= " AND tenant_id = ?";
             $prodParams[] = $tenantId;
         }
@@ -325,24 +296,7 @@ function scanLocalDir($dir, $subDir, &$localFiles, &$images) {
     }
 }
 
-if ($isSuper && $currentCat == 'backgrounds') {
-    // 超管查看背景图：扫描根目录 + 所有租户子目录
-    scanLocalDir($uploadDir, $catConfig['dir'], $localFiles, $images);
-    $rootDir = __DIR__ . '/../uploads/backgrounds/';
-    if (is_dir($rootDir)) {
-        $entries = scandir($rootDir);
-        foreach ($entries as $entry) {
-            if ($entry === '.' || $entry === '..') continue;
-            if (strpos($entry, 'tenant_') === 0 && is_dir($rootDir . $entry)) {
-                $tenantDir = $rootDir . $entry . '/';
-                $tenantSubDir = 'uploads/backgrounds/' . $entry . '/';
-                scanLocalDir($tenantDir, $tenantSubDir, $localFiles, $images);
-            }
-        }
-    }
-} else {
-    scanLocalDir($uploadDir, $catConfig['dir'], $localFiles, $images);
-}
+scanLocalDir($uploadDir, $catConfig['dir'], $localFiles, $images);
 
 // 2. 如果七牛云启用，读取已同步的文件索引（按租户隔离）
 require_once __DIR__ . '/../includes/qiniu_helper.php';

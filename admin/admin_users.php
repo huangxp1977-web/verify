@@ -187,68 +187,6 @@ if (isset($_GET['action']) && $_GET['action'] == 'edit' && isset($_GET['id'])) {
     }
 }
 
-// ========== 解绑微信 ==========
-if (isset($_GET['action']) && $_GET['action'] == 'unbind_wechat' && isset($_GET['id'])) {
-    $id = intval($_GET['id']);
-    $stmt = $pdo->prepare("SELECT * FROM sys_users WHERE id = ?");
-    $stmt->execute([$id]);
-    $user = $stmt->fetch();
-    if ($user && $user['wechat_openid']) {
-        $openid = $user['wechat_openid'];
-        if (isSuperAdmin()) {
-            $pdo->prepare("UPDATE sys_users SET wechat_openid = NULL WHERE id = ?")->execute([$id]);
-        } else {
-            $pdo->prepare("UPDATE sys_users SET wechat_openid = NULL WHERE id = ? AND tenant_id = ?")->execute([$id, getCurrentTenantId()]);
-        }
-        $_SESSION['flash_success'] = "用户【{$user['username']}】微信已解绑";
-    }
-    header("Location: admin_users.php"); exit;
-}
-
-// ========== API：生成绑定令牌（AJAX） ==========
-if (isset($_GET['action']) && $_GET['action'] == 'gen_bind_token' && isset($_GET['user_id'])) {
-    header('Content-Type: application/json');
-    $userId = intval($_GET['user_id']);
-    // 验证用户存在且当前用户有权限
-    $stmt = $pdo->prepare("SELECT id, username FROM sys_users WHERE id = ?");
-    $stmt->execute([$userId]);
-    $bindUser = $stmt->fetch();
-    if (!$bindUser) {
-        echo json_encode(['success' => false, 'message' => '用户不存在']);
-        exit;
-    }
-    if (!isSuperAdmin()) {
-        $stmt = $pdo->prepare("SELECT tenant_id FROM sys_users WHERE id = ?");
-        $stmt->execute([$userId]);
-        $uTenant = $stmt->fetchColumn();
-        if ($uTenant != getCurrentTenantId()) {
-            echo json_encode(['success' => false, 'message' => '无权限']);
-            exit;
-        }
-    }
-    $token = bin2hex(random_bytes(16));
-    $stmt = $pdo->prepare("INSERT INTO bind_tokens (user_id, token, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 10 MINUTE))");
-    $stmt->execute([$userId, $token]);
-
-    // 获取本企业的 portal 域名用于扫码
-    $portalDomain = '';
-    $tenantId = $bindUser['tenant_id'] ?? 0;
-    if ($tenantId > 0) {
-        $domStmt = $pdo->prepare("SELECT domain FROM tenant_domains WHERE tenant_id = ? AND type = 'portal' AND status = 1");
-        $domStmt->execute([$tenantId]);
-        $portalDomain = $domStmt->fetchColumn();
-    }
-
-    echo json_encode([
-        'success' => true,
-        'token' => $token,
-        'user_id' => $userId,
-        'username' => $bindUser['username'],
-        'portal_domain' => $portalDomain ?: ''
-    ]);
-    exit;
-}
-
 // ========== 列表 ==========
 $params = [];
 $where = "WHERE 1=1";
@@ -484,12 +422,9 @@ $users = $stmt->fetchAll();
                         <td>
                             <a href="?action=edit&id=<?php echo $u['id']; ?>" class="btn btn-secondary btn-sm">编辑</a>
                             <?php if (!$u['is_super_admin']): ?>
-                            <a href="?action=toggle_status&id=<?php echo $u['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('确定切换状态？');"><?php echo $u['status'] == 1 ? '禁用' : '启用'; ?></a>
-                            <?php endif; ?>
-                            <?php if (!empty($u['wechat_openid'])): ?>
-                            <a href="?action=unbind_wechat&id=<?php echo $u['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('确定解绑该微信？');">解绑</a>
-                            <?php else: ?>
-                            <a href="javascript:void(0)" class="btn btn-sm" style="background:#27ae60" onclick="showBindQr(<?php echo $u['id']; ?>, '<?php echo htmlspecialchars(addslashes($u['username'])); ?>')">绑定微信</a>
+                            <a href="?action=toggle_status&id=<?php echo $u['id']; ?>"
+                               class="btn btn-danger btn-sm"
+                               onclick="return confirm('确定切换状态？');"><?php echo $u['status'] == 1 ? '禁用' : '启用'; ?></a>
                             <?php endif; ?>
                         </td>
                     </tr>
@@ -497,31 +432,9 @@ $users = $stmt->fetchAll();
                 <?php if (empty($users)): ?><tr><td colspan="8">暂无用户数据</td></tr><?php endif; ?>
                 </tbody>
             </table>
-
-            <!-- 绑定微信二维码弹窗 -->
-            <div class="bind-modal" id="bindModal">
-                <div class="bind-modal-content">
-                    <div class="bind-modal-close" onclick="hideBindQr()">✕</div>
-                    <h3 style="margin-top:0">绑定微信</h3>
-                    <p style="color:#666;margin-bottom:15px;font-size:14px">请使用管理员手机微信扫描以下二维码完成绑定</p>
-                    <div id="bindQrContainer" style="padding:10px;min-height:200px;display:flex;flex-direction:column;align-items:center">
-                        <div id="bindQrLoading" style="padding:30px;color:#999">正在生成二维码...</div>
-                        <div id="bindQrImage" style="display:none"></div>
-                    </div>
-                    <div id="bindStepGuide" style="text-align:left;background:#f5f3fa;padding:12px;border-radius:6px;font-size:13px;color:#666;line-height:1.8">
-                        <strong>操作步骤：</strong><br>
-                        1. 用管理员的微信扫描上方二维码<br>
-                        2. 微信自动跳转出库扫码页面并完成授权<br>
-                        3. 授权成功后自动绑定，页面显示绑定结果<br>
-                        <small style="color:#999">二维码有效期10分钟</small>
-                    </div>
-                    <div id="bindResult" style="display:none;margin-top:10px;padding:12px;border-radius:6px;text-align:center;font-size:14px"></div>
-                </div>
-            </div>
             <?php endif; ?>
         </div>
     </div>
-<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <script>
 function filterRoles(tenantId, selectId) {
     var select = document.getElementById(selectId);
@@ -548,70 +461,8 @@ document.addEventListener('DOMContentLoaded', function() {
     var tenantSelect = document.getElementById('add_tenant_select');
     if (tenantSelect) filterRoles(tenantSelect.value, 'add_role_select');
 });
-
-// 绑定微信二维码
-var bindQr = null;
-
-function showBindQr(userId, username) {
-    document.getElementById('bindModal').style.display = 'flex';
-    document.getElementById('bindQrLoading').style.display = 'block';
-    document.getElementById('bindQrImage').style.display = 'none';
-    document.getElementById('bindQrImage').innerHTML = '';
-    document.getElementById('bindStepGuide').style.display = 'block';
-    document.getElementById('bindResult').style.display = 'none';
-
-    // 通过AJAX获取绑定令牌
-    var xhr = new XMLHttpRequest();
-    xhr.open('GET', 'admin_users.php?action=gen_bind_token&user_id=' + userId, true);
-    xhr.onload = function() {
-        try {
-            var data = JSON.parse(xhr.responseText);
-            if (data.success) {
-                document.getElementById('bindQrLoading').style.display = 'none';
-                document.getElementById('bindQrImage').style.display = 'block';
-
-                var baseUrl = data.portal_domain
-                    ? 'https://' + data.portal_domain
-                    : window.location.protocol + '//' + window.location.host;
-                var bindUrl = baseUrl + '/wx/scan_outbound.php?action=bind&user_id=' + data.user_id + '&token=' + data.token;
-
-                // 生成二维码
-                if (bindQr) bindQr.clear();
-                bindQr = new QRCode(document.getElementById('bindQrImage'), {
-                    text: bindUrl,
-                    width: 200,
-                    height: 200,
-                    colorDark: '#4a3f69',
-                    colorLight: '#ffffff',
-                    correctLevel: QRCode.CorrectLevel.H
-                });
-            } else {
-                document.getElementById('bindQrLoading').innerHTML = '生成失败：' + (data.message || '未知错误');
-            }
-        } catch(e) {
-            document.getElementById('bindQrLoading').innerHTML = '请求失败，请刷新重试';
-        }
-    };
-    xhr.onerror = function() {
-        document.getElementById('bindQrLoading').innerHTML = '网络错误，请刷新重试';
-    };
-    xhr.send();
-}
-
-function hideBindQr() {
-    document.getElementById('bindModal').style.display = 'none';
-    if (bindQr) {
-        bindQr.clear();
-        bindQr = null;
-    }
-}
 </script>
-<style>.pw-toggle{position:relative;display:inline-block;width:100%}.pw-toggle input[type="password"],.pw-toggle input[type="text"]{padding-right:40px}.pw-toggle .eye-btn{position:absolute;right:8px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:18px;user-select:none}
-.bind-modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:none;justify-content:center;align-items:center;z-index:9999}
-.bind-modal-content{background:#fff;padding:25px;border-radius:12px;width:90%;max-width:380px;position:relative;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.2)}
-.bind-modal-close{position:absolute;top:12px;right:15px;font-size:20px;color:#999;cursor:pointer;line-height:1}
-.bind-modal-close:hover{color:#333}
-</style>
+<style>.pw-toggle{position:relative;display:inline-block;width:100%}.pw-toggle input[type="password"],.pw-toggle input[type="text"]{padding-right:40px}.pw-toggle .eye-btn{position:absolute;right:8px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:18px;user-select:none}</style>
 <script>
 document.querySelectorAll('input[type="password"]').forEach(function(input){
     var wrapper=document.createElement('div');wrapper.className='pw-toggle';

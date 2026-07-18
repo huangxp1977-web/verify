@@ -362,14 +362,10 @@ $tenants = $stmt->fetchAll();
                     <?php
                     $editWechatConfig = [];
                     if ($edit_tenant) {
-                        // 优先从 base_config 读取
+                        // 从 base_config 读取
                         if (!empty($edit_tenant['base_config'])) {
                             $bc = json_decode($edit_tenant['base_config'], true);
                             if (!empty($bc['wechat'])) $editWechatConfig = $bc['wechat'];
-                        }
-                        // 后备：从旧的 wechat_config 读取
-                        if (empty($editWechatConfig) && !empty($edit_tenant['wechat_config'])) {
-                            $editWechatConfig = json_decode($edit_tenant['wechat_config'], true) ?: [];
                         }
                     }
                     ?>

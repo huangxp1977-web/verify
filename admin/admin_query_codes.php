@@ -13,14 +13,8 @@ if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== tru
 }
 
 // 权限检查
-if (!isSuperAdmin() && !hasPermission('oem_query_codes')) {
+if (!hasPermission('oem_query_codes')) {
     header('Location: admin.php');
-    exit;
-}
-
-// 超管不可访问业务页面，跳转企业管理
-if (isSuperAdmin()) {
-    header('Location: admin_tenants.php');
     exit;
 }
 
@@ -100,14 +94,8 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
 // 重置扫码次数
 if (isset($_GET['action']) && $_GET['action'] == 'reset_count' && isset($_GET['id'])) {
     $id = intval($_GET['id']);
-    // 超管可以重置任意租户的记录，租户管理员只能重置自己的
-    if (isSuperAdmin()) {
-        $resetStmt = $pdo->prepare("UPDATE certificate_links SET query_count = 0, last_scan_time = NULL WHERE id = ?");
-        $resetStmt->execute([$id]);
-    } else {
-        $resetStmt = $pdo->prepare("UPDATE certificate_links SET query_count = 0, last_scan_time = NULL WHERE id = ? AND tenant_id = ?");
-        $resetStmt->execute([$id, getCurrentTenantId()]);
-    }
+    $resetStmt = $pdo->prepare("UPDATE certificate_links SET query_count = 0, last_scan_time = NULL WHERE id = ? AND tenant_id = ?");
+    $resetStmt->execute([$id, getCurrentTenantId()]);
     echo "<script>alert('重置成功！'); window.location.href='admin_query_codes.php';</script>";
     exit;
 }

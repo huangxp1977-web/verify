@@ -61,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_brand_wechat'])) 
         exit;
     }
     // 读取现有 base_config，合并后再保存
-    $stmt = $pdo->prepare("SELECT base_config, qiniu_config FROM tenants WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT base_config FROM tenants WHERE id = ?");
     $stmt->execute([$tenantId]);
     $existing = $stmt->fetch();
     $base = ['qiniu' => new stdClass, 'wechat' => ['brand' => $wechat, 'oem' => new stdClass]];
@@ -71,9 +71,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_brand_wechat'])) 
             $base = $parsed;
             $base['wechat']['brand'] = $wechat;
         }
-    } elseif ($existing && !empty($existing['qiniu_config'])) {
-        $qParsed = json_decode($existing['qiniu_config'], true);
-        if (is_array($qParsed)) $base['qiniu'] = $qParsed;
     }
     $json = json_encode($base, JSON_UNESCAPED_UNICODE);
     $stmt = $pdo->prepare("UPDATE tenants SET base_config = ? WHERE id = ?");
@@ -96,7 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_oem_wechat'])) {
         header('Location: admin_base_settings.php?tab=oem_wechat');
         exit;
     }
-    $stmt = $pdo->prepare("SELECT base_config, qiniu_config FROM tenants WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT base_config FROM tenants WHERE id = ?");
     $stmt->execute([$tenantId]);
     $existing = $stmt->fetch();
     $base = ['qiniu' => new stdClass, 'wechat' => ['brand' => new stdClass, 'oem' => $wechat]];
@@ -106,9 +103,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_oem_wechat'])) {
             $base = $parsed;
             $base['wechat']['oem'] = $wechat;
         }
-    } elseif ($existing && !empty($existing['qiniu_config'])) {
-        $qParsed = json_decode($existing['qiniu_config'], true);
-        if (is_array($qParsed)) $base['qiniu'] = $qParsed;
     }
     $json = json_encode($base, JSON_UNESCAPED_UNICODE);
     $stmt = $pdo->prepare("UPDATE tenants SET base_config = ? WHERE id = ?");
@@ -133,7 +127,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_qiniu'])) {
         header('Location: admin_base_settings.php?tab=qiniu');
         exit;
     }
-    $stmt = $pdo->prepare("SELECT base_config, wechat_config FROM tenants WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT base_config FROM tenants WHERE id = ?");
     $stmt->execute([$tenantId]);
     $existing = $stmt->fetch();
     $base = ['qiniu' => $qiniu, 'wechat' => ['brand' => new stdClass, 'oem' => new stdClass]];
@@ -143,9 +137,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_qiniu'])) {
             $base = $parsed;
             $base['qiniu'] = $qiniu;
         }
-    } elseif ($existing && !empty($existing['wechat_config'])) {
-        $wParsed = json_decode($existing['wechat_config'], true);
-        if (is_array($wParsed)) $base['wechat'] = $wParsed;
     }
     $json = json_encode($base, JSON_UNESCAPED_UNICODE);
     $stmt = $pdo->prepare("UPDATE tenants SET base_config = ? WHERE id = ?");

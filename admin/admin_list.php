@@ -17,14 +17,8 @@ if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== tru
 }
 
 // 权限检查
-if (!isSuperAdmin() && !hasPermission('brand_list')) {
+if (!hasPermission('brand_list')) {
     header('Location: admin.php');
-    exit;
-}
-
-// 超管不可访问业务页面，跳转企业管理
-if (isSuperAdmin()) {
-    header('Location: admin_tenants.php');
     exit;
 }
 
@@ -226,17 +220,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export'])) {
         if ($level == 'box') {
             // 构建导出数据的查询条件（与筛选条件一致）
             $where_clause = '';
-            $params = [];
-            if (!isSuperAdmin()) {
-                $where_clause .= " WHERE boxes.tenant_id = :tenant_id";
-                $params[':tenant_id'] = getCurrentTenantId();
-            }
+                        $params = [];
+                        $where_clause .= " WHERE boxes.tenant_id = :tenant_id";
+                        $params[':tenant_id'] = getCurrentTenantId();
 
-            if (!empty($box_code)) {
-                // 导出时使用与查询相同的匹配逻辑
-                $exactParams = [':box_code' => $box_code];
-                if (!isSuperAdmin()) $exactParams[':tenant_id'] = getCurrentTenantId();
-                $exactTenant = isSuperAdmin() ? "" : " AND tenant_id = :tenant_id";
+                        if (!empty($box_code)) {
+                            // 导出时使用与查询相同的匹配逻辑
+                            $exactParams = [':box_code' => $box_code];
+                            $exactParams[':tenant_id'] = getCurrentTenantId();
+                            $exactTenant = " AND tenant_id = :tenant_id";
                 $exactStmt = $pdo->prepare("SELECT COUNT(*) FROM boxes WHERE box_code = :box_code" . $exactTenant);
                 $exactStmt->execute($exactParams);
                 $exactCount = $exactStmt->fetchColumn();
@@ -290,8 +282,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export'])) {
             $export_title = '箱子';
         } elseif ($level == 'carton') {
             $cartonExportParams = [':box_id' => $id];
-            $cartonExportTenant = isSuperAdmin() ? "" : " AND tenant_id = :tenant_id";
-            if (!isSuperAdmin()) $cartonExportParams[':tenant_id'] = getCurrentTenantId();
+                        $cartonExportTenant = " AND tenant_id = :tenant_id";
+                        $cartonExportParams[':tenant_id'] = getCurrentTenantId();
             $stmt = $pdo->prepare("
                 SELECT carton_code, batch_number, DATE(production_date) as production_date
                 FROM cartons
@@ -312,8 +304,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export'])) {
             $export_title = '盒子';
         } elseif ($level == 'product') {
             $productExportParams = [':carton_id' => $id];
-            $productExportTenant = isSuperAdmin() ? "" : " AND tenant_id = :tenant_id";
-            if (!isSuperAdmin()) $productExportParams[':tenant_id'] = getCurrentTenantId();
+                        $productExportTenant = " AND tenant_id = :tenant_id";
+                        $productExportParams[':tenant_id'] = getCurrentTenantId();
             $stmt = $pdo->prepare("
                 SELECT product_code, batch_number, DATE(production_date) as production_date, product_name, region
                 FROM products
@@ -469,17 +461,15 @@ try {
         // 构建查询条件（优化箱子溯源码查询逻辑）
         // 构建查询条件（已优化：只显示status=1的记录）
         $where_clause = ' WHERE boxes.status = 1';
-        $params = [];
-        if (!isSuperAdmin()) {
-            $where_clause .= " AND boxes.tenant_id = :tenant_id";
-            $params[':tenant_id'] = getCurrentTenantId();
-        }
-        
-        if (!empty($box_code)) {
-            // 先尝试精确匹配（处理包含特殊字符的完整溯源码）
-            $exactParams2 = [':box_code' => $box_code];
-            if (!isSuperAdmin()) $exactParams2[':tenant_id'] = getCurrentTenantId();
-            $exactTenant = isSuperAdmin() ? "" : " AND tenant_id = :tenant_id";
+                $params = [];
+                $where_clause .= " AND boxes.tenant_id = :tenant_id";
+                $params[':tenant_id'] = getCurrentTenantId();
+
+                if (!empty($box_code)) {
+                    // 先尝试精确匹配（处理包含特殊字符的完整溯源码）
+                    $exactParams2 = [':box_code' => $box_code];
+                    $exactParams2[':tenant_id'] = getCurrentTenantId();
+                    $exactTenant = " AND tenant_id = :tenant_id";
             $exactStmt = $pdo->prepare("SELECT COUNT(*) FROM boxes WHERE box_code = :box_code AND status = 1" . $exactTenant);
             $exactStmt->execute($exactParams2);
             $exactCount = $exactStmt->fetchColumn();
@@ -541,8 +531,8 @@ try {
             $placeholders = implode(',', array_fill(0, count($boxIds), '?'));
             
             $cartonCountParams = $boxIds;
-            $cartonCountTenant = isSuperAdmin() ? "" : " AND tenant_id = ?";
-            if (!isSuperAdmin()) $cartonCountParams[] = getCurrentTenantId();
+                        $cartonCountTenant = " AND tenant_id = ?";
+                        $cartonCountParams[] = getCurrentTenantId();
             $stmt = $pdo->prepare("
                 SELECT box_id, COUNT(*) as count
                 FROM cartons
@@ -561,8 +551,8 @@ try {
         
         // 获取箱子信息
         $boxParams = [':id' => $id];
-        if (!isSuperAdmin()) $boxParams[':tenant_id'] = getCurrentTenantId();
-        $boxTenant = isSuperAdmin() ? "" : " AND tenant_id = :tenant_id";
+                $boxParams[':tenant_id'] = getCurrentTenantId();
+                $boxTenant = " AND tenant_id = :tenant_id";
         $stmt = $pdo->prepare("SELECT * FROM boxes WHERE id = :id" . $boxTenant);
         $stmt->execute($boxParams);
         $parent_data = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -579,8 +569,8 @@ try {
         
         // 获取总记录数
                 $cartonParams = [':box_id' => $id];
-                if (!isSuperAdmin()) $cartonParams[':tenant_id'] = getCurrentTenantId();
-                $cartonTenant = isSuperAdmin() ? "" : " AND cartons.tenant_id = :tenant_id";
+                                $cartonParams[':tenant_id'] = getCurrentTenantId();
+                                $cartonTenant = " AND cartons.tenant_id = :tenant_id";
                 $cartonFilter = '';
                 if (!empty($carton_code)) {
                     $cartonFilter = ' AND cartons.carton_code = :carton_code';
@@ -592,7 +582,7 @@ try {
 
                 // 获取盒子数据
                 $cartonDataParams = [':box_id' => $id];
-                if (!isSuperAdmin()) $cartonDataParams[':tenant_id'] = getCurrentTenantId();
+                                $cartonDataParams[':tenant_id'] = getCurrentTenantId();
                 if (!empty($carton_code)) {
                     $cartonDataParams[':carton_code'] = $carton_code;
                 }
@@ -617,8 +607,8 @@ try {
             $placeholders = implode(',', array_fill(0, count($cartonIds), '?'));
             
             $productCountParams = $cartonIds;
-            $productCountTenant = isSuperAdmin() ? "" : " AND tenant_id = ?";
-            if (!isSuperAdmin()) $productCountParams[] = getCurrentTenantId();
+                        $productCountTenant = " AND tenant_id = ?";
+                        $productCountParams[] = getCurrentTenantId();
             $stmt = $pdo->prepare("
                 SELECT carton_id, COUNT(*) as count
                 FROM products
@@ -637,8 +627,8 @@ try {
         
         // 获取盒子信息
         $cartonLookupParams = [':id' => $id];
-        if (!isSuperAdmin()) $cartonLookupParams[':tenant_id'] = getCurrentTenantId();
-        $cartonLookupTenant = isSuperAdmin() ? "" : " AND tenant_id = :tenant_id";
+                $cartonLookupParams[':tenant_id'] = getCurrentTenantId();
+                $cartonLookupTenant = " AND tenant_id = :tenant_id";
         $stmt = $pdo->prepare("SELECT * FROM cartons WHERE id = :id" . $cartonLookupTenant);
         $stmt->execute($cartonLookupParams);
         $carton_data = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -649,8 +639,8 @@ try {
 
         // 获取所属箱子信息
         $boxLookupParams = [':id' => $carton_data['box_id']];
-        if (!isSuperAdmin()) $boxLookupParams[':tenant_id'] = getCurrentTenantId();
-        $boxLookupTenant = isSuperAdmin() ? "" : " AND tenant_id = :tenant_id";
+                $boxLookupParams[':tenant_id'] = getCurrentTenantId();
+                $boxLookupTenant = " AND tenant_id = :tenant_id";
         $stmt = $pdo->prepare("SELECT * FROM boxes WHERE id = :id" . $boxLookupTenant);
         $stmt->execute($boxLookupParams);
         $box_data = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -667,15 +657,15 @@ try {
         
         // 获取总记录数
         $productParams = [':carton_id' => $id];
-        if (!isSuperAdmin()) $productParams[':tenant_id'] = getCurrentTenantId();
-        $productTenant = isSuperAdmin() ? "" : " AND products.tenant_id = :tenant_id";
+                $productParams[':tenant_id'] = getCurrentTenantId();
+                $productTenant = " AND products.tenant_id = :tenant_id";
         $stmt = $pdo->prepare("SELECT COUNT(*) FROM products WHERE carton_id = :carton_id AND status = 1" . $productTenant);
         $stmt->execute($productParams);
         $total_records = $stmt->fetchColumn();
 
         // 获取产品数据
         $productDataParams = [':carton_id' => $id];
-        if (!isSuperAdmin()) $productDataParams[':tenant_id'] = getCurrentTenantId();
+                $productDataParams[':tenant_id'] = getCurrentTenantId();
         $stmt = $pdo->prepare("
             SELECT products.*, base_distributors.name as distributor_name
             FROM products

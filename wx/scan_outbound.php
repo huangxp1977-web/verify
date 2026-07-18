@@ -11,26 +11,16 @@ require_once __DIR__ . '/../includes/qiniu_helper.php';
 
 // ======================== 辅助函数 ========================
 
-/** 读取企业 WeChat OAuth 配置（从 base_config.wechat.brand 读取，兼容旧 wechat_config） */
+/** 读取企业 WeChat OAuth 配置（从 base_config.wechat.brand 读取） */
 function getWechatOAuthConfig($pdo, $tenantId) {
     if ($tenantId <= 0) return null;
-    $stmt = $pdo->prepare("SELECT base_config, wechat_config FROM tenants WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT base_config FROM tenants WHERE id = ?");
     $stmt->execute([$tenantId]);
     $tenant = $stmt->fetch();
-    if ($tenant) {
-        // 优先从 base_config.wechat.brand 读取（品牌出库用）
-        if (!empty($tenant['base_config'])) {
-            $bc = json_decode($tenant['base_config'], true);
-            if (!empty($bc['wechat']['brand']['app_id']) && !empty($bc['wechat']['brand']['app_secret'])) {
-                return $bc['wechat']['brand'];
-            }
-        }
-        // 后备：从旧的 wechat_config 读取
-        if (!empty($tenant['wechat_config'])) {
-            $cfg = json_decode($tenant['wechat_config'], true);
-            if (!empty($cfg['app_id']) && !empty($cfg['app_secret'])) {
-                return $cfg;
-            }
+    if ($tenant && !empty($tenant['base_config'])) {
+        $bc = json_decode($tenant['base_config'], true);
+        if (!empty($bc['wechat']['brand']['app_id']) && !empty($bc['wechat']['brand']['app_secret'])) {
+            return $bc['wechat']['brand'];
         }
     }
     return null;
