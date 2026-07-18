@@ -58,7 +58,7 @@ if (isSuperAdmin()) {
     if (hasPermission('system_scan_editor') && file_exists(__DIR__ . '/admin_scan_editor.php')) $sysItems[] = ['file' => 'admin_scan_editor.php', 'label' => '背景设计', 'key' => 'system_scan_editor'];
     if (hasPermission('system_roles') && file_exists(__DIR__ . '/admin_roles.php'))       $sysItems[] = ['file' => 'admin_roles.php', 'label' => '角色管理', 'key' => 'system_roles'];
     if (hasPermission('system_users') && file_exists(__DIR__ . '/admin_users.php'))       $sysItems[] = ['file' => 'admin_users.php', 'label' => '用户管理', 'key' => 'system_users'];
-    $sysItems[] = ['file' => 'admin_password.php', 'label' => '个人资料', 'key' => 'system_password'];
+    if (hasPermission('system_password')) $sysItems[] = ['file' => 'admin_password.php', 'label' => '个人资料', 'key' => 'system_password'];
     if (!empty($sysItems)) {
         $menuGroups[] = ['label' => '系统设置', 'items' => $sysItems];
     }

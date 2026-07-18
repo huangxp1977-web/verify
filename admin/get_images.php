@@ -49,7 +49,8 @@ if (is_dir($uploadDir)) {
 
 // 2. 如果七牛云启用，读取已同步的文件索引
 if (isQiniuEnabled()) {
-    $indexFile = __DIR__ . '/../config/qiniu_index.json';
+    $tenantId = $_SESSION['admin_tenant_id'] ?? 0;
+    $indexFile = __DIR__ . '/../config/qiniu_index' . ($tenantId > 0 ? '_' . intval($tenantId) : '') . '.json';
     if (file_exists($indexFile)) {
         $index = json_decode(file_get_contents($indexFile), true) ?: [];
         $config = getQiniuConfig();

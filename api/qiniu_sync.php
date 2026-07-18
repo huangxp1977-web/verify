@@ -53,8 +53,8 @@ if ($action === 'sync') {
     ];
     
     // 读取现有索引
-    $indexFile = __DIR__ . '/../config/qiniu_index.json';
-    $index = [];
+        $indexFile = __DIR__ . '/../config/qiniu_index' . ($_SESSION['admin_tenant_id'] > 0 ? '_' . intval($_SESSION['admin_tenant_id']) : '') . '.json';
+        $index = [];
     if (file_exists($indexFile)) {
         $index = json_decode(file_get_contents($indexFile), true) ?: [];
     }

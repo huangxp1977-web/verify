@@ -29,6 +29,7 @@ $permGroups = [
         'system_qiniu' => '基础设置', 'system_images' => '图片素材',
         'system_scan_editor' => '背景设计',
         'system_roles' => '角色管理', 'system_users' => '用户管理',
+        'system_password' => '个人资料',
     ]],
 ];
 
