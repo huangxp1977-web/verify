@@ -48,7 +48,7 @@ if (isset($_SESSION['flash_error'])) {
 function getProducts($pdo) {
     try {
         $params = [];
-        $sql = "SELECT p.*, b.name_cn as brand_name FROM base_products p LEFT JOIN base_brands b ON p.brand_id = b.id WHERE p.status >= 0" . tenantWhere($params) . " ORDER BY p.product_name ASC";
+        $sql = "SELECT p.*, b.name_cn as brand_name FROM base_products p LEFT JOIN base_brands b ON p.brand_id = b.id WHERE p.status >= 0" . tenantWhere($params, 'p') . " ORDER BY p.product_name ASC";
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
