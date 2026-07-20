@@ -48,7 +48,7 @@ if (isset($_SESSION['flash_error'])) {
 function getProducts($pdo) {
     try {
         $params = [];
-        $sql = "SELECT p.*, b.name_cn as brand_name FROM base_products p LEFT JOIN base_brands b ON p.brand_id = b.id WHERE p.status >= 0" . tenantWhere($params, 'p') . " ORDER BY p.product_name ASC";
+$sql = "SELECT p.*, b.name_cn as brand_name, b.name_en as brand_name_en FROM base_products p LEFT JOIN base_brands b ON p.brand_id = b.id WHERE p.status >= 0" . tenantWhere($params, 'p') . " ORDER BY p.product_name ASC";
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -80,15 +80,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_product'])) {
         try {
             $product_images = isset($_POST['product_images']) ? trim($_POST['product_images']) : '[]';
             $description = isset($_POST['description']) ? $_POST['description'] : '';
-            $inspection_reports = isset($_POST['inspection_reports']) ? trim($_POST['inspection_reports']) : '[]';
-            $factory_name = isset($_POST['factory_name']) ? trim($_POST['factory_name']) : '';
-            $factory_address = isset($_POST['factory_address']) ? trim($_POST['factory_address']) : '';
-            $spec_params = isset($_POST['spec_params']) ? trim($_POST['spec_params']) : '{}';
-            $cartons_per_box = isset($_POST['cartons_per_box']) && $_POST['cartons_per_box'] !== '' ? intval($_POST['cartons_per_box']) : 100;
-            $units_per_carton = isset($_POST['units_per_carton']) && $_POST['units_per_carton'] !== '' ? intval($_POST['units_per_carton']) : 5;
+            $spec_params = isset($_POST['spec_params']) ? trim($_POST['spec_params']) : '[]';
+            $cartons_per_box = isset($_POST['cartons_per_box']) && $_POST['cartons_per_box'] !== '' ? intval($_POST['cartons_per_box']) : 0;
+            $units_per_carton = isset($_POST['units_per_carton']) && $_POST['units_per_carton'] !== '' ? intval($_POST['units_per_carton']) : 0;
             
-            $stmt = $pdo->prepare("INSERT INTO base_products (product_name, brand_id, product_images, description, inspection_reports, factory_name, factory_address, spec_params, cartons_per_box, units_per_carton, tenant_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$product_name, $brand_id, $product_images, $description, $inspection_reports, $factory_name, $factory_address, $spec_params, $cartons_per_box, $units_per_carton, getCurrentTenantId()]);
+            $stmt = $pdo->prepare("INSERT INTO base_products (product_name, brand_id, product_images, description, spec_params, cartons_per_box, units_per_carton, tenant_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$product_name, $brand_id, $product_images, $description, $spec_params, $cartons_per_box, $units_per_carton, getCurrentTenantId()]);
             $_SESSION['flash_success'] = "产品添加成功";
             header("Location: admin_base_products.php");
             exit;
@@ -110,15 +107,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_product'])) {
         try {
             $product_images = isset($_POST['product_images']) ? trim($_POST['product_images']) : '[]';
             $description = isset($_POST['description']) ? $_POST['description'] : '';
-            $inspection_reports = isset($_POST['inspection_reports']) ? trim($_POST['inspection_reports']) : '[]';
-            $factory_name = isset($_POST['factory_name']) ? trim($_POST['factory_name']) : '';
-            $factory_address = isset($_POST['factory_address']) ? trim($_POST['factory_address']) : '';
-            $spec_params = isset($_POST['spec_params']) ? trim($_POST['spec_params']) : '{}';
-            $cartons_per_box = isset($_POST['cartons_per_box']) && $_POST['cartons_per_box'] !== '' ? intval($_POST['cartons_per_box']) : 100;
-            $units_per_carton = isset($_POST['units_per_carton']) && $_POST['units_per_carton'] !== '' ? intval($_POST['units_per_carton']) : 5;
+            $spec_params = isset($_POST['spec_params']) ? trim($_POST['spec_params']) : '[]';
+            $cartons_per_box = isset($_POST['cartons_per_box']) && $_POST['cartons_per_box'] !== '' ? intval($_POST['cartons_per_box']) : 0;
+            $units_per_carton = isset($_POST['units_per_carton']) && $_POST['units_per_carton'] !== '' ? intval($_POST['units_per_carton']) : 0;
             
-            $stmt = $pdo->prepare("UPDATE base_products SET product_name = ?, brand_id = ?, product_images = ?, description = ?, inspection_reports = ?, factory_name = ?, factory_address = ?, spec_params = ?, cartons_per_box = ?, units_per_carton = ? WHERE id = ? AND tenant_id = ?");
-            $stmt->execute([$product_name, $brand_id, $product_images, $description, $inspection_reports, $factory_name, $factory_address, $spec_params, $cartons_per_box, $units_per_carton, $id, getCurrentTenantId()]);
+            $stmt = $pdo->prepare("UPDATE base_products SET product_name = ?, brand_id = ?, product_images = ?, description = ?, spec_params = ?, cartons_per_box = ?, units_per_carton = ? WHERE id = ? AND tenant_id = ?");
+            $stmt->execute([$product_name, $brand_id, $product_images, $description, $spec_params, $cartons_per_box, $units_per_carton, $id, getCurrentTenantId()]);
             $_SESSION['flash_success'] = "产品信息更新成功";
             header("Location: admin_base_products.php");
             exit;
@@ -133,7 +127,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id']))
     $id = intval($_GET['id']);
     try {
         // 检查是否有关联的溯源数据
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM products WHERE product_name COLLATE utf8mb4_general_ci = (SELECT product_name FROM base_products WHERE id = ?)");
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM products WHERE product_id = ?");
         $stmt->execute([$id]);
         $relatedCount = $stmt->fetchColumn();
         
@@ -499,77 +493,38 @@ $activeBrands = getActiveBrands($pdo);
                         <textarea id="description" name="description" rows="6" placeholder="输入产品详情描述（支持HTML标签）"><?php echo $edit_product ? htmlspecialchars($edit_product['description'] ?? '') : ''; ?></textarea>
                     </div>
 
-                    <!-- 质检报告 -->
-                    <div class="form-group">
-                        <label>质检报告</label>
-                        <div class="multi-image-wrap">
-                            <div class="multi-image-grid" id="inspectionReportsGrid">
-                                <?php
-                                $inspections = [];
-                                if ($edit_product && !empty($edit_product['inspection_reports'])) {
-                                    $inspections = json_decode($edit_product['inspection_reports'], true) ?: [];
-                                }
-                                foreach ($inspections as $img): ?>
-                                <div class="multi-image-item">
-                                    <img src="<?php echo htmlspecialchars($img); ?>">
-                                    <span class="mi-remove" onclick="removeInspectionReport(this)">&times;</span>
-                                </div>
-                                <?php endforeach; ?>
-                                <div class="multi-image-item add-btn" onclick="openInspectionPicker()">
-                                    <span>+</span>
-                                </div>
-                            </div>
-                            <input type="hidden" id="inspection_reports" name="inspection_reports" value="<?php echo htmlspecialchars(json_encode($inspections)); ?>">
-                            <p class="field-hint">点击"+"从图片库选择质检报告图片</p>
-                        </div>
-                    </div>
-
-                    <!-- 工厂信息 -->
-                    <div class="form-row">
-                        <div class="form-col">
-                            <div class="form-group">
-                                <label for="factory_name">工厂名称</label>
-                                <input type="text" id="factory_name" name="factory_name" placeholder="如：威海百合生物技术股份有限公司"
-                                       value="<?php echo $edit_product ? htmlspecialchars($edit_product['factory_name'] ?? '') : ''; ?>">
-                            </div>
-                        </div>
-                        <div class="form-col">
-                            <div class="form-group">
-                                <label for="factory_address">工厂地址</label>
-                                <input type="text" id="factory_address" name="factory_address" placeholder="如：荣成市天鹅湖经济技术开发区"
-                                       value="<?php echo $edit_product ? htmlspecialchars($edit_product['factory_address'] ?? '') : ''; ?>">
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- 规格参数 -->
-                    <div class="form-group">
-                        <label>规格参数</label>
-                        <div class="spec-params-wrap" id="specParamsWrap">
-                            <?php
-                            $specs = [];
-                            if ($edit_product && !empty($edit_product['spec_params'])) {
-                                $specs = json_decode($edit_product['spec_params'], true) ?: [];
-                            }
-                            if (empty($specs)): ?>
-                            <div class="spec-param-row">
-                                <input type="text" class="spec-key" placeholder="参数名称（如：容量）" style="width:200px;">
-                                <input type="text" class="spec-value" placeholder="参数值（如：30ml）" style="width:300px;">
-                                <button type="button" class="btn btn-secondary spec-remove" onclick="removeSpecParam(this)" style="display:none;">删除</button>
-                            </div>
-                            <?php else: ?>
-                            <?php foreach ($specs as $key => $value): ?>
-                            <div class="spec-param-row">
-                                <input type="text" class="spec-key" value="<?php echo htmlspecialchars($key); ?>" placeholder="参数名称" style="width:200px;">
-                                <input type="text" class="spec-value" value="<?php echo htmlspecialchars($value); ?>" placeholder="参数值" style="width:300px;">
-                                <button type="button" class="btn btn-secondary spec-remove" onclick="removeSpecParam(this)">删除</button>
-                            </div>
-                            <?php endforeach; ?>
-                            <?php endif; ?>
-                            <input type="hidden" id="spec_params" name="spec_params" value="<?php echo htmlspecialchars(json_encode($specs)); ?>">
-                            <button type="button" class="btn btn-secondary" onclick="addSpecParam()" style="margin-top:8px;">+ 添加参数</button>
-                        </div>
-                    </div>
+                    <!-- 规格 -->
+                                        <div class="form-group">
+                                            <label>规格（默认单位ml）</label>
+                                            <div class="spec-params-wrap" id="specParamsWrap">
+                                                <?php
+                                                $specs = [];
+                                                if ($edit_product && !empty($edit_product['spec_params'])) {
+                                                    $specs = json_decode($edit_product['spec_params'], true) ?: [];
+                                                }
+                                                // 将旧格式（对象）转换为新格式（数组）
+                                                if (!empty($specs) && !isset($specs[0])) {
+                                                    $specs = array_values($specs);
+                                                }
+                                                if (empty($specs)): ?>
+                                                <div class="spec-param-row">
+                                                    <input type="text" class="spec-value" placeholder="如：1" style="width:120px;">
+                                                    <span style="color:#999;font-size:13px;">ml</span>
+                                                    <button type="button" class="btn btn-secondary spec-remove" onclick="removeSpecParam(this)" style="display:none;">删除</button>
+                                                </div>
+                                                <?php else: ?>
+                                                <?php foreach ($specs as $v): ?>
+                                                <div class="spec-param-row">
+                                                    <input type="text" class="spec-value" value="<?php echo htmlspecialchars($v); ?>" placeholder="如：1" style="width:120px;">
+                                                    <span style="color:#999;font-size:13px;">ml</span>
+                                                    <button type="button" class="btn btn-secondary spec-remove" onclick="removeSpecParam(this)">删除</button>
+                                                </div>
+                                                <?php endforeach; ?>
+                                                <?php endif; ?>
+                                                <input type="hidden" id="spec_params" name="spec_params" value="<?php echo htmlspecialchars(json_encode($specs)); ?>">
+                                                <button type="button" class="btn btn-secondary add-spec-btn" onclick="addSpecParam()" style="margin-top:8px;">+ 添加规格</button>
+                                            </div>
+                                        </div>
 
                     <!-- 包装配置 -->
                     <div class="form-row">
@@ -577,14 +532,14 @@ $activeBrands = getActiveBrands($pdo);
                             <div class="form-group">
                                 <label for="cartons_per_box">每箱盒数</label>
                                 <input type="number" id="cartons_per_box" name="cartons_per_box" min="1" max="1000"
-                                       value="<?php echo $edit_product ? intval($edit_product['cartons_per_box'] ?? 100) : ''; ?>">
+                                       value="<?php echo $edit_product ? intval($edit_product['cartons_per_box'] ?? 0) : 0; ?>">
                             </div>
                         </div>
                         <div class="form-col">
                             <div class="form-group">
                                 <label for="units_per_carton">每盒支数</label>
                                 <input type="number" id="units_per_carton" name="units_per_carton" min="1" max="100"
-                                       value="<?php echo $edit_product ? intval($edit_product['units_per_carton'] ?? 5) : ''; ?>">
+                                       value="<?php echo $edit_product ? intval($edit_product['units_per_carton'] ?? 0) : 0; ?>">
                             </div>
                         </div>
                     </div>
@@ -603,7 +558,7 @@ $activeBrands = getActiveBrands($pdo);
                         <th>ID</th>
                         <th>产品名称</th>
                         <th>品牌</th>
-                        <th>规格参数</th>
+                        <th>规格</th>
                         <th>包装配置</th>
                         <th>状态</th>
                         <th>操作</th>
@@ -613,31 +568,45 @@ $activeBrands = getActiveBrands($pdo);
                     <?php foreach ($products as $prod): ?>
                     <?php 
                     // 检查是否有关联数据
-                    $checkStmt = $pdo->prepare("SELECT COUNT(*) FROM products WHERE product_name COLLATE utf8mb4_general_ci = ?");
-                    $checkStmt->execute([$prod['product_name']]);
+                    $checkStmt = $pdo->prepare("SELECT COUNT(*) FROM products WHERE product_id = ?");
+                    $checkStmt->execute([$prod['id']]);
                     $hasRelatedData = $checkStmt->fetchColumn() > 0;
                     $status = isset($prod['status']) ? $prod['status'] : 1;
                     ?>
                     <tr>
                         <td><?php echo $prod['id']; ?></td>
                         <td><?php echo htmlspecialchars($prod['product_name']); ?></td>
-                        <td><?php echo htmlspecialchars($prod['brand_name'] ?? '未设置'); ?></td>
+                        <td><?php 
+                            $brandDisplay = $prod['brand_name'] ?? '';
+                            if (!empty($prod['brand_name_en'])) {
+                                $brandDisplay .= '(' . htmlspecialchars($prod['brand_name_en']) . ')';
+                            }
+                            echo htmlspecialchars($brandDisplay ?: '未设置');
+                            ?></td>
                         <td><?php
                             $specs = [];
                             if (!empty($prod['spec_params'])) {
                                 $specs = json_decode($prod['spec_params'], true) ?: [];
                             }
+                            // 支持新旧格式：新格式为简单数组 ["1","2","5"]，旧格式为对象 {"容量":"1ml"}
+                            $specValues = [];
                             if (!empty($specs)) {
-                                $parts = [];
-                                foreach ($specs as $k => $v) {
-                                    $parts[] = htmlspecialchars($k) . '：' . htmlspecialchars($v);
+                                $isOldFormat = !isset($specs[0]) && is_string(key($specs ?? []));
+                                if ($isOldFormat) {
+                                    foreach ($specs as $k => $v) {
+                                        $specValues[] = htmlspecialchars($v);
+                                    }
+                                } else {
+                                    foreach ($specs as $v) {
+                                        $specValues[] = htmlspecialchars($v) . 'ml';
+                                    }
                                 }
-                                echo implode(' | ', $parts);
+                                echo implode(' / ', $specValues);
                             } else {
                                 echo '-';
                             }
                             ?></td>
-                        <td><?php echo intval($prod['cartons_per_box'] ?? 100); ?>盒/箱<?php if (intval($prod['units_per_carton'] ?? 5) > 0): ?> · <?php echo intval($prod['units_per_carton'] ?? 5); ?>支/盒<?php endif; ?></td>
+                        <td><?php echo intval($prod['cartons_per_box'] ?? 0); ?>盒/箱<?php if (intval($prod['units_per_carton'] ?? 0) > 0): ?> · <?php echo intval($prod['units_per_carton'] ?? 0); ?>支/盒<?php endif; ?></td>
                         <td>
                             <?php if ($status == 1): ?>
                                 <span style="color: #27ae60;">✓ 启用</span>
@@ -670,19 +639,9 @@ $activeBrands = getActiveBrands($pdo);
     </div>
     
     <script>
-            var currentPickerMode = 'product'; // 'product' or 'inspection'
-
             function openProductImagePicker() {
-                currentPickerMode = 'product';
                 document.getElementById('imagePickerModal').style.display = 'flex';
                 document.getElementById('imagePickerModalTitle').textContent = '选择产品主图';
-                loadProductImages();
-            }
-
-            function openInspectionPicker() {
-                currentPickerMode = 'inspection';
-                document.getElementById('imagePickerModal').style.display = 'flex';
-                document.getElementById('imagePickerModalTitle').textContent = '选择质检报告图片';
                 loadProductImages();
             }
 
@@ -714,11 +673,7 @@ $activeBrands = getActiveBrands($pdo);
             }
 
             function selectImage(url) {
-                if (currentPickerMode === 'product') {
-                    addProductImage(url);
-                } else if (currentPickerMode === 'inspection') {
-                    addInspectionReport(url);
-                }
+                addProductImage(url);
                 closeImagePicker();
             }
 
@@ -746,39 +701,16 @@ $activeBrands = getActiveBrands($pdo);
                 document.getElementById('product_images').value = JSON.stringify(urls);
             }
 
-            // 质检报告管理
-            function addInspectionReport(url) {
-                var grid = document.getElementById('inspectionReportsGrid');
-                var addBtn = grid.querySelector('.add-btn');
-                var item = document.createElement('div');
-                item.className = 'multi-image-item';
-                item.innerHTML = '<img src="' + url + '"><span class="mi-remove" onclick="removeInspectionReport(this)">&times;</span>';
-                grid.insertBefore(item, addBtn);
-                updateInspectionReportsField();
-            }
-
-            function removeInspectionReport(el) {
-                el.closest('.multi-image-item').remove();
-                updateInspectionReportsField();
-            }
-
-            function updateInspectionReportsField() {
-                var urls = [];
-                document.querySelectorAll('#inspectionReportsGrid .multi-image-item:not(.add-btn) img').forEach(function(img) {
-                    urls.push(img.src);
-                });
-                document.getElementById('inspection_reports').value = JSON.stringify(urls);
-            }
-
             // 规格参数管理
             function addSpecParam() {
                 var wrap = document.getElementById('specParamsWrap');
                 var row = document.createElement('div');
                 row.className = 'spec-param-row';
-                row.innerHTML = '<input type="text" class="spec-key" placeholder="参数名称" style="width:200px;">'
-                    + '<input type="text" class="spec-value" placeholder="参数值" style="width:300px;">'
+                row.innerHTML = '<input type="text" class="spec-value" placeholder="如：1" style="width:120px;">'
+                    + '<span style="color:#999;font-size:13px;">ml</span>'
                     + '<button type="button" class="btn btn-secondary spec-remove" onclick="removeSpecParam(this)">删除</button>';
-                wrap.insertBefore(row, wrap.querySelector('button'));
+                var addBtn = wrap.querySelector('.add-spec-btn');
+                wrap.insertBefore(row, addBtn);
                 updateSpecParamsField();
             }
 
@@ -788,20 +720,20 @@ $activeBrands = getActiveBrands($pdo);
             }
 
             function updateSpecParamsField() {
-                var obj = {};
+                var arr = [];
                 document.querySelectorAll('#specParamsWrap .spec-param-row').forEach(function(row) {
-                    var key = row.querySelector('.spec-key').value.trim();
                     var val = row.querySelector('.spec-value').value.trim();
-                    if (key) obj[key] = val;
+                    if (val) arr.push(val);
                 });
-                document.getElementById('spec_params').value = JSON.stringify(obj);
+                document.getElementById('spec_params').value = JSON.stringify(arr);
             }
 
             // 自动更新隐藏字段
             $(function() {
-                $(document).on('input', '.spec-key, .spec-value', function() {
+                $(document).on('input', '.spec-value', function() {
                     updateSpecParamsField();
                 });
+            });
             </script>
     
     <!-- 图片选择器模态框 -->

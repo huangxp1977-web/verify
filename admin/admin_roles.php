@@ -18,7 +18,7 @@ if (isset($_SESSION['flash_error'])) { $error = $_SESSION['flash_error']; unset(
 // 权限定义
 $permGroups = [
     'brand' => ['label' => '品牌业务', 'items' => [
-        'brand_code_generate' => '溯源码生成', 'brand_list' => '溯源码管理',
+        'brand_list' => '溯源码管理',
         'brand_distributors' => '经销商管理', 'brand_brands' => '品牌管理',
         'brand_products' => '产品管理',
     ]],

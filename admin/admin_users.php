@@ -60,8 +60,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_user'])) {
     else {
         try {
             $hash = password_hash($password, PASSWORD_DEFAULT);
-            $stmt = $pdo->prepare("INSERT INTO sys_users (username, password_hash, role, status, tenant_id, is_super_admin, role_id) VALUES (?, ?, 'operator', 1, ?, 0, ?)");
-            $stmt->execute([$username, $hash, $tenantId, $roleId]);
+            $canScanOutbound = isset($_POST['can_scan_outbound']) ? 1 : 0;
+            $stmt = $pdo->prepare("INSERT INTO sys_users (username, password_hash, role, status, tenant_id, is_super_admin, role_id, can_scan_outbound) VALUES (?, ?, 'operator', 1, ?, 0, ?, ?)");
+            $stmt->execute([$username, $hash, $tenantId, $roleId, $canScanOutbound]);
             $_SESSION['flash_success'] = "用户【{$username}】创建成功";
             header("Location: admin_users.php"); exit;
         } catch (PDOException $e) {
@@ -77,6 +78,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_user'])) {
     $username = trim($_POST['username'] ?? '');
     $roleId = intval($_POST['role_id'] ?? 0);
     $newPassword = $_POST['new_password'] ?? '';
+
+    // 获取当前用户数据
+    $editStmt = $pdo->prepare("SELECT * FROM sys_users WHERE id = ?");
+    $editStmt->execute([$id]);
+    $edit_user = $editStmt->fetch();
 
     if ($roleId > 0) {
         $checkRole = $pdo->prepare("SELECT tenant_id FROM roles WHERE id = ?");
@@ -110,18 +116,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_user'])) {
             }
         }
         // 更新角色（保护唯一管理员）
-        $isChangingRole = ($roleId != $edit_user['role_id']);
-        if ($isChangingRole && $edit_user['tenant_id'] > 0) {
-            // 检查当前用户是否是企业管理员
-            $crStmt = $pdo->prepare("SELECT is_system FROM roles WHERE id = ?");
-            $crStmt->execute([$edit_user['role_id']]);
-            $crRow = $crStmt->fetch();
-            if ($crRow && $crRow['is_system'] == 1) {
-                // 检查企业是否还有其他管理员
-                $acStmt = $pdo->prepare("SELECT COUNT(*) FROM sys_users u JOIN roles r ON u.role_id = r.id WHERE u.tenant_id = ? AND r.is_system = 1 AND u.status = 1 AND u.id != ?");
-                $acStmt->execute([$edit_user['tenant_id'], $id]);
-                if ($acStmt->fetchColumn() == 0) {
-                    $error = '该用户是企业唯一的管理员，不能更改角色';
+        if ($edit_user) {
+            $isChangingRole = ($roleId != $edit_user['role_id']);
+            if ($isChangingRole && $edit_user['tenant_id'] > 0) {
+                // 检查当前用户是否是企业管理员
+                $crStmt = $pdo->prepare("SELECT is_system FROM roles WHERE id = ?");
+                $crStmt->execute([$edit_user['role_id']]);
+                $crRow = $crStmt->fetch();
+                if ($crRow && $crRow['is_system'] == 1) {
+                    // 检查企业是否还有其他管理员
+                    $acStmt = $pdo->prepare("SELECT COUNT(*) FROM sys_users u JOIN roles r ON u.role_id = r.id WHERE u.tenant_id = ? AND r.is_system = 1 AND u.status = 1 AND u.id != ?");
+                    $acStmt->execute([$edit_user['tenant_id'], $id]);
+                    if ($acStmt->fetchColumn() == 0) {
+                        $error = '该用户是企业唯一的管理员，不能更改角色';
+                    }
                 }
             }
         }
@@ -145,6 +153,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_user'])) {
                     $pdo->prepare("UPDATE sys_users SET password_hash = ? WHERE id = ? AND tenant_id = ?")->execute([$hash, $id, getCurrentTenantId()]);
                 }
             }
+        }
+
+        // 保存出库扫码权限
+        $canScanOutbound = isset($_POST['can_scan_outbound']) ? 1 : 0;
+        if (isSuperAdmin()) {
+            $pdo->prepare("UPDATE sys_users SET can_scan_outbound = ? WHERE id = ?")->execute([$canScanOutbound, $id]);
+        } else {
+            $pdo->prepare("UPDATE sys_users SET can_scan_outbound = ? WHERE id = ? AND tenant_id = ?")->execute([$canScanOutbound, $id, getCurrentTenantId()]);
         }
 
         if (empty($error)) {
@@ -333,6 +349,15 @@ $users = $stmt->fetchAll();
                         <label>重置密码（留空则不修改）</label>
                         <input type="password" name="new_password" placeholder="输入新密码">
                     </div>
+                    <?php if (!$edit_user['is_super_admin']): ?>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" name="can_scan_outbound" value="1" <?php if (!empty($edit_user['can_scan_outbound'])) echo 'checked'; ?>>
+                            允许出库扫码
+                        </label>
+                        <small style="color:#999">开启后，用户可在个人资料页面绑定微信，用于出库扫码登录</small>
+                    </div>
+                    <?php endif; ?>
                     <?php endif; ?>
                     <button type="submit" name="edit_user" class="btn">保存修改</button>
                     <a href="admin_users.php" class="btn btn-secondary">返回列表</a>
@@ -372,6 +397,13 @@ $users = $stmt->fetchAll();
                             </div>
                         </div>
                     </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" name="can_scan_outbound" value="1">
+                            允许出库扫码
+                        </label>
+                        <small style="color:#999">开启后，用户可在个人资料页面绑定微信，用于出库扫码登录</small>
+                    </div>
                     <button type="submit" name="add_user" class="btn">创建用户</button>
                 </form>
             </div>
@@ -398,6 +430,7 @@ $users = $stmt->fetchAll();
                         <?php if (isSuperAdmin()): ?><th>所属企业</th><?php endif; ?>
                         <th>角色</th>
                         <th>微信绑定</th>
+                        <th>出库扫码</th>
                         <th>状态</th>
                         <th>最后登录</th>
                         <th>操作</th>
@@ -417,6 +450,13 @@ $users = $stmt->fetchAll();
                                 <span class="badge badge-disabled">未绑定</span>
                             <?php endif; ?>
                         </td>
+                        <td>
+                            <?php if (!empty($u['can_scan_outbound'])): ?>
+                                <span class="badge badge-active">是</span>
+                            <?php else: ?>
+                                <span class="badge badge-disabled">否</span>
+                            <?php endif; ?>
+                        </td>
                         <td><span class="badge <?php echo $u['status'] == 1 ? 'badge-active' : 'badge-disabled'; ?>"><?php echo $u['status'] == 1 ? '正常' : '禁用'; ?></span></td>
                         <td><?php echo $u['last_login'] ? date('m-d H:i', strtotime($u['last_login'])) : '-'; ?></td>
                         <td>
@@ -429,7 +469,7 @@ $users = $stmt->fetchAll();
                         </td>
                     </tr>
                 <?php endforeach; ?>
-                <?php if (empty($users)): ?><tr><td colspan="8">暂无用户数据</td></tr><?php endif; ?>
+                <?php if (empty($users)): ?><tr><td colspan="9">暂无用户数据</td></tr><?php endif; ?>
                 </tbody>
             </table>
             <?php endif; ?>

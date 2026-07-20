@@ -29,13 +29,24 @@ $success = '';
 $error = '';
 $admin_id = $_SESSION['admin_id'] ?? 1;
 
-// 查询当前用户的微信绑定状态
+// 查询当前用户的微信绑定状态和出库扫码权限
 $wechat_openid = '';
-$stmt = $pdo->prepare("SELECT wechat_openid FROM sys_users WHERE id = ?");
+$can_scan_outbound = 0;
+$stmt = $pdo->prepare("SELECT wechat_openid, can_scan_outbound FROM sys_users WHERE id = ?");
 $stmt->execute([$admin_id]);
 $userData = $stmt->fetch(PDO::FETCH_ASSOC);
 if ($userData) {
     $wechat_openid = $userData['wechat_openid'] ?? '';
+    $can_scan_outbound = intval($userData['can_scan_outbound'] ?? 0);
+}
+
+// 获取 portal 域名（用于公众号菜单链接展示）
+$portalDomain = '';
+$tenantId = getCurrentTenantId();
+if ($tenantId > 0) {
+    $domStmt = $pdo->prepare("SELECT domain FROM tenant_domains WHERE tenant_id = ? AND type = 'portal' AND status = 1");
+    $domStmt->execute([$tenantId]);
+    $portalDomain = $domStmt->fetchColumn();
 }
 
 // ========== 解绑微信（自助） ==========
@@ -369,7 +380,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <div style="height:30px;"></div>
 
-            <?php if (!isSuperAdmin()): ?>
+            <?php if (!isSuperAdmin() && $can_scan_outbound): ?>
             <!-- 绑定微信 -->
             <div class="bind-section">
                 <h2>绑定微信</h2>
@@ -390,6 +401,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <?php endif; ?>
             </div>
             <?php endif; ?>
+
+            <?php if (!isSuperAdmin() && $can_scan_outbound && $portalDomain): ?>
+            <!-- 公众号菜单链接 -->
+            <div class="bind-section" style="margin-top:20px;">
+                <h2>公众号菜单链接</h2>
+                <p style="color:#666;font-size:14px;margin-bottom:10px;">将以下链接添加到微信公众号菜单，用户点击即可跳转出库扫码页面：</p>
+                <div style="background:#fff;border:1px solid #ddd;border-radius:4px;padding:10px 12px;word-break:break-all;font-size:14px;font-family:monospace;">
+                    https://<?php echo htmlspecialchars($portalDomain); ?>/wx/scan_outbound.php
+                </div>
+                <p style="color:#999;font-size:12px;margin-top:8px;">💡 请在微信公众号后台 → 自定义菜单 → 添加链接到此地址</p>
+            </div>
+            <?php endif; ?>
+
         </div>
     </div>
 

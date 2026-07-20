@@ -60,11 +60,11 @@ try {
     // 获取产品与批号对应关系（用于按产品导出）
     $product_batches = [];
     $params2 = [];
-    $stmt = $pdo->prepare("SELECT DISTINCT p.product_name, p.batch_number FROM products p WHERE 1=1" . tenantWhere($params2, 'p') . " ORDER BY p.product_name, p.batch_number DESC");
+    $stmt = $pdo->prepare("SELECT DISTINCT p.product_id, p.batch_number FROM products p WHERE 1=1" . tenantWhere($params2, 'p') . " ORDER BY p.product_id, p.batch_number DESC");
     $stmt->execute($params2);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
     foreach ($rows as $row) {
-        $product_batches[$row['product_name']][] = $row['batch_number'];
+        $product_batches[$row['product_id']][] = $row['batch_number'];
     }
     $product_batches_json = json_encode($product_batches);
 } catch(PDOException $e) {
@@ -81,14 +81,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_products'])) 
     $p_name_input = isset($_POST['product_name_input']) ? trim($_POST['product_name_input']) : '';
     $product_name = ($p_name_select === 'custom' || empty($p_name_select)) ? $p_name_input : $p_name_select;
 
-    // 从产品库获取包装配置
-    $cartons_per_box = 100;
-    $units_per_carton = 5;
+    // 从产品库获取包装配置和 product_id
+    $cartons_per_box = 0;
+    $units_per_carton = 0;
+    $product_id = 0;
     if ($p_name_select !== 'custom' && !empty($p_name_select)) {
         foreach ($product_lib as $p) {
             if ($p['product_name'] === $p_name_select) {
-                $cartons_per_box = intval($p['cartons_per_box'] ?? 100);
-                $units_per_carton = intval($p['units_per_carton'] ?? 5);
+                $cartons_per_box = intval($p['cartons_per_box'] ?? 0);
+                $units_per_carton = intval($p['units_per_carton'] ?? 0);
+                $product_id = intval($p['id'] ?? 0);
                 break;
             }
         }
@@ -214,12 +216,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_products'])) 
                                 $exists = $stmt->fetchColumn();
                             } while ($exists);
 
-                            $product_params[] = [$product_code, $carton_id, $product_name, $production_date, $batch_number];
+                            $product_params[] = [$product_code, $carton_id, $product_id, $product_name, $production_date, $batch_number];
                         }
                     }
                 }
 
-                $batch_insert('products', ['product_code', 'carton_id', 'product_name', 'production_date', 'batch_number', 'tenant_id'], array_map(function($row) use ($tenantId) { $row[] = $tenantId; return $row; }, $product_params), $pdo);
+                $batch_insert('products', ['product_code', 'carton_id', 'product_id', 'product_name', 'production_date', 'batch_number', 'tenant_id'], array_map(function($row) use ($tenantId) { $row[] = $tenantId; return $row; }, $product_params), $pdo);
 
                 $pdo->commit();
                 $processed_boxes += $batch_size;
@@ -272,8 +274,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_data'])) {
     } else {
         try {
             $params = [];
-            $whereExtra = " AND p.product_name = ?";
-            $params[] = $product_filter;
+            $whereExtra = " AND p.product_id = ?";
+            $params[] = intval($product_filter);
             if (!empty($batch_filter)) {
                 $whereExtra .= " AND b.batch_number = ?";
                 $params[] = $batch_filter;
@@ -442,11 +444,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_zero_product'
     $product_name = ($z_name_select === 'custom' || empty($z_name_select)) ? $z_name_input : $z_name_select;
 
     // 从产品库获取包装配置（套二只有盒数，没有支数）
-    $z_cartons_per_box = 100;
+    $z_cartons_per_box = 0;
     if ($z_name_select !== 'custom' && !empty($z_name_select)) {
         foreach ($product_lib as $p) {
             if ($p['product_name'] === $z_name_select) {
-                $z_cartons_per_box = intval($p['cartons_per_box'] ?? 100);
+                $z_cartons_per_box = intval($p['cartons_per_box'] ?? 0);
                 break;
             }
         }
@@ -975,7 +977,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_zero_data'])) {
                                     <select id="dc_product_name" name="dc_product_name" required>
                                         <option value="">-- 请选择产品 --</option>
                                         <?php foreach ($product_lib as $p): ?>
-                                            <option value="<?php echo htmlspecialchars($p['product_name']); ?>"><?php echo htmlspecialchars($p['product_name']); ?></option>
+                                            <option value="<?php echo $p['id']; ?>"><?php echo htmlspecialchars($p['product_name']); ?></option>
                                         <?php endforeach; ?>
                                     </select>
                                 </div>

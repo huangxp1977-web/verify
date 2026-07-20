@@ -1,7 +1,7 @@
 <?php
 /**
  * 微信端出库扫码
- * 功能：微信OAuth静默授权 → 扫码外箱 → 选择经销商 → 分配出库
+ * 功能：微信OAuth静默授权 → 扫码外箱 → 检查经销商 → 确认出库
  * 支持管理员扫码绑定OpenID → 系统用户
  */
 session_start();
@@ -81,7 +81,6 @@ $wechatConfig = getWechatOAuthConfig($pdo, $tenantId);
 $error = '';
 $success = '';
 $box_info = null;
-$base_distributors = [];
 $boundUser = null;  // 绑定的系统用户
 $isBindMode = false;
 $bindResult = '';
@@ -174,21 +173,7 @@ if (!$isBindMode) {
     }
 }
 
-// ==================== 4. 经销商列表 & 信息查询（复用warehouse逻辑） ====================
-function getDistributors($pdo, $tenantId) {
-    try {
-        if ($tenantId > 0) {
-            $stmt = $pdo->prepare("SELECT * FROM base_distributors WHERE tenant_id = ? AND status = 1 ORDER BY name ASC");
-            $stmt->execute([$tenantId]);
-        } else {
-            $stmt = $pdo->query("SELECT * FROM base_distributors WHERE status = 1 ORDER BY name ASC");
-        }
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch(PDOException $e) {
-        return [];
-    }
-}
-
+// ==================== 4. 信息查询（复用warehouse逻辑） ====================
 function getBoxInfo($pdo, $code, $tenantId) {
     try {
         if ($tenantId > 0) {
@@ -205,59 +190,63 @@ function getBoxInfo($pdo, $code, $tenantId) {
 }
 
 // ==================== 5. 处理出库操作 ====================
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['assign_distributor'])) {
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['confirm_outbound'])) {
     $box_code = isset($_POST['box_code']) ? trim($_POST['box_code']) : '';
-    $distributor_id = isset($_POST['distributor_id']) ? intval($_POST['distributor_id']) : 0;
 
-    if (empty($box_code) || empty($distributor_id)) {
-        $error = "请选择经销商并确保扫描了正确的箱子";
+    if (empty($box_code)) {
+        $error = "请扫描正确的箱子";
     } else {
         try {
             $pdo->beginTransaction();
 
-            // 获取箱子ID（含租户隔离）
-            $stmt = $pdo->prepare("SELECT id FROM boxes WHERE box_code = ? AND tenant_id = ?");
+            // 获取箱子信息（含租户隔离）
+            $stmt = $pdo->prepare("SELECT id, distributor_id FROM boxes WHERE box_code = ? AND tenant_id = ?");
             $stmt->execute([$box_code, $tenantId]);
             $box = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if ($box) {
-                $box_id = $box['id'];
+                if (empty($box['distributor_id'])) {
+                    $error = "该箱子尚未指定经销商，请先在后台管理页面指定经销商后再出库";
+                    $pdo->rollBack();
+                } else {
+                    $box_id = $box['id'];
 
-                // 更新箱子经销商
-                $stmt = $pdo->prepare("UPDATE boxes SET distributor_id = ? WHERE id = ? AND tenant_id = ?");
-                $stmt->execute([$distributor_id, $box_id, $tenantId]);
+                    // 更新箱子出库状态
+                    $stmt = $pdo->prepare("UPDATE boxes SET outbound_at = NOW() WHERE id = ? AND tenant_id = ?");
+                    $stmt->execute([$box_id, $tenantId]);
 
-                // 获取该箱子下所有盒子
-                $stmt = $pdo->prepare("SELECT id FROM cartons WHERE box_id = ? AND tenant_id = ?");
-                $stmt->execute([$box_id, $tenantId]);
-                $cartons = $stmt->fetchAll(PDO::FETCH_COLUMN);
+                    // 获取该箱子下所有盒子
+                    $stmt = $pdo->prepare("SELECT id FROM cartons WHERE box_id = ? AND tenant_id = ?");
+                    $stmt->execute([$box_id, $tenantId]);
+                    $cartons = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
-                if (!empty($cartons)) {
-                    $placeholders = implode(',', array_fill(0, count($cartons), '?'));
+                    if (!empty($cartons)) {
+                        $placeholders = implode(',', array_fill(0, count($cartons), '?'));
 
-                    // 更新盒子经销商
-                    $stmt = $pdo->prepare("UPDATE cartons SET distributor_id = ? WHERE id IN ({$placeholders}) AND tenant_id = ?");
-                    $params = array_merge([$distributor_id], $cartons, [$tenantId]);
-                    $stmt->execute($params);
+                        // 更新盒子出库状态
+                        $stmt = $pdo->prepare("UPDATE cartons SET outbound_at = NOW() WHERE id IN ({$placeholders}) AND tenant_id = ?");
+                        $params = array_merge($cartons, [$tenantId]);
+                        $stmt->execute($params);
 
-                    // 获取这些盒子下的所有产品
-                    $stmt = $pdo->prepare("SELECT id FROM products WHERE carton_id IN ({$placeholders}) AND tenant_id = ?");
-                    $productParams = array_merge($cartons, [$tenantId]);
-                    $stmt->execute($productParams);
-                    $products = $stmt->fetchAll(PDO::FETCH_COLUMN);
+                        // 获取这些盒子下的所有产品
+                        $stmt = $pdo->prepare("SELECT id FROM products WHERE carton_id IN ({$placeholders}) AND tenant_id = ?");
+                        $productParams = array_merge($cartons, [$tenantId]);
+                        $stmt->execute($productParams);
+                        $products = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
-                    // 更新产品经销商
-                    if (!empty($products)) {
-                        $prodPlaceholders = implode(',', array_fill(0, count($products), '?'));
-                        $stmt = $pdo->prepare("UPDATE products SET distributor_id = ? WHERE id IN ({$prodPlaceholders}) AND tenant_id = ?");
-                        $prodParams = array_merge([$distributor_id], $products, [$tenantId]);
-                        $stmt->execute($prodParams);
+                        // 更新产品出库状态
+                        if (!empty($products)) {
+                            $prodPlaceholders = implode(',', array_fill(0, count($products), '?'));
+                            $stmt = $pdo->prepare("UPDATE products SET outbound_at = NOW() WHERE id IN ({$prodPlaceholders}) AND tenant_id = ?");
+                            $prodParams = array_merge($products, [$tenantId]);
+                            $stmt->execute($prodParams);
+                        }
                     }
-                }
 
-                $pdo->commit();
-                $box_info = getBoxInfo($pdo, $box_code, $tenantId);
-                $success = "出库成功，已将箱子、盒子和产品关联到选定的经销商";
+                    $pdo->commit();
+                    $box_info = getBoxInfo($pdo, $box_code, $tenantId);
+                    $success = "出库成功";
+                }
             } else {
                 $error = "未找到对应的箱子信息";
                 $pdo->rollBack();
@@ -290,14 +279,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['query_box'])) {
             $error = "未找到对应的箱子信息";
         }
     }
-}
-
-// 获取经销商列表
-try {
-    $base_distributors = getDistributors($pdo, $tenantId);
-} catch(PDOException $e) {
-    error_log('获取经销商列表错误: ' . $e->getMessage());
-    $error = "获取经销商列表失败，请刷新重试";
 }
 
 // ==================== 7. JSSDK配置（扫码用） ====================
@@ -618,7 +599,7 @@ $scanBgUrl = getImageUrl($scanBgUrl);
                 </div>
             </div>
 
-            <!-- ========== 箱子信息 + 经销商分配 ========== -->
+            <!-- ========== 箱子信息 + 出库确认 ========== -->
             <?php if ($box_info): ?>
                 <div class="section">
                     <h2>箱子信息</h2>
@@ -629,28 +610,29 @@ $scanBgUrl = getImageUrl($scanBgUrl);
                         <p><span class="label">生产日期：</span><?php echo htmlspecialchars($box_info['production_date']); ?></p>
                         <p><span class="label">当前经销商：</span>
                             <?php if (!empty($box_info['distributor_name'])): ?>
-                                <span class="distributor-assigned">已分配：<?php echo htmlspecialchars($box_info['distributor_name']); ?></span>
+                                <span class="distributor-assigned"><?php echo htmlspecialchars($box_info['distributor_name']); ?></span>
                             <?php else: ?>
                                 <span class="distributor-unassigned">未分配</span>
                             <?php endif; ?>
                         </p>
                         <p><span class="label">创建时间：</span><?php echo $box_info['created_at']; ?></p>
 
-                        <form method="post" action="">
-                            <input type="hidden" name="box_code" value="<?php echo htmlspecialchars($box_info['box_code']); ?>">
-                            <div class="form-group">
-                                <label for="distributor_id">选择经销商：</label>
-                                <select id="distributor_id" name="distributor_id" required>
-                                    <option value="">请选择经销商</option>
-                                    <?php foreach ($base_distributors as $distributor): ?>
-                                        <option value="<?php echo $distributor['id']; ?>"<?php echo ($box_info['distributor_id'] == $distributor['id']) ? ' selected' : ''; ?>>
-                                            <?php echo htmlspecialchars($distributor['name']); ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                            <button type="submit" name="assign_distributor" class="btn">确认出库</button>
-                        </form>
+                        <?php if (!empty($box_info['outbound_at'])): ?>
+                            <p><span class="label">出库时间：</span><span class="distributor-assigned"><?php echo $box_info['outbound_at']; ?></span></p>
+                        <?php endif; ?>
+
+                        <?php if (!empty($box_info['distributor_id'])): ?>
+                            <?php if (empty($box_info['outbound_at'])): ?>
+                                <form method="post" action="">
+                                    <input type="hidden" name="box_code" value="<?php echo htmlspecialchars($box_info['box_code']); ?>">
+                                    <button type="submit" name="confirm_outbound" class="btn">确认出库</button>
+                                </form>
+                            <?php else: ?>
+                                <p style="color:#27ae60;font-weight:bold;margin-top:15px;">该箱子已完成出库</p>
+                            <?php endif; ?>
+                        <?php else: ?>
+                            <div class="error" style="margin-top:15px;">该箱子尚未指定经销商，请先在后台管理页面指定经销商后再出库</div>
+                        <?php endif; ?>
                     </div>
                 </div>
             <?php endif; ?>

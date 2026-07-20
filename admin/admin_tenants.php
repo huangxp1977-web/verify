@@ -73,6 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_tenant'])) {
                     'system_qiniu' => ['view','edit'],
                     'system_users' => ['view','create','edit','delete'],
                     'system_roles' => ['view','create','edit','delete'],
+                    'system_password' => ['view'],
                 ]
             ]);
             $stmt = $pdo->prepare("INSERT INTO roles (tenant_id, name, permissions, is_system) VALUES (?, '企业管理员', ?, 1)");

@@ -307,8 +307,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export'])) {
                         $productExportTenant = " AND tenant_id = :tenant_id";
                         $productExportParams[':tenant_id'] = getCurrentTenantId();
             $stmt = $pdo->prepare("
-                SELECT product_code, batch_number, DATE(production_date) as production_date, product_name, region
-                FROM products
+                SELECT product_code, batch_number, DATE(production_date) as production_date, product_name
+                                FROM products
                 WHERE carton_id = :carton_id" . $productExportTenant . "
                 ORDER BY product_code ASC
             ");
@@ -321,8 +321,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export'])) {
                     'batch' => $item['batch_number'],
                     'date' => $item['production_date'],
                     'name' => $item['product_name'],
-                    'region' => $item['region'],
-                    'url' => $queryUrl . urlencode($item['product_code'])
+                                        'url' => $queryUrl . urlencode($item['product_code'])
                 ];
             }
             $export_title = '产品';
@@ -419,17 +418,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit'])) {
             $success = "盒子及下属所有产品的代理商已同步更新";
 
         } elseif ($level == 'product') {
-            // 产品仅更新自身代理商（无下级）
-            $stmt = $pdo->prepare("
-                UPDATE products
-                SET product_name = :name, region = :region, image_url = :image,
-                    batch_number = :batch, production_date = :date, distributor_id = :did
-                WHERE id = :id AND tenant_id = :tenant_id
-            ");
-            $stmt->bindParam(':name', $_POST['product_name']);
-            $stmt->bindParam(':region', $_POST['region']);
-            $stmt->bindParam(':image', $_POST['image_url']);
-            $stmt->bindParam(':batch', $_POST['batch_number']);
+                    // 产品仅更新自身代理商（无下级）
+                    $stmt = $pdo->prepare("
+                        UPDATE products
+                        SET product_name = :name,
+                            batch_number = :batch, production_date = :date, distributor_id = :did
+                        WHERE id = :id AND tenant_id = :tenant_id
+                    ");
+                    $stmt->bindParam(':name', $_POST['product_name']);
+                    $stmt->bindParam(':batch', $_POST['batch_number']);
             $stmt->bindParam(':date', $_POST['production_date']);
             $stmt->bindParam(':did', $new_distributor_id);
             $stmt->bindParam(':id', $item_id);
@@ -750,7 +747,7 @@ function exportAsTxt($data, $title, $level) {
     header('Content-Disposition: attachment; filename="' . $filename . '"');
     
     if ($level == 'product') {
-        echo "溯源码\t产品名称\t生产地区\t批号\t生产日期\t查询网址\n";
+        echo "溯源码\t产品名称\t批号\t生产日期\t查询网址\n";
     } else {
         echo "溯源码\t批号\t生产日期\t查询网址\n";
     }
@@ -759,7 +756,6 @@ function exportAsTxt($data, $title, $level) {
         if ($level == 'product') {
             echo $item['code'] . "\t" .
                  $item['name'] . "\t" .
-                 $item['region'] . "\t" .
                  $item['batch'] . "\t" .
                  $item['date'] . "\t" .
                  $item['url'] . "\n";
@@ -784,7 +780,7 @@ function exportAsExcel($data, $title, $level) {
     fwrite($fp, chr(0xEF) . chr(0xBB) . chr(0xBF));
     
     if ($level == 'product') {
-        fputcsv($fp, ['溯源码', '产品名称', '生产地区', '批号', '生产日期', '查询网址']);
+        fputcsv($fp, ['溯源码', '产品名称', '批号', '生产日期', '查询网址']);
     } else {
         fputcsv($fp, ['溯源码', '批号', '生产日期', '查询网址']);
     }
@@ -794,7 +790,6 @@ function exportAsExcel($data, $title, $level) {
             fputcsv($fp, [
                 $item['code'],
                 $item['name'],
-                $item['region'],
                 $item['batch'],
                 $item['date'],
                 $item['url']
@@ -1226,13 +1221,12 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
                             <th>操作</th>
                         <?php elseif ($level == 'product'): ?>
                             <th style="vertical-align: middle;"><div style="display: flex; flex-direction: column; align-items: center; gap: 4px;"><span>全选</span><input type="checkbox" id="selectAll" class="select-checkbox"></div></th>
-                            <th>产品溯源码</th>
-                            <th>产品名称</th>
-                            <th>生产地区</th>
-                            <th>批号</th>
-                            <th>生产日期</th>
-                            <th>经销商</th>
-                            <th>操作</th>
+                                                        <th>产品溯源码</th>
+                                                        <th>产品名称</th>
+                                                        <th>批号</th>
+                                                        <th>生产日期</th>
+                                                        <th>经销商</th>
+                                                        <th>操作</th>
                         <?php endif; ?>
                     </tr>
                 </thead>
@@ -1299,21 +1293,18 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
                             <?php elseif ($level == 'product'): ?>
                                 <td><input type="checkbox" class="selectItem select-checkbox" value="<?php echo $item['id']; ?>"></td>
                                 <td><?php echo htmlspecialchars($item['product_code']); ?></td>
-                                <td><?php echo htmlspecialchars($item['product_name']); ?></td>
-                                <td><?php echo htmlspecialchars($item['region']); ?></td>
-                                <td><?php echo htmlspecialchars($item['batch_number']); ?></td>
+                                                                <td><?php echo htmlspecialchars($item['product_name']); ?></td>
+                                                                <td><?php echo htmlspecialchars($item['batch_number']); ?></td>
                                 <td><?php echo date('Y-m-d', strtotime($item['production_date'])); ?></td>
                                 <td><?php echo !empty($item['distributor_name']) ? htmlspecialchars($item['distributor_name']) : '未分配'; ?></td>
                                 <td class="actions">
                                     <button class="btn btn-edit" onclick="openEditModal(
-                                        <?php echo $item['id']; ?>, 
-                                        'product', 
-                                        '<?php echo addslashes($item['batch_number']); ?>', 
-                                        '<?php echo date('Y-m-d', strtotime($item['production_date'])); ?>',
-                                        '<?php echo addslashes($item['product_name']); ?>',
-                                        '<?php echo addslashes($item['region']); ?>',
-                                        '<?php echo addslashes($item['image_url']); ?>'
-                                    )">编辑</button>
+                                                                            <?php echo $item['id']; ?>, 
+                                                                            'product', 
+                                                                            '<?php echo addslashes($item['batch_number']); ?>', 
+                                                                            '<?php echo date('Y-m-d', strtotime($item['production_date'])); ?>',
+                                                                            '<?php echo addslashes($item['product_name']); ?>'
+                                                                        )">编辑</button>
                                     <form method="post" action="" onsubmit="return confirm('确定要删除这个产品吗？');" style="display: inline;">
                                         <input type="hidden" name="item_id" value="<?php echo $item['id']; ?>">
                                         <input type="hidden" name="level" value="product">
@@ -1381,21 +1372,11 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
                 <?php endif; ?>
                 
                 <?php if ($level == 'product'): ?>
-                    <div class="form-group">
-                        <label for="product_name">产品名称</label>
-                        <input type="text" id="product_name" name="product_name" required>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="region">生产地区</label>
-                        <input type="text" id="region" name="region" required>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="image_url">产品图片URL</label>
-                        <input type="url" id="image_url" name="image_url">
-                    </div>
-                <?php endif; ?>
+                                    <div class="form-group">
+                                        <label for="product_name">产品名称</label>
+                                        <input type="text" id="product_name" name="product_name" required>
+                                    </div>
+                                <?php endif; ?>
                 
                 <button type="submit" name="edit" class="btn">保存修改</button>
             </form>
@@ -1408,18 +1389,16 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
         var btnClose = document.getElementsByClassName("close")[0];
         
 // 打开模态框
-function openEditModal(id, level, batch = '', date = '', distributorId = '', name = '', region = '', image = '') {
+function openEditModal(id, level, batch = '', date = '', distributorId = '', name = '') {
     // 记录函数调用及参数信息
     console.log('调用 openEditModal 函数', {
-        id,
-        level,
-        batch,
-        date,
-        distributorId,
-        name,
-        region,
-        image
-    });
+            id,
+            level,
+            batch,
+            date,
+            distributorId,
+            name
+        });
 
     // 1. 验证核心参数
     if (!id || !level) {
@@ -1487,35 +1466,17 @@ function openEditModal(id, level, batch = '', date = '', distributorId = '', nam
     }
 
     // 4. 根据层级赋值特有字段
-    console.log('开始处理层级特有字段，当前层级：', level);
-    if (level == 'product') {
-        // 产品名称
-        const productNameInput = document.getElementById("product_name");
-        if (productNameInput) {
-            productNameInput.value = name;
-            console.log('已设置产品名称字段值', { value: name });
+        console.log('开始处理层级特有字段，当前层级：', level);
+        if (level == 'product') {
+            // 产品名称
+            const productNameInput = document.getElementById("product_name");
+            if (productNameInput) {
+                productNameInput.value = name;
+                console.log('已设置产品名称字段值', { value: name });
+            } else {
+                console.warn('未找到 product_name 输入框，跳过赋值');
+            }
         } else {
-            console.warn('未找到 product_name 输入框，跳过赋值');
-        }
-
-        // 区域
-        const regionInput = document.getElementById("region");
-        if (regionInput) {
-            regionInput.value = region;
-            console.log('已设置区域字段值', { value: region });
-        } else {
-            console.warn('未找到 region 输入框，跳过赋值');
-        }
-
-        // 图片URL
-        const imageUrlInput = document.getElementById("image_url");
-        if (imageUrlInput) {
-            imageUrlInput.value = image;
-            console.log('已设置图片URL字段值', { value: image });
-        } else {
-            console.warn('未找到 image_url 输入框，跳过赋值');
-        }
-    } else {
         console.log('非产品层级，无需处理产品特有字段');
     }
 
