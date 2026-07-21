@@ -128,26 +128,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_tenant'])) {
             $stmt = $pdo->prepare("UPDATE tenants SET name=?, contact_name=?, contact_phone=?, contact_email=?, modules=? WHERE id=?");
             $stmt->execute([$name, $contact_name, $contact_phone, $contact_email, $modulesJson, $id]);
 
-            // 保存微信配置到 base_config
-            $wcAppId = trim($_POST['wechat_app_id'] ?? '');
-            $wcAppSecret = trim($_POST['wechat_app_secret'] ?? '');
-            $wechatConfig = [];
-            if (!empty($wcAppId) && !empty($wcAppSecret)) {
-                $wechatConfig = ['app_id' => $wcAppId, 'app_secret' => $wcAppSecret];
-            }
-            // 读取现有 base_config，合并微信部分
-            $bcStmt = $pdo->prepare("SELECT base_config FROM tenants WHERE id = ?");
-            $bcStmt->execute([$id]);
-            $bcRow = $bcStmt->fetch();
-            $base = [];
-            if ($bcRow && !empty($bcRow['base_config'])) {
-                $parsed = json_decode($bcRow['base_config'], true);
-                if (is_array($parsed)) $base = $parsed;
-            }
-            $base['wechat'] = !empty($wechatConfig) ? $wechatConfig : new stdClass;
-            $stmt = $pdo->prepare("UPDATE tenants SET base_config = ? WHERE id = ?");
-            $stmt->execute([json_encode($base, JSON_UNESCAPED_UNICODE), $id]);
-
             // 域名绑定处理
             $adminDomain = trim($_POST['domain_admin'] ?? '');
             $portalDomain = trim($_POST['domain_portal'] ?? '');
@@ -356,36 +336,6 @@ $tenants = $stmt->fetchAll();
                                 </div>
                             </div>
                         </div>
-                    </div>
-
-                    <!-- ========== 微信配置 ========== -->
-                    <?php
-                    $editWechatConfig = [];
-                    if ($edit_tenant) {
-                        // 从 base_config 读取
-                        if (!empty($edit_tenant['base_config'])) {
-                            $bc = json_decode($edit_tenant['base_config'], true);
-                            if (!empty($bc['wechat'])) $editWechatConfig = $bc['wechat'];
-                        }
-                    }
-                    ?>
-                    <div style="background:#fff;padding:12px;border-radius:6px;margin-bottom:12px;border:1px solid #ddd">
-                        <h3 style="font-size:14px;color:#4a3f69;margin:0 0 8px 0">📱 微信OAuth配置（出库扫码用）</h3>
-                        <div class="form-row">
-                            <div class="form-col">
-                                <div class="form-group">
-                                    <label>微信公众号AppID</label>
-                                    <input type="text" name="wechat_app_id" value="<?php echo htmlspecialchars($editWechatConfig['app_id'] ?? ''); ?>" placeholder="wxxxxxxxxx">
-                                </div>
-                            </div>
-                            <div class="form-col">
-                                <div class="form-group">
-                                    <label>微信公众号AppSecret</label>
-                                    <input type="password" name="wechat_app_secret" value="<?php echo htmlspecialchars($editWechatConfig['app_secret'] ?? ''); ?>" placeholder="对应AppSecret">
-                                </div>
-                            </div>
-                        </div>
-                        <small style="color:#999">配置后，微信端出库扫码页面将通过OAuth静默授权获取用户openid。请确保该公众号的JS接口安全域名已包含扫码域名。</small>
                     </div>
 
                     <button type="submit" name="edit_tenant" class="btn">保存修改</button>
