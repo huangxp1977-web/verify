@@ -7,7 +7,7 @@ $cert_no = isset($_GET['cert_no']) ? trim($_GET['cert_no']) : '';
 $host = $_SERVER['HTTP_HOST'];
 $isGuoKong = (strpos($host, 'guokonghuayi') !== false || strpos($host, 'verify.local') !== false || strpos($host, 'localhost') !== false || strpos($host, 'admin.heiyibai') !== false);
 $isLvXin = (strpos($host, 'lvxinchaxun') !== false);
-// 其他域名默认为德欧美提 (verify.aesthmed.cn)
+// 其他域名默认为品牌路线
 
 // 判断是否为微信浏览器
 function isWechatBrowser() {

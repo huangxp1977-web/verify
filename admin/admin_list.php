@@ -1187,16 +1187,18 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
         <!-- 统计信息和批量删除按钮区域 -->
         <?php if ($data): ?>
         <div class="batch-actions" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-            <div class="stats" style="color: #666;">
-                共 <strong><?php echo $total_records; ?></strong> 条记录，当前第 <strong><?php echo $page; ?></strong> / <strong><?php echo max(1, $total_pages); ?></strong> 页
-            </div>
-            <form method="post" action="" onsubmit="return confirmBatchDelete();" style="display: inline-block;">
-                <input type="hidden" name="level" value="<?php echo $level; ?>">
-                <input type="hidden" name="id" value="<?php echo $id; ?>">
-                <input type="hidden" id="selectedIds" name="selected_ids" value="">
-                <button type="submit" name="batch_delete" class="btn btn-danger">批量删除选中记录</button>
-            </form>
-        </div>
+                    <div class="stats" style="color: #666;">
+                        共 <strong><?php echo $total_records; ?></strong> 条记录，当前第 <strong><?php echo $page; ?></strong> / <strong><?php echo max(1, $total_pages); ?></strong> 页
+                    </div>
+                    <?php if ($level != 'carton'): ?>
+                    <form method="post" action="" onsubmit="return confirmBatchDelete();" style="display: inline-block;">
+                        <input type="hidden" name="level" value="<?php echo $level; ?>">
+                        <input type="hidden" name="id" value="<?php echo $id; ?>">
+                        <input type="hidden" id="selectedIds" name="selected_ids" value="">
+                        <button type="submit" name="batch_delete" class="btn btn-danger">批量删除选中记录</button>
+                    </form>
+                    <?php endif; ?>
+                </div>
         <?php endif; ?>
         
         <?php if ($data): ?>
@@ -1212,13 +1214,11 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
                             <th>盒子数量</th>
                             <th>操作</th>
                         <?php elseif ($level == 'carton'): ?>
-                            <th style="vertical-align: middle;"><div style="display: flex; flex-direction: column; align-items: center; gap: 4px;"><span>全选</span><input type="checkbox" id="selectAll" class="select-checkbox"></div></th>
-                            <th>盒子溯源码</th>
-                            <th>批号</th>
-                            <th>生产日期</th>
-                            <th>经销商</th>
-                            <th>产品数量</th>
-                            <th>操作</th>
+                                                    <th>盒子溯源码</th>
+                                                    <th>批号</th>
+                                                    <th>生产日期</th>
+                                                    <th>经销商</th>
+                                                    <th>产品数量</th>
                         <?php elseif ($level == 'product'): ?>
                             <th style="vertical-align: middle;"><div style="display: flex; flex-direction: column; align-items: center; gap: 4px;"><span>全选</span><input type="checkbox" id="selectAll" class="select-checkbox"></div></th>
                                                         <th>产品溯源码</th>
@@ -1262,34 +1262,19 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
                                     </form>
                                 </td>
                             <?php elseif ($level == 'carton'): ?>
-                                <td><input type="checkbox" class="selectItem select-checkbox" value="<?php echo $item['id']; ?>"></td>
-                                <td><?php echo htmlspecialchars($item['carton_code']); ?></td>
-                                <td><?php echo htmlspecialchars($item['batch_number']); ?></td>
-                                <td><?php echo date('Y-m-d', strtotime($item['production_date'])); ?></td>
-                                <td><?php echo !empty($item['distributor_name']) ? htmlspecialchars($item['distributor_name']) : '未分配'; ?></td>
-                                <td><?php echo isset($carton_product_counts[$item['id']]) ? $carton_product_counts[$item['id']] : 0; ?></td>
-                                <td class="actions">
-                                    <?php 
-                                    $productCount = isset($carton_product_counts[$item['id']]) ? $carton_product_counts[$item['id']] : 0;
-                                    if ($productCount > 0): 
-                                    ?>
-                                        <a href="admin_list.php?level=product&id=<?php echo $item['id']; ?>" class="btn">查看产品</a>
-                                    <?php endif; ?>
-                                    <button class="btn btn-edit" onclick="openEditModal(
-    <?php echo $item['id']; ?>, 
-    'carton', 
-    '<?php echo htmlspecialchars($item['batch_number']); ?>', 
-    '<?php echo date('Y-m-d', strtotime($item['production_date'])); ?>',
-    '', '', '',
-    <?php echo $item['distributor_id'] ?: '0'; ?> // 传递经销商ID
-)">编辑</button>
-                                    <form method="post" action="" onsubmit="return confirm('确定要删除这个盒子吗？');" style="display: inline;">
-                                        <input type="hidden" name="item_id" value="<?php echo $item['id']; ?>">
-                                        <input type="hidden" name="level" value="carton">
-                                        <input type="hidden" name="id" value="<?php echo $id; ?>">
-                                        <button type="submit" name="delete_single" class="btn btn-delete">删除</button>
-                                    </form>
-                                </td>
+                                                            <td><?php echo htmlspecialchars($item['carton_code']); ?></td>
+                                                            <td><?php echo htmlspecialchars($item['batch_number']); ?></td>
+                                                            <td><?php echo date('Y-m-d', strtotime($item['production_date'])); ?></td>
+                                                            <td><?php echo !empty($item['distributor_name']) ? htmlspecialchars($item['distributor_name']) : '未分配'; ?></td>
+                                                            <td>
+                                                                <?php 
+                                                                $productCount = isset($carton_product_counts[$item['id']]) ? $carton_product_counts[$item['id']] : 0;
+                                                                echo $productCount;
+                                                                if ($productCount > 0): 
+                                                                ?>
+                                                                    <a href="admin_list.php?level=product&id=<?php echo $item['id']; ?>" class="btn" style="margin-left: 8px;">查看产品</a>
+                                                                <?php endif; ?>
+                                                            </td>
                             <?php elseif ($level == 'product'): ?>
                                 <td><input type="checkbox" class="selectItem select-checkbox" value="<?php echo $item['id']; ?>"></td>
                                 <td><?php echo htmlspecialchars($item['product_code']); ?></td>

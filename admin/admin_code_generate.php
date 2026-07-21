@@ -283,7 +283,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_data'])) {
             $whereExtra .= tenantWhere($params, 'b');
 
             $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || $_SERVER['SERVER_PORT'] == 443) ? "https://" : "http://";
-            $domain = $_SERVER['HTTP_HOST'];
+            // 取 portal 域名作为扫码链接域名
+            $portalStmt = $pdo->prepare("SELECT domain FROM tenant_domains WHERE tenant_id = ? AND type = 'portal' AND status = 1 LIMIT 1");
+            $portalStmt->execute([getCurrentTenantId()]);
+            $portalRow = $portalStmt->fetch();
+            $domain = $portalRow ? $portalRow['domain'] : $_SERVER['HTTP_HOST'];
             $queryUrl = $protocol . $domain . "/index.php?code=";
 
             $boxStmt = $pdo->prepare("
@@ -589,7 +593,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_zero_data'])) {
         $whereExtra .= tenantWhere($params, 'b');
 
         $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || $_SERVER['SERVER_PORT'] == 443) ? "https://" : "http://";
-        $domain = $_SERVER['HTTP_HOST'];
+        $portalStmt = $pdo->prepare("SELECT domain FROM tenant_domains WHERE tenant_id = ? AND type = 'portal' AND status = 1 LIMIT 1");
+        $portalStmt->execute([getCurrentTenantId()]);
+        $portalRow = $portalStmt->fetch();
+        $domain = $portalRow ? $portalRow['domain'] : $_SERVER['HTTP_HOST'];
         $queryUrl = $protocol . $domain . "/index.php?code=";
 
         $stmt = $pdo->prepare("

@@ -590,10 +590,11 @@ $scanBgUrl = getImageUrl($scanBgUrl);
                     <form method="post" action="" id="queryForm">
                         <input type="hidden" name="auto_query" value="0">
                         <label for="box_code">或手动输入箱子代码：</label>
-                        <div style="display: flex; gap: 10px;">
+                        <div style="display: flex; flex-direction: column; gap: 10px;">
                             <input type="text" id="box_code" name="box_code" placeholder="请输入箱子代码"
-                                   value="<?php echo $box_info ? htmlspecialchars($box_info['box_code']) : ''; ?>">
-                            <button type="submit" name="query_box" class="btn btn-secondary" style="flex-shrink: 0;">查询</button>
+                                   value="<?php echo $box_info ? htmlspecialchars($box_info['box_code']) : ''; ?>"
+                                   style="font-size:18px; padding:12px; width:100%; box-sizing:border-box;">
+                            <button type="submit" name="query_box" class="btn btn-secondary" style="font-size:18px; padding:12px; width:100%;">查询</button>
                         </div>
                     </form>
                 </div>
