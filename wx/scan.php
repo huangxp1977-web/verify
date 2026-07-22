@@ -140,12 +140,6 @@ wx.ready(function() {
 });
 </script>
 <style>
-  /* 扫码页背景图容器 */
-  .scanBg {
-    width: 100%;
-    min-height: 100vh;
-    position: relative;
-  }
   /* 输码查询弹窗样式 */
   .inputModal {
     position: fixed;
