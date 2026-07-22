@@ -48,10 +48,10 @@ try {
     
     // 1. 先查询是否为单支产品防伪码
     $stmt = $pdo->prepare("
-        SELECT p.id, p.product_code, p.carton_id, p.product_id, p.distributor_id, p.query_count, p.last_scan_time, p.create_time, p.status, p.tenant_id,
+        SELECT p.id, p.product_code, p.carton_id, p.product_id, p.distributor_id, p.query_count, p.last_scan_time, p.created_at, p.status, p.tenant_id,
             c.carton_code, b.box_code,
             b.production_date, b.batch_number,
-            bp.product_name
+            bp.product_name, bp.product_images
         FROM products p
         JOIN cartons c ON p.carton_id = c.id
         JOIN boxes b ON c.box_id = b.id
@@ -96,8 +96,12 @@ try {
             'carton_code' => htmlspecialchars($productData['carton_code']),
             'box_code' => htmlspecialchars($productData['box_code']),
             'production_date' => htmlspecialchars($productData['production_date']),
-            'create_time' => htmlspecialchars($productData['create_time']),
-            'query_count' => $newQueryCount  // 返回当前查询次数
+            'batch_number' => htmlspecialchars($productData['batch_number']),
+            'product_images' => array_map(function($img) {
+                return getImageUrl($img);
+            }, json_decode($productData['product_images'] ?? '[]', true) ?: []),
+            'created_at' => htmlspecialchars($productData['created_at']),
+            'query_count' => $newQueryCount
         ];
         echo json_encode($response, JSON_UNESCAPED_UNICODE);
         exit;
@@ -105,7 +109,7 @@ try {
 
     // 2. 若不是产品，查询是否为盒子防伪码
     $stmt = $pdo->prepare("
-        SELECT c.id, c.carton_code, c.box_id, c.distributor_id, c.query_count, c.last_scan_time, c.create_time, c.status, c.tenant_id,
+        SELECT c.id, c.carton_code, c.box_id, c.distributor_id, c.query_count, c.last_scan_time, c.created_at, c.status, c.tenant_id,
             b.box_code,
             b.production_date, b.batch_number,
         (SELECT COUNT(*) FROM products WHERE carton_id = c.id AND status = 1) as product_count,
@@ -143,9 +147,9 @@ try {
         $updateStmt->execute();
         
         // 获取盒子下所有产品详情
-        $stmtProducts = $pdo->prepare("SELECT p.id, p.product_code, p.carton_id, p.product_id, p.distributor_id, p.query_count, p.last_scan_time, p.create_time, p.status, p.tenant_id,
+        $stmtProducts = $pdo->prepare("SELECT p.id, p.product_code, p.carton_id, p.product_id, p.distributor_id, p.query_count, p.last_scan_time, p.created_at, p.status, p.tenant_id,
             b.production_date, b.batch_number,
-            bp.product_name
+            bp.product_name, bp.product_images
             FROM products p
             JOIN cartons c ON p.carton_id = c.id
             JOIN boxes b ON c.box_id = b.id
@@ -161,7 +165,11 @@ try {
             $formattedProducts[] = [
                 'product_code' => htmlspecialchars($p['product_code']),
                 'product_name' => htmlspecialchars($p['product_name']),
-                'production_date' => htmlspecialchars($p['production_date'])
+                'production_date' => htmlspecialchars($p['production_date']),
+                'batch_number' => htmlspecialchars($p['batch_number']),
+                'product_images' => array_map(function($img) {
+                    return getImageUrl($img);
+                }, json_decode($p['product_images'] ?? '[]', true) ?: []),
             ];
         }
 
@@ -175,7 +183,7 @@ try {
             'product_count' => (int)$cartonData['product_count'],
             'product_codes' => $cartonData['product_codes'] ? explode(', ', $cartonData['product_codes']) : [],
             'products' => $formattedProducts,
-            'create_time' => htmlspecialchars($cartonData['create_time']),
+            'created_at' => htmlspecialchars($cartonData['created_at']),
             'query_count' => $newQueryCount
         ];
         echo json_encode($response, JSON_UNESCAPED_UNICODE);
@@ -219,7 +227,7 @@ try {
         $updateStmt->execute();
         
         // 获取箱子下所有盒子详情
-        $stmtCartons = $pdo->prepare("SELECT c.id, c.carton_code, c.box_id, c.distributor_id, c.query_count, c.last_scan_time, c.create_time, c.status, c.tenant_id,
+        $stmtCartons = $pdo->prepare("SELECT c.id, c.carton_code, c.box_id, c.distributor_id, c.query_count, c.last_scan_time, c.created_at, c.status, c.tenant_id,
             b.production_date, b.batch_number
             FROM cartons c
             JOIN boxes b ON c.box_id = b.id
@@ -234,7 +242,7 @@ try {
             $formattedCartons[] = [
                 'carton_code' => htmlspecialchars($c['carton_code']),
                 'production_date' => htmlspecialchars($c['production_date']),
-                'create_time' => htmlspecialchars($c['create_time'])
+                'created_at' => htmlspecialchars($c['created_at'])
             ];
         }
 
@@ -247,7 +255,7 @@ try {
             'carton_count' => (int)$boxData['carton_count'],
             'carton_codes' => $boxData['carton_codes'] ? explode(', ', $boxData['carton_codes']) : [],
             'cartons' => $formattedCartons,
-            'create_time' => htmlspecialchars($boxData['create_time']),
+            'created_at' => htmlspecialchars($boxData['created_at']),
             'query_count' => $newQueryCount
         ];
         echo json_encode($response, JSON_UNESCAPED_UNICODE);

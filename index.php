@@ -47,8 +47,12 @@ if ($isGuoKong) {
             $targetUrl = 'wx/scan.php';
         }
     } else {
-        // PC环境 -> 扫码页（和微信显示一样）
-        $targetUrl = 'wx/scan.php';
+        // PC环境 -> 检查code参数
+        if (!empty($code)) {
+            $targetUrl = 'wx/fw.php?code=' . urlencode($code);
+        } else {
+            $targetUrl = 'wx/scan.php';
+        }
     }
 }
 

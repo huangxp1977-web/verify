@@ -78,14 +78,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_product'])) {
         $error = "产品名称和品牌不能为空";
     } else {
         try {
-            $product_images = isset($_POST['product_images']) ? trim($_POST['product_images']) : '[]';
             $description = isset($_POST['description']) ? $_POST['description'] : '';
             $spec_params = isset($_POST['spec_params']) ? trim($_POST['spec_params']) : '[]';
             $cartons_per_box = isset($_POST['cartons_per_box']) && $_POST['cartons_per_box'] !== '' ? intval($_POST['cartons_per_box']) : 0;
             $units_per_carton = isset($_POST['units_per_carton']) && $_POST['units_per_carton'] !== '' ? intval($_POST['units_per_carton']) : 0;
             
-            $stmt = $pdo->prepare("INSERT INTO base_products (product_name, brand_id, product_images, description, spec_params, cartons_per_box, units_per_carton, tenant_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$product_name, $brand_id, $product_images, $description, $spec_params, $cartons_per_box, $units_per_carton, getCurrentTenantId()]);
+            $stmt = $pdo->prepare("INSERT INTO base_products (product_name, brand_id, description, spec_params, cartons_per_box, units_per_carton, tenant_id) VALUES (?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$product_name, $brand_id, $description, $spec_params, $cartons_per_box, $units_per_carton, getCurrentTenantId()]);
             $_SESSION['flash_success'] = "产品添加成功";
             header("Location: admin_base_products.php");
             exit;
@@ -105,14 +104,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_product'])) {
         $error = "产品名称和品牌不能为空";
     } else {
         try {
-            $product_images = isset($_POST['product_images']) ? trim($_POST['product_images']) : '[]';
             $description = isset($_POST['description']) ? $_POST['description'] : '';
             $spec_params = isset($_POST['spec_params']) ? trim($_POST['spec_params']) : '[]';
             $cartons_per_box = isset($_POST['cartons_per_box']) && $_POST['cartons_per_box'] !== '' ? intval($_POST['cartons_per_box']) : 0;
             $units_per_carton = isset($_POST['units_per_carton']) && $_POST['units_per_carton'] !== '' ? intval($_POST['units_per_carton']) : 0;
             
-            $stmt = $pdo->prepare("UPDATE base_products SET product_name = ?, brand_id = ?, product_images = ?, description = ?, spec_params = ?, cartons_per_box = ?, units_per_carton = ? WHERE id = ? AND tenant_id = ?");
-            $stmt->execute([$product_name, $brand_id, $product_images, $description, $spec_params, $cartons_per_box, $units_per_carton, $id, getCurrentTenantId()]);
+            $stmt = $pdo->prepare("UPDATE base_products SET product_name = ?, brand_id = ?, description = ?, spec_params = ?, cartons_per_box = ?, units_per_carton = ? WHERE id = ? AND tenant_id = ?");
+            $stmt->execute([$product_name, $brand_id, $description, $spec_params, $cartons_per_box, $units_per_carton, $id, getCurrentTenantId()]);
             $_SESSION['flash_success'] = "产品信息更新成功";
             header("Location: admin_base_products.php");
             exit;
@@ -321,64 +319,6 @@ $activeBrands = getActiveBrands($pdo);
             }
         }
 
-        /* 多图选择器 */
-        .multi-image-wrap {
-            border: 1px dashed #ddd;
-            padding: 10px;
-            border-radius: 4px;
-            background: #fff;
-        }
-        .multi-image-grid {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            min-height: 80px;
-        }
-        .multi-image-item {
-            position: relative;
-            width: 100px;
-            height: 100px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            overflow: hidden;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: #f9f9f9;
-        }
-        .multi-image-item img {
-            max-width: 100%;
-            max-height: 100%;
-            object-fit: cover;
-        }
-        .multi-image-item .mi-remove {
-            position: absolute;
-            top: 2px;
-            right: 2px;
-            width: 20px;
-            height: 20px;
-            background: rgba(220, 53, 69, 0.85);
-            color: white;
-            border-radius: 50%;
-            text-align: center;
-            line-height: 18px;
-            cursor: pointer;
-            font-size: 14px;
-            display: none;
-        }
-        .multi-image-item:hover .mi-remove {
-            display: block;
-        }
-        .multi-image-item.add-btn {
-            cursor: pointer;
-            border: 2px dashed #4a3f69;
-            font-size: 32px;
-            color: #4a3f69;
-            transition: background 0.2s;
-        }
-        .multi-image-item.add-btn:hover {
-            background: #f5f3fa;
-        }
         .field-hint {
             color: #999;
             font-size: 12px;
@@ -463,35 +403,17 @@ $activeBrands = getActiveBrands($pdo);
 
                     </div>
 
-                    <!-- 产品主图（多图） -->
+                    <!-- 产品详情（合并：HTML内容 + 图片） -->
                     <div class="form-group">
-                        <label>产品主图（多图轮播）</label>
-                        <div class="multi-image-wrap">
-                            <div class="multi-image-grid" id="productImagesGrid">
-                                <?php
-                                $product_images = [];
-                                if ($edit_product && !empty($edit_product['product_images'])) {
-                                    $product_images = json_decode($edit_product['product_images'], true) ?: [];
-                                }
-                                foreach ($product_images as $img): ?>
-                                <div class="multi-image-item">
-                                    <img src="<?php echo htmlspecialchars($img); ?>">
-                                    <span class="mi-remove" onclick="removeProductImage(this)">&times;</span>
-                                </div>
-                                <?php endforeach; ?>
-                                <div class="multi-image-item add-btn" onclick="openProductImagePicker()">
-                                    <span>+</span>
-                                </div>
-                            </div>
-                            <input type="hidden" id="product_images" name="product_images" value="<?php echo htmlspecialchars(json_encode($product_images)); ?>">
-                            <p class="field-hint">点击"+"从图片库选择，支持多选。第一张图为主图。</p>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                            <label style="margin-bottom: 0;">产品详情</label>
+                            <button type="button" class="btn btn-secondary" onclick="previewProductDetail()" style="font-size: 12px; padding: 4px 12px;">预览</button>
                         </div>
-                    </div>
-
-                    <!-- 产品详情描述 -->
-                    <div class="form-group">
-                        <label for="description">产品详情描述</label>
-                        <textarea id="description" name="description" rows="6" placeholder="输入产品详情描述（支持HTML标签）"><?php echo $edit_product ? htmlspecialchars($edit_product['description'] ?? '') : ''; ?></textarea>
+                        <div style="margin-bottom: 6px;">
+                            <button type="button" class="btn btn-secondary" onclick="openDetailImagePicker()" style="font-size: 12px; padding: 4px 10px;">+ 插入图片</button>
+                            <span class="field-hint" style="display: inline; margin-left: 8px;">支持HTML标签，可直接粘贴图片URL</span>
+                        </div>
+                        <textarea id="description" name="description" rows="12" style="font-family: Consolas, 'Courier New', monospace; font-size: 13px; line-height: 1.5;" placeholder="输入产品详情（支持HTML标签）"><?php echo $edit_product ? htmlspecialchars($edit_product['description'] ?? '') : ''; ?></textarea>
                     </div>
 
                     <!-- 规格 -->
@@ -640,9 +562,9 @@ $activeBrands = getActiveBrands($pdo);
     </div>
     
     <script>
-            function openProductImagePicker() {
+            function openDetailImagePicker() {
                 document.getElementById('imagePickerModal').style.display = 'flex';
-                document.getElementById('imagePickerModalTitle').textContent = '选择产品主图';
+                document.getElementById('imagePickerModalTitle').textContent = '选择产品图片';
                 loadProductImages();
             }
 
@@ -661,7 +583,7 @@ $activeBrands = getActiveBrands($pdo);
                         }
                         var html = '<div class="picker-grid">';
                         images.forEach(function(img) {
-                            html += '<div class="picker-item" onclick="selectImage(&quot;' + img.url + '&quot;)">';
+                            html += '<div class="picker-item" onclick="insertImageToEditor(\'' + img.url + '\')">';
                             html += '<img src="' + img.url + '" alt="' + img.name + '">';
                             html += '</div>';
                         });
@@ -673,33 +595,26 @@ $activeBrands = getActiveBrands($pdo);
                     });
             }
 
-            function selectImage(url) {
-                addProductImage(url);
+            function insertImageToEditor(url) {
+                var textarea = document.getElementById('description');
+                var cursorPos = textarea.selectionStart;
+                var textBefore = textarea.value.substring(0, cursorPos);
+                var textAfter = textarea.value.substring(cursorPos);
+                textarea.value = textBefore + '<img src="' + url + '">' + textAfter;
+                textarea.focus();
+                textarea.selectionStart = textarea.selectionEnd = cursorPos + ('<img src="' + url + '">').length;
                 closeImagePicker();
             }
 
-            // 产品主图多图管理
-            function addProductImage(url) {
-                var grid = document.getElementById('productImagesGrid');
-                var addBtn = grid.querySelector('.add-btn');
-                var item = document.createElement('div');
-                item.className = 'multi-image-item';
-                item.innerHTML = '<img src="' + url + '"><span class="mi-remove" onclick="removeProductImage(this)">&times;</span>';
-                grid.insertBefore(item, addBtn);
-                updateProductImagesField();
-            }
-
-            function removeProductImage(el) {
-                el.closest('.multi-image-item').remove();
-                updateProductImagesField();
-            }
-
-            function updateProductImagesField() {
-                var urls = [];
-                document.querySelectorAll('#productImagesGrid .multi-image-item:not(.add-btn) img').forEach(function(img) {
-                    urls.push(img.src);
-                });
-                document.getElementById('product_images').value = JSON.stringify(urls);
+            function previewProductDetail() {
+                var content = document.getElementById('description').value;
+                var w = window.open('', '_blank', 'width=800,height=600');
+                w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>产品详情预览</title>');
+                w.document.write('<style>body{font-family:"Microsoft YaHei",Arial,sans-serif;padding:20px;line-height:1.8;max-width:800px;margin:0 auto;}img{max-width:100%;height:auto;}</style>');
+                w.document.write('</head><body>');
+                w.document.write(content);
+                w.document.write('</body></html>');
+                w.document.close();
             }
 
             // 规格参数管理
