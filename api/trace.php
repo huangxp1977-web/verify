@@ -48,10 +48,14 @@ try {
     
     // 1. 先查询是否为单支产品防伪码
     $stmt = $pdo->prepare("
-        SELECT p.*, c.carton_code, b.box_code
+        SELECT p.id, p.product_code, p.carton_id, p.product_id, p.distributor_id, p.query_count, p.last_scan_time, p.create_time, p.status, p.tenant_id,
+            c.carton_code, b.box_code,
+            b.production_date, b.batch_number,
+            bp.product_name
         FROM products p
         JOIN cartons c ON p.carton_id = c.id
         JOIN boxes b ON c.box_id = b.id
+        LEFT JOIN base_products bp ON p.product_id = bp.id
         WHERE p.product_code = :code AND p.status = 1 AND p.tenant_id = :tenant_id
     ");
     $stmt->bindParam(':code', $code);
@@ -91,9 +95,7 @@ try {
             'product_code' => htmlspecialchars($productData['product_code']),
             'carton_code' => htmlspecialchars($productData['carton_code']),
             'box_code' => htmlspecialchars($productData['box_code']),
-            'region' => htmlspecialchars($productData['region']),
             'production_date' => htmlspecialchars($productData['production_date']),
-            'image_url' => !empty($productData['image_url']) ? getImageUrl(htmlspecialchars($productData['image_url'])) : null,
             'create_time' => htmlspecialchars($productData['create_time']),
             'query_count' => $newQueryCount  // 返回当前查询次数
         ];
@@ -103,7 +105,9 @@ try {
 
     // 2. 若不是产品，查询是否为盒子防伪码
     $stmt = $pdo->prepare("
-        SELECT c.*, b.box_code,
+        SELECT c.id, c.carton_code, c.box_id, c.distributor_id, c.query_count, c.last_scan_time, c.create_time, c.status, c.tenant_id,
+            b.box_code,
+            b.production_date, b.batch_number,
         (SELECT COUNT(*) FROM products WHERE carton_id = c.id AND status = 1) as product_count,
         (SELECT GROUP_CONCAT(product_code SEPARATOR ', ') FROM products WHERE carton_id = c.id AND status = 1) as product_codes
         FROM cartons c
@@ -139,7 +143,14 @@ try {
         $updateStmt->execute();
         
         // 获取盒子下所有产品详情
-        $stmtProducts = $pdo->prepare("SELECT * FROM products WHERE carton_id = :carton_id AND status = 1");
+        $stmtProducts = $pdo->prepare("SELECT p.id, p.product_code, p.carton_id, p.product_id, p.distributor_id, p.query_count, p.last_scan_time, p.create_time, p.status, p.tenant_id,
+            b.production_date, b.batch_number,
+            bp.product_name
+            FROM products p
+            JOIN cartons c ON p.carton_id = c.id
+            JOIN boxes b ON c.box_id = b.id
+            LEFT JOIN base_products bp ON p.product_id = bp.id
+            WHERE p.carton_id = :carton_id AND p.status = 1");
         $stmtProducts->bindParam(':carton_id', $cartonData['id']);
         $stmtProducts->execute();
         $productsList = $stmtProducts->fetchAll(PDO::FETCH_ASSOC);
@@ -150,9 +161,7 @@ try {
             $formattedProducts[] = [
                 'product_code' => htmlspecialchars($p['product_code']),
                 'product_name' => htmlspecialchars($p['product_name']),
-                'region' => htmlspecialchars($p['region']),
-                'production_date' => htmlspecialchars($p['production_date']),
-                'image_url' => !empty($p['image_url']) ? getImageUrl(htmlspecialchars($p['image_url'])) : null
+                'production_date' => htmlspecialchars($p['production_date'])
             ];
         }
 
@@ -210,7 +219,11 @@ try {
         $updateStmt->execute();
         
         // 获取箱子下所有盒子详情
-        $stmtCartons = $pdo->prepare("SELECT * FROM cartons WHERE box_id = :box_id AND status = 1");
+        $stmtCartons = $pdo->prepare("SELECT c.id, c.carton_code, c.box_id, c.distributor_id, c.query_count, c.last_scan_time, c.create_time, c.status, c.tenant_id,
+            b.production_date, b.batch_number
+            FROM cartons c
+            JOIN boxes b ON c.box_id = b.id
+            WHERE c.box_id = :box_id AND c.status = 1");
         $stmtCartons->bindParam(':box_id', $boxData['id']);
         $stmtCartons->execute();
         $cartonsList = $stmtCartons->fetchAll(PDO::FETCH_ASSOC);

@@ -31,8 +31,8 @@ if (isSuperAdmin()) {
     if (hasModule('brand')) {
         $items = [];
         $items[] = ['file' => 'admin.php', 'label' => '数据概览', 'key' => 'dashboard'];
-        if (hasPermission('brand_list'))        $items[] = ['file' => 'admin_code_generate.php', 'label' => '溯源码生成', 'key' => 'brand_code_generate'];
-        if (hasPermission('brand_list'))        $items[] = ['file' => 'admin_list.php', 'label' => '溯源码管理', 'key' => 'brand_list'];
+        if (hasPermission('brand_list'))        $items[] = ['file' => 'admin_code_generate.php', 'label' => '防伪码生成', 'key' => 'brand_code_generate'];
+        if (hasPermission('brand_list'))        $items[] = ['file' => 'admin_list.php', 'label' => '防伪码管理', 'key' => 'brand_list'];
         if (hasPermission('brand_distributors')) $items[] = ['file' => 'admin_base_distributors.php', 'label' => '经销商管理', 'key' => 'brand_distributors'];
         if (hasPermission('brand_brands'))      $items[] = ['file' => 'admin_base_brands.php', 'label' => '品牌管理', 'key' => 'brand_brands'];
         if (hasPermission('brand_products'))    $items[] = ['file' => 'admin_base_products.php', 'label' => '产品管理', 'key' => 'brand_products'];
@@ -113,7 +113,7 @@ if (isset($pdo)) {
 </style>
 <div class="sidebar">
     <div class="sidebar-header">
-        <h2>产品溯源系统</h2>
+        <h2>产品防伪系统</h2>
     </div>
     <div style="padding: 14px 20px; min-height: 60px; display: flex; flex-direction: column; justify-content: center;">
         <div style="font-size:15px;font-weight:bold;color:#fff;margin-bottom:4px"><?php echo htmlspecialchars($tenantName); ?></div>

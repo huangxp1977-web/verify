@@ -6,7 +6,7 @@ header("Content-Type: application/json; charset=utf-8");
 
 // 初始化返回数据
 $statusResponse = [
-    'service_name' => '产品溯源查询API',
+    'service_name' => '产品防伪查询API',
     'timestamp' => date('Y-m-d H:i:s'),
     'service_status' => 'online',
     'database_status' => 'offline',

@@ -57,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="icon" type="image/webp" href="/favicon-DQ.webp">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>产品溯源系统 - 安装配置</title>
+    <title>产品防伪系统 - 安装配置</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: "Microsoft YaHei", sans-serif; background: #f5f3fa; min-height: 100vh; display: flex; justify-content: center; padding: 40px 20px; }
@@ -81,7 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </head>
 <body>
     <div class="container">
-        <h1>产品溯源系统 - 安装配置</h1>
+        <h1>产品防伪系统 - 安装配置</h1>
 
         <div class="hint">首次使用，请填写以下配置信息。数据库连接信息为必填，微信可后续在后台配置。</div>
 

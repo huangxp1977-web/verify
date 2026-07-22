@@ -94,6 +94,10 @@ wx.config({
 function handleScanClick() {
   // 检查是否在微信环境且 wx.scanQRCode 可用
   if (typeof wx !== 'undefined' && wx.scanQRCode) {
+    if (!wx.configured) {
+      alert('SDK配置中，请稍后再试');
+      return;
+    }
     wx.scanQRCode({
       needResult: 1, // 返回扫码结果让JS处理
       scanType: ["qrCode","barCode"],
@@ -101,13 +105,13 @@ function handleScanClick() {
         var result = res.resultStr;
         
         if (result) {
-          // 判断是否为有效的溯源链接（排除证书链接）
+          // 判断是否为有效的防伪链接（排除证书链接）
           var isCertLink = result.indexOf('cert/') !== -1 || result.indexOf('cert_no=') !== -1;
           var isTraceLink = result.indexOf('wx/') !== -1 || result.indexOf('code=') !== -1 ||
               result.indexOf('PRODUCT') !== -1 || result.indexOf('CARTON') !== -1 || result.indexOf('BOX') !== -1;
           
           if (!isCertLink && isTraceLink) {
-            // 是溯源链接或溯源码，提取code并跳转
+            // 是防伪链接或防伪码，提取code并跳转
             var code = result;
             if (result.indexOf('http') === 0 && result.indexOf('code=') !== -1) {
               try {
@@ -117,7 +121,7 @@ function handleScanClick() {
             window.location.href = 'fw.php?code=' + encodeURIComponent(code);
           } else {
             // 其他情况（包括证书链接），提示不适用
-            alert('此二维码不适用于产品溯源系统');
+            alert('此二维码不适用于产品防伪系统');
           }
         } else {
           alert('扫码失败，请重试');
@@ -129,6 +133,11 @@ function handleScanClick() {
     alert('请在微信中打开此页面使用扫码功能，或使用输码查询');
   }
 }
+
+// 微信JS-SDK就绪标记
+wx.ready(function() {
+  wx.configured = true;
+});
 </script>
 <style>
   /* 输码查询弹窗样式 */

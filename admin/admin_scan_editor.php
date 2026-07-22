@@ -172,7 +172,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
     <link rel="icon" type="image/webp" href="/favicon-DQ.webp">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>产品溯源系统 - 背景设计</title>
+    <title>产品防伪系统 - 背景设计</title>
     <style>
         body, .main-content, .container, .bg-panel, .props-panel, input, select, textarea, button { box-sizing: border-box; }
         body { font-family: "Microsoft YaHei", Arial, sans-serif; line-height: 1.6; margin: 0; padding: 0; background-color: #f4f4f4; display: flex; min-height: 100vh; }

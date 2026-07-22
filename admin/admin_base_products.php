@@ -126,7 +126,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_product'])) {
 if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id'])) {
     $id = intval($_GET['id']);
     try {
-        // 检查是否有关联的溯源数据
+        // 检查是否有关联的防伪数据
         $stmt = $pdo->prepare("SELECT COUNT(*) FROM products WHERE product_id = ?");
         $stmt->execute([$id]);
         $relatedCount = $stmt->fetchColumn();
@@ -189,7 +189,7 @@ $activeBrands = getActiveBrands($pdo);
     <link rel="icon" type="image/webp" href="/favicon-DQ.webp">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>产品溯源系统 - 产品管理</title>
+    <title>产品防伪系统 - 产品管理</title>
     <script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <style>
         body {
@@ -207,7 +207,8 @@ $activeBrands = getActiveBrands($pdo);
             padding: 20px;
         }
         .container {
-            max-width: 1200px;
+            width: 100%;
+            box-sizing: border-box;
             margin: 0 auto;
             background: white;
             padding: 20px;

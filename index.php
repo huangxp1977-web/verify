@@ -40,7 +40,7 @@ if ($isGuoKong) {
 } else {
     // 德欧美提域名 verify.aesthmed.cn
     if ($isWechat) {
-        // 微信环境 -> 产品溯源
+        // 微信环境 -> 产品防伪
         if (!empty($code)) {
             $targetUrl = 'wx/fw.php?code=' . urlencode($code);
         } else {

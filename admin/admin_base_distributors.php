@@ -122,7 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_distributor'])) {
 if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id'])) {
     $id = intval($_GET['id']);
     try {
-        // 检查是否有关联的溯源数据
+        // 检查是否有关联的防伪数据
         $stmt = $pdo->prepare("SELECT COUNT(*) FROM products WHERE distributor_id = ?");
         $stmt->execute([$id]);
         $relatedCount = $stmt->fetchColumn();
@@ -194,7 +194,7 @@ try {
     <link rel="icon" type="image/webp" href="/favicon-DQ.webp">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>产品溯源系统 - 经销商管理</title>
+    <title>产品防伪系统 - 经销商管理</title>
     <style>
         body {
             font-family: "Microsoft YaHei", Arial, sans-serif;
@@ -214,7 +214,8 @@ try {
             padding: 20px;
         }
         .container {
-            max-width: 1200px;
+            width: 100%;
+            box-sizing: border-box;
             margin: 0 auto;
             background: white;
             padding: 20px;

@@ -60,7 +60,7 @@ try {
     // 获取产品与批号对应关系（用于按产品导出）
     $product_batches = [];
     $params2 = [];
-    $stmt = $pdo->prepare("SELECT DISTINCT p.product_id, p.batch_number FROM products p WHERE 1=1" . tenantWhere($params2, 'p') . " ORDER BY p.product_id, p.batch_number DESC");
+    $stmt = $pdo->prepare("SELECT DISTINCT p.product_id, b.batch_number FROM products p JOIN cartons c ON p.carton_id = c.id JOIN boxes b ON c.box_id = b.id WHERE 1=1" . tenantWhere($params2, 'p') . " ORDER BY p.product_id, b.batch_number DESC");
     $stmt->execute($params2);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
     foreach ($rows as $row) {
@@ -130,12 +130,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_products'])) 
                     } while ($exists);
 
                     $box_codes[] = $box_code;
-                    $box_params[] = [$box_code, $production_date, $batch_number];
+                    $box_params[] = [$box_code, $production_date, $batch_number, $product_id];
                 }
 
                 $tenantId = getCurrentTenantId();
-                $placeholders = implode(',', array_fill(0, count($box_params), '(?,?,?,?)'));
-                $stmt = $pdo->prepare("INSERT INTO boxes (box_code, production_date, batch_number, tenant_id) VALUES $placeholders");
+                $placeholders = implode(',', array_fill(0, count($box_params), '(?,?,?,?,?)'));
+                $stmt = $pdo->prepare("INSERT INTO boxes (box_code, production_date, batch_number, tenant_id, product_id) VALUES $placeholders");
                 $flat = [];
                 foreach ($box_params as $row) { $row[] = $tenantId; $flat = array_merge($flat, $row); }
                 $stmt->execute($flat);
@@ -168,7 +168,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_products'])) 
                             $exists = $stmt->fetchColumn();
                         } while ($exists);
 
-                        $carton_params[] = [$carton_code, $box_id, $production_date, $batch_number];
+                        $carton_params[] = [$carton_code, $box_id];
                         $carton_codes[] = $carton_code;
                         $carton_box_mapping[$carton_code] = $box_id;
                     }
@@ -185,7 +185,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_products'])) 
                         $stmt->execute($flat);
                     }
                 };
-                $batch_insert('cartons', ['carton_code', 'box_id', 'production_date', 'batch_number', 'tenant_id'], array_map(function($row) use ($tenantId) { $row[] = $tenantId; return $row; }, $carton_params), $pdo);
+                $batch_insert('cartons', ['carton_code', 'box_id', 'tenant_id'], array_map(function($row) use ($tenantId) { $row[] = $tenantId; return $row; }, $carton_params), $pdo);
 
                 $stmt = $pdo->prepare("SELECT id, carton_code FROM cartons WHERE carton_code IN (" . implode(',', array_fill(0, count($carton_codes), '?')) . ")");
                 foreach ($carton_codes as $i => $code) {
@@ -216,12 +216,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_products'])) 
                                 $exists = $stmt->fetchColumn();
                             } while ($exists);
 
-                            $product_params[] = [$product_code, $carton_id, $product_id, $product_name, $production_date, $batch_number];
+                            $product_params[] = [$product_code, $carton_id, $product_id];
                         }
                     }
                 }
 
-                $batch_insert('products', ['product_code', 'carton_id', 'product_id', 'product_name', 'production_date', 'batch_number', 'tenant_id'], array_map(function($row) use ($tenantId) { $row[] = $tenantId; return $row; }, $product_params), $pdo);
+                $batch_insert('products', ['product_code', 'carton_id', 'product_id', 'tenant_id'], array_map(function($row) use ($tenantId) { $row[] = $tenantId; return $row; }, $product_params), $pdo);
 
                 $pdo->commit();
                 $processed_boxes += $batch_size;
@@ -373,7 +373,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_data'])) {
                     }
 
                     $listContent = "导出时间: " . date('Y-m-d H:i:s') . "\n";
-                    $listContent .= "筛选条件: 产品: {$product_filter} / " . (empty($batch_filter) ? "全部批号" : "批号: {$batch_filter}") . "\n\n";
+                    $product_filter_name = '';
+                    foreach ($product_lib as $p) {
+                        if ($p['id'] == $product_filter) {
+                            $product_filter_name = $p['product_name'];
+                            break;
+                        }
+                    }
+                    $listContent .= "筛选条件: 产品: " . ($product_filter_name ?: $product_filter) . " / " . (empty($batch_filter) ? "全部批号" : "批号: {$batch_filter}") . "\n\n";
                     $listContent .= "总览统计:\n";
                     $listContent .= "总箱数: {$totalBoxes} 箱\n";
                     $listContent .= "总盒数: {$totalCartons} 盒\n";
@@ -449,10 +456,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_zero_product'
 
     // 从产品库获取包装配置（套二只有盒数，没有支数）
     $z_cartons_per_box = 0;
+    $product_id = 0;
     if ($z_name_select !== 'custom' && !empty($z_name_select)) {
         foreach ($product_lib as $p) {
             if ($p['product_name'] === $z_name_select) {
                 $z_cartons_per_box = intval($p['cartons_per_box'] ?? 0);
+                $product_id = intval($p['id'] ?? 0);
                 break;
             }
         }
@@ -488,7 +497,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_zero_product'
 
             if (!empty($box_codes)) {
                 $placeholders = rtrim(str_repeat('(?, ?, ?, ?, ?),', count($box_codes)), ',');
-                $box_sql = "INSERT INTO boxes (box_code, production_date, batch_number, tenant_id, product_name) VALUES {$placeholders}";
+                $box_sql = "INSERT INTO boxes (box_code, production_date, batch_number, tenant_id, product_id) VALUES {$placeholders}";
                 $stmt = $pdo->prepare($box_sql);
 
                 $params = [];
@@ -498,7 +507,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_zero_product'
                     $params[] = $production_date;
                     $params[] = $batch_number;
                     $params[] = $tenantId;
-                    $params[] = $product_name;
+                    $params[] = $product_id;
                 }
                 $stmt->execute($params);
             } else {
@@ -536,17 +545,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_zero_product'
                         $carton_exists = $stmt->fetchColumn();
                     } while ($carton_exists);
 
-                    $carton_placeholders[] = '(?, ?, ?, ?, ?)';
+                    $carton_placeholders[] = '(?, ?, ?)';
                     $carton_params[] = $carton_code;
                     $carton_params[] = $box_id;
-                    $carton_params[] = $production_date;
-                    $carton_params[] = $batch_number;
                     $carton_params[] = $tenantId;
                 }
             }
 
             if (!empty($carton_placeholders)) {
-                $carton_sql = "INSERT INTO cartons (carton_code, box_id, production_date, batch_number, tenant_id) VALUES " . implode(',', $carton_placeholders);
+                $carton_sql = "INSERT INTO cartons (carton_code, box_id, tenant_id) VALUES " . implode(',', $carton_placeholders);
                 $stmt = $pdo->prepare($carton_sql);
                 $stmt->execute($carton_params);
             } else {
@@ -583,7 +590,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_zero_data'])) {
         $params = [];
         $whereExtra = "";
         if (!empty($zero_product_filter)) {
-            $whereExtra .= " AND b.product_name = ?";
+            $whereExtra .= " AND bp.product_name = ?";
             $params[] = $zero_product_filter;
         }
         if (!empty($zero_batch_filter)) {
@@ -605,6 +612,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_zero_data'])) {
             FROM boxes b
             LEFT JOIN cartons c ON b.id = c.box_id
             LEFT JOIN products p ON c.id = p.carton_id
+            LEFT JOIN base_products bp ON b.product_id = bp.id
             WHERE 1=1 {$whereExtra}
             GROUP BY b.id, c.id
             HAVING COUNT(p.id) = 0
@@ -676,7 +684,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_zero_data'])) {
     <link rel="icon" type="image/webp" href="/favicon-DQ.webp">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>产品溯源系统 - 溯源码生成</title>
+    <title>产品防伪系统 - 防伪码生成</title>
     <script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <style>
         body {
@@ -692,7 +700,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_zero_data'])) {
         }
         .main-content { flex: 1; margin-left: 220px; padding: 20px; }
         .container {
-            max-width: 1200px;
+            width: 100%;
+            box-sizing: border-box;
             margin: 0 auto;
             background: white;
             padding: 20px;
@@ -831,7 +840,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_zero_data'])) {
             </div>
 
             <div class="header">
-                <h1>溯源码生成</h1>
+                <h1>防伪码生成</h1>
             </div>
 
             <!-- Tab navigation -->
@@ -844,7 +853,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_zero_data'])) {
 
             <!-- 批量生成一套三 -->
             <div class="section" id="yt3">
-                <h2>批量生成一套三溯源码</h2>
+                <h2>批量生成一套三防伪码</h2>
                 <form method="post" action="">
 
                     <div class="form-row">
@@ -915,7 +924,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_zero_data'])) {
 
             <!-- 批量生成一套二 -->
             <div class="section" id="yt2">
-                <h2>批量生成一套二溯源码</h2>
+                <h2>批量生成一套二防伪码</h2>
                 <form method="post" action="">
 
                     <div class="form-row">
@@ -977,7 +986,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_zero_data'])) {
 
             <!-- 导出一套三 -->
                         <div class="section" id="dcyt3">
-                            <h2>导出一套三溯源码</h2>
+                            <h2>导出一套三防伪码</h2>
                             <form method="post" action="">
                                 <div class="filter-item">
                                     <label for="dc_product_name">产品名称</label>
@@ -1010,7 +1019,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_zero_data'])) {
 
             <!-- 导出一套二 -->
             <div class="section" id="dcyt2">
-                <h2>导出一套二溯源码</h2>
+                <h2>导出一套二防伪码</h2>
                 <form method="post" action="">
                     <div class="filter-item">
                         <label for="dc_zero_product_name">产品名称</label>

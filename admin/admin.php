@@ -45,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['search_code'])) {
     $search_code = isset($_POST['search_code']) ? trim($_POST['search_code']) : '';
 
     if (empty($search_code)) {
-        $messages['error'][] = "请输入要搜索的箱子/盒子溯源码";
+        $messages['error'][] = "请输入要搜索的箱子/盒子防伪码";
     } else {
         try {
             if ($search_type == 'box') {
@@ -58,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['search_code'])) {
                     header("Location: admin_list.php?level=box&id={$result['id']}");
                     exit;
                 } else {
-                    $messages['error'][] = "未找到溯源码为【{$search_code}】的箱子";
+                    $messages['error'][] = "未找到防伪码为【{$search_code}】的箱子";
                 }
             } else {
                 $params = [$search_code];
@@ -70,7 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['search_code'])) {
                     header("Location: admin_list.php?level=carton&id={$result['id']}&box_id={$result['box_id']}&carton_code=" . urlencode($search_code));
                     exit;
                 } else {
-                    $messages['error'][] = "未找到溯源码为【{$search_code}】的盒子";
+                    $messages['error'][] = "未找到防伪码为【{$search_code}】的盒子";
                 }
             }
         } catch(PDOException $e) {
@@ -138,26 +138,27 @@ try {
             padding: 20px;
         }
         .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-        }
-        h1 {
-            color: #4a3f69;
-            font-size: 28px;
-            margin: 0;
-            border-bottom: 2px solid #4a3f69;
-            padding-bottom: 10px;
-        }
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 30px;
-        }
+                    width: 100%;
+                    box-sizing: border-box;
+                    margin: 0 auto;
+                    background: white;
+                    padding: 20px;
+                    border-radius: 8px;
+                    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+                }
+                h1 {
+                    color: #4a3f69;
+                    font-size: 28px;
+                    margin: 0;
+                    border-bottom: 2px solid #4a3f69;
+                    padding-bottom: 10px;
+                }
+                .header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 30px;
+                }
         .stats {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -337,9 +338,9 @@ try {
                         </select>
                     </div>
                     <div class="form-group">
-                        <label for="search_code">溯源码</label>
+                        <label for="search_code">防伪码</label>
                         <input type="text" id="search_code" name="search_code"
-                               placeholder="请输入箱子或盒子的溯源码" required>
+                               placeholder="请输入箱子或盒子的防伪码" required>
                     </div>
                     <div class="form-group" style="flex: 0.3;">
                         <button type="submit" class="btn" style="width: 100%;">搜索</button>

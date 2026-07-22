@@ -462,7 +462,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
     <link rel="icon" type="image/webp" href="/favicon-DQ.webp">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>产品溯源系统 - 证书管理</title>
+    <title>产品防伪系统 - 证书管理</title>
     <style>
         body {
             font-family: "Microsoft YaHei", Arial, sans-serif;
@@ -482,7 +482,8 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
             padding: 20px;
         }
         .container {
-            max-width: 1200px;
+            width: 100%;
+            box-sizing: border-box;
             margin: 0 auto;
             background: white;
             padding: 20px;

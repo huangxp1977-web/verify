@@ -246,7 +246,7 @@ $users = $stmt->fetchAll();
         .submenu li a:hover { background-color: #3a3154; }
         .submenu li a.active { background-color: #3a3154; border-left: 4px solid #8b7aa8; }
         .main-content { flex: 1; margin-left: 220px; padding: 20px; }
-        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        .container { width: 100%; box-sizing: border-box; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
         h1 { color: #4a3f69; font-size: 28px; font-weight: bold; border-bottom: 2px solid #4a3f69; padding-bottom: 10px; margin: 0 0 20px 0; }
         .section { background: #f5f3fa; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
         .section h2 { color: #4a3f69; font-size: 16px; margin-top: 0; }

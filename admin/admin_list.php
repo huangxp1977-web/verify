@@ -49,6 +49,7 @@ $parent_id = 0;
 $parent_data = [];
 $backup_dates = [];
 $base_distributors = [];
+$portalDomain = '';
 $distParams = [];
 $distSql = "SELECT id, name FROM base_distributors WHERE status = 1" . tenantWhere($distParams) . " ORDER BY name ASC";
 $distStmt = $pdo->prepare($distSql);
@@ -71,22 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_single'])) {
         try {
             $pdo->beginTransaction();
 
-            if ($level == 'box') {
-                // 软删除该箱子下的所有产品
-                $stmt = $pdo->prepare("UPDATE products p JOIN cartons c ON p.carton_id = c.id SET p.status = 0 WHERE c.box_id = ? AND p.tenant_id = ?");
-                $stmt->execute([$item_id, getCurrentTenantId()]);
-
-                // 软删除该箱子下的所有盒子
-                $stmt = $pdo->prepare("UPDATE cartons SET status = 0 WHERE box_id = ? AND tenant_id = ?");
-                $stmt->execute([$item_id, getCurrentTenantId()]);
-
-                // 软删除该箱子
-                $stmt = $pdo->prepare("UPDATE boxes SET status = 0 WHERE id = ? AND tenant_id = ?");
-                $stmt->execute([$item_id, getCurrentTenantId()]);
-                
-                $success = "箱子【ID:$item_id】及其下属数据已删除";
-
-            } elseif ($level == 'carton' && $id > 0) {
+            if ($level == 'carton' && $id > 0) {
                 // 软删除该盒子下的所有产品
                 $stmt = $pdo->prepare("UPDATE products SET status = 0 WHERE carton_id = ? AND tenant_id = ?");
                 $stmt->execute([$item_id, getCurrentTenantId()]);
@@ -114,6 +100,21 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_single'])) {
 }
 
 
+// 重置查询次数（清零query_count）
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['reset_query_count'])) {
+    $item_id = isset($_POST['item_id']) ? intval($_POST['item_id']) : 0;
+    if ($item_id > 0 && $level == 'box') {
+        try {
+            $stmt = $pdo->prepare("UPDATE boxes SET query_count = 0, last_scan_time = NULL WHERE id = ? AND tenant_id = ?");
+            $stmt->execute([$item_id, getCurrentTenantId()]);
+            $success = "箱子【ID:$item_id】的查询次数已重置";
+        } catch (PDOException $e) {
+            $error = "重置失败: " . $e->getMessage();
+        }
+    }
+}
+
+
 // 【已移除】一键清空功能（设计缺陷，导致数据膨胀）
 
 // 批量删除（软删除：UPDATE status=0）
@@ -127,33 +128,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['batch_delete']) && !em
         $tenantId = getCurrentTenantId();
         $placeholders = implode(',', array_fill(0, count($selectedIds), '?'));
 
-        if ($level == 'box') {
-            // 软删除选中箱子下的所有产品
-            $params1 = $selectedIds;
-            $params1[] = $tenantId;
-            $stmt = $pdo->prepare("
-                UPDATE products p
-                JOIN cartons c ON p.carton_id = c.id
-                SET p.status = 0
-                WHERE c.box_id IN ($placeholders) AND p.tenant_id = ?
-            ");
-            $stmt->execute($params1);
-
-            // 软删除选中箱子下的所有盒子
-            $params2 = $selectedIds;
-            $params2[] = $tenantId;
-            $stmt = $pdo->prepare("UPDATE cartons SET status = 0 WHERE box_id IN ($placeholders) AND tenant_id = ?");
-            $stmt->execute($params2);
-
-            // 软删除选中的箱子
-            $params3 = $selectedIds;
-            $params3[] = $tenantId;
-            $stmt = $pdo->prepare("UPDATE boxes SET status = 0 WHERE id IN ($placeholders) AND tenant_id = ?");
-            $stmt->execute($params3);
-
-            $success = "已删除选中的" . count($selectedIds) . "个箱子及其下属数据";
-
-        } elseif ($level == 'carton' && $id > 0) {
+        if ($level == 'carton' && $id > 0) {
             // 软删除选中盒子下的所有产品
             $params1 = $selectedIds;
             $params1[] = $tenantId;
@@ -285,11 +260,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export'])) {
                         $cartonExportTenant = " AND tenant_id = :tenant_id";
                         $cartonExportParams[':tenant_id'] = getCurrentTenantId();
             $stmt = $pdo->prepare("
-                SELECT carton_code, batch_number, DATE(production_date) as production_date
-                FROM cartons
-                WHERE box_id = :box_id" . $cartonExportTenant . "
-                ORDER BY carton_code ASC
-            ");
+                            SELECT carton_code, boxes.batch_number, DATE(boxes.production_date) as production_date
+                            FROM cartons
+                            JOIN boxes ON cartons.box_id = boxes.id
+                            WHERE box_id = :box_id" . $cartonExportTenant . "
+                            ORDER BY carton_code ASC
+                        ");
             $stmt->execute($cartonExportParams);
             $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
@@ -307,11 +283,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export'])) {
                         $productExportTenant = " AND tenant_id = :tenant_id";
                         $productExportParams[':tenant_id'] = getCurrentTenantId();
             $stmt = $pdo->prepare("
-                SELECT product_code, batch_number, DATE(production_date) as production_date, product_name
-                                FROM products
-                WHERE carton_id = :carton_id" . $productExportTenant . "
-                ORDER BY product_code ASC
-            ");
+                            SELECT product_code, boxes.batch_number, DATE(boxes.production_date) as production_date, bp.product_name
+                                            FROM products
+                            JOIN cartons ON products.carton_id = cartons.id
+                            JOIN boxes ON cartons.box_id = boxes.id
+                            LEFT JOIN base_products bp ON products.product_id = bp.id
+                            WHERE carton_id = :carton_id" . $productExportTenant . "
+                            ORDER BY product_code ASC
+                        ");
             $stmt->execute($productExportParams);
             $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
@@ -351,58 +330,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit'])) {
     try {
         $pdo->beginTransaction(); // 开启事务，确保同步成功
         
-        if ($level == 'box') {
-            // 1. 更新箱子自身代理商
-            $stmt = $pdo->prepare("
-                UPDATE boxes
-                SET batch_number = :batch, production_date = :date, distributor_id = :did
-                WHERE id = :id AND tenant_id = :tenant_id
-            ");
-            $stmt->bindParam(':batch', $_POST['batch_number']);
-            $stmt->bindParam(':date', $_POST['production_date']);
-            $stmt->bindParam(':did', $new_distributor_id);
-            $stmt->bindParam(':id', $item_id);
-            $stmt->bindValue(':tenant_id', getCurrentTenantId());
-            $stmt->execute();
-
-            // 2. 同步更新该箱子下所有盒子的代理商
-            $stmt = $pdo->prepare("
-                UPDATE cartons
-                SET distributor_id = :did
-                WHERE box_id = :box_id AND tenant_id = :tenant_id
-            ");
-            $stmt->bindParam(':did', $new_distributor_id);
-            $stmt->bindParam(':box_id', $item_id);
-            $stmt->bindValue(':tenant_id', getCurrentTenantId());
-            $stmt->execute();
-
-            // 3. 同步更新该箱子下所有产品的代理商（通过盒子关联）
-            $stmt = $pdo->prepare("
-                UPDATE products p
-                JOIN cartons c ON p.carton_id = c.id
-                SET p.distributor_id = :did
-                WHERE c.box_id = :box_id AND p.tenant_id = :tenant_id
-            ");
-            $stmt->bindParam(':did', $new_distributor_id);
-            $stmt->bindParam(':box_id', $item_id);
-            $stmt->bindValue(':tenant_id', getCurrentTenantId());
-            $stmt->execute();
-            
-            $success = "箱子及下属所有盒子、产品的代理商已同步更新";
-
-        } elseif ($level == 'carton') {
-            // 1. 更新盒子自身代理商
-            $stmt = $pdo->prepare("
-                UPDATE cartons
-                SET batch_number = :batch, production_date = :date, distributor_id = :did
-                WHERE id = :id AND tenant_id = :tenant_id
-            ");
-            $stmt->bindParam(':batch', $_POST['batch_number']);
-            $stmt->bindParam(':date', $_POST['production_date']);
-            $stmt->bindParam(':did', $new_distributor_id);
-            $stmt->bindParam(':id', $item_id);
-            $stmt->bindValue(':tenant_id', getCurrentTenantId());
-            $stmt->execute();
+        if ($level == 'carton') {
+                    // 1. 更新盒子自身代理商（批号/生产日期已移至 boxes 表）
+                    $stmt = $pdo->prepare("
+                        UPDATE cartons
+                        SET distributor_id = :did
+                        WHERE id = :id AND tenant_id = :tenant_id
+                    ");
+                    $stmt->bindParam(':did', $new_distributor_id);
+                    $stmt->bindParam(':id', $item_id);
+                    $stmt->bindValue(':tenant_id', getCurrentTenantId());
+                    $stmt->execute();
 
             // 2. 同步更新该盒子下所有产品的代理商
             $stmt = $pdo->prepare("
@@ -417,21 +355,31 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit'])) {
             
             $success = "盒子及下属所有产品的代理商已同步更新";
 
-        } elseif ($level == 'product') {
-                    // 产品仅更新自身代理商（无下级）
-                    $stmt = $pdo->prepare("
-                        UPDATE products
-                        SET product_name = :name,
-                            batch_number = :batch, production_date = :date, distributor_id = :did
-                        WHERE id = :id AND tenant_id = :tenant_id
-                    ");
-                    $stmt->bindParam(':name', $_POST['product_name']);
-                    $stmt->bindParam(':batch', $_POST['batch_number']);
-            $stmt->bindParam(':date', $_POST['production_date']);
-            $stmt->bindParam(':did', $new_distributor_id);
-            $stmt->bindParam(':id', $item_id);
-            $stmt->bindValue(':tenant_id', getCurrentTenantId());
-            $stmt->execute();
+                    } elseif ($level == 'box') {
+                        // 箱子仅更新经销商（无批号/日期修改）
+                        $stmt = $pdo->prepare("
+                            UPDATE boxes
+                            SET distributor_id = :did
+                            WHERE id = :id AND tenant_id = :tenant_id
+                        ");
+                        $stmt->bindParam(':did', $new_distributor_id);
+                        $stmt->bindParam(':id', $item_id);
+                        $stmt->bindValue(':tenant_id', getCurrentTenantId());
+                        $stmt->execute();
+
+                        $success = "箱子经销商已更新";
+
+                    } elseif ($level == 'product') {
+                                            // 产品仅更新自身代理商（产品名称/批号/生产日期已移至 boxes/base_products 表）
+                                        $stmt = $pdo->prepare("
+                                            UPDATE products
+                                            SET distributor_id = :did
+                                            WHERE id = :id AND tenant_id = :tenant_id
+                                        ");
+                                        $stmt->bindParam(':did', $new_distributor_id);
+                                $stmt->bindParam(':id', $item_id);
+                                $stmt->bindValue(':tenant_id', getCurrentTenantId());
+                                $stmt->execute();
             
             $success = "产品信息更新成功";
         }
@@ -455,7 +403,7 @@ try {
         $title = '产品列表';
         // $breadcrumb[] = ['name' => '箱子列表', 'url' => 'admin_list.php?level=box'];
         
-        // 构建查询条件（优化箱子溯源码查询逻辑）
+        // 构建查询条件（优化箱子防伪码查询逻辑）
         // 构建查询条件（已优化：只显示status=1的记录）
         $where_clause = ' WHERE boxes.status = 1';
                 $params = [];
@@ -463,7 +411,7 @@ try {
                 $params[':tenant_id'] = getCurrentTenantId();
 
                 if (!empty($box_code)) {
-                    // 先尝试精确匹配（处理包含特殊字符的完整溯源码）
+                    // 先尝试精确匹配（处理包含特殊字符的完整防伪码）
                     $exactParams2 = [':box_code' => $box_code];
                     $exactParams2[':tenant_id'] = getCurrentTenantId();
                     $exactTenant = " AND tenant_id = :tenant_id";
@@ -507,9 +455,13 @@ try {
         
         // 获取箱子数据
         $stmt = $pdo->prepare("        
-            SELECT boxes.*, base_distributors.name as distributor_name 
-            FROM boxes 
-            LEFT JOIN base_distributors ON boxes.distributor_id = base_distributors.id" . $where_clause . "
+                    SELECT boxes.*, base_distributors.name as distributor_name,
+                        (SELECT bp.product_name FROM base_products bp
+                         JOIN products p ON bp.id = p.product_id
+                         JOIN cartons c ON p.carton_id = c.id
+                         WHERE c.box_id = boxes.id AND c.status = 1 AND p.status = 1 LIMIT 1) as product_name
+                    FROM boxes 
+                    LEFT JOIN base_distributors ON boxes.distributor_id = base_distributors.id" . $where_clause . "
             ORDER BY production_date DESC, box_code ASC
             LIMIT :offset, :page_size
         ");
@@ -520,9 +472,15 @@ try {
         $stmt->bindParam(':offset', $offset, PDO::PARAM_INT);
         $stmt->bindParam(':page_size', $page_size, PDO::PARAM_INT);
         $stmt->execute();
-        $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
-        // 批量获取每个箱子的盒子数量（优化查询性能）
+                // 获取当前租户的portal域名（用于复制链接）
+                $portalDomain = '';
+                $pdStmt = $pdo->prepare("SELECT domain FROM tenant_domains WHERE tenant_id = ? AND type = 'portal' AND status = 1 LIMIT 1");
+                $pdStmt->execute([getCurrentTenantId()]);
+                $portalDomain = $pdStmt->fetchColumn();
+        
+                // 批量获取每个箱子的盒子数量（优化查询性能）
         if (!empty($data)) {
             $boxIds = array_column($data, 'id');
             $placeholders = implode(',', array_fill(0, count($boxIds), '?'));
@@ -584,13 +542,16 @@ try {
                     $cartonDataParams[':carton_code'] = $carton_code;
                 }
                 $stmt = $pdo->prepare("
-                    SELECT cartons.*, base_distributors.name as distributor_name
-                    FROM cartons
-                    LEFT JOIN base_distributors ON cartons.distributor_id = base_distributors.id
-                    WHERE box_id = :box_id AND cartons.status = 1" . $cartonTenant . $cartonFilter . "
-                    ORDER BY carton_code ASC
-                    LIMIT :offset, :page_size
-                ");
+                                    SELECT cartons.id, cartons.carton_code, cartons.box_id, cartons.distributor_id, cartons.status, cartons.query_count, cartons.last_scan_time, cartons.create_time, cartons.tenant_id,
+                                        boxes.batch_number, boxes.production_date,
+                                        base_distributors.name as distributor_name
+                                    FROM cartons
+                                    LEFT JOIN boxes ON cartons.box_id = boxes.id
+                                    LEFT JOIN base_distributors ON cartons.distributor_id = base_distributors.id
+                                    WHERE box_id = :box_id AND cartons.status = 1" . $cartonTenant . $cartonFilter . "
+                                    ORDER BY carton_code ASC
+                                    LIMIT :offset, :page_size
+                                ");
         foreach ($cartonDataParams as $k => $v) { $stmt->bindValue($k, $v); }
         $stmt->bindValue(':offset', (int)$offset, PDO::PARAM_INT);
         $stmt->bindValue(':page_size', (int)$page_size, PDO::PARAM_INT);
@@ -664,13 +625,19 @@ try {
         $productDataParams = [':carton_id' => $id];
                 $productDataParams[':tenant_id'] = getCurrentTenantId();
         $stmt = $pdo->prepare("
-            SELECT products.*, base_distributors.name as distributor_name
-            FROM products
-            LEFT JOIN base_distributors ON products.distributor_id = base_distributors.id
-            WHERE carton_id = :carton_id AND products.status = 1" . $productTenant . "
-            ORDER BY product_code ASC
-            LIMIT :offset, :page_size
-        ");
+                    SELECT products.id, products.product_code, products.carton_id, products.product_id, products.distributor_id, products.status, products.query_count, products.last_scan_time, products.create_time, products.tenant_id,
+                        boxes.batch_number, boxes.production_date,
+                        bp.product_name,
+                        base_distributors.name as distributor_name
+                    FROM products
+                    LEFT JOIN cartons ON products.carton_id = cartons.id
+                    LEFT JOIN boxes ON cartons.box_id = boxes.id
+                    LEFT JOIN base_products bp ON products.product_id = bp.id
+                    LEFT JOIN base_distributors ON products.distributor_id = base_distributors.id
+                    WHERE carton_id = :carton_id AND products.status = 1" . $productTenant . "
+                    ORDER BY product_code ASC
+                    LIMIT :offset, :page_size
+                ");
         foreach ($productDataParams as $k => $v) { $stmt->bindValue($k, $v); }
         $stmt->bindValue(':offset', (int)$offset, PDO::PARAM_INT);
         $stmt->bindValue(':page_size', (int)$page_size, PDO::PARAM_INT);
@@ -741,15 +708,15 @@ function generate_pagination($current_page, $total_pages, $base_url, $total_reco
 
 // 导出为TXT文件
 function exportAsTxt($data, $title, $level) {
-    $filename = $title . '溯源码_' . date('YmdHis') . '.txt';
+    $filename = $title . '防伪码_' . date('YmdHis') . '.txt';
     
     header('Content-Type: text/plain; charset=utf-8');
     header('Content-Disposition: attachment; filename="' . $filename . '"');
     
     if ($level == 'product') {
-        echo "溯源码\t产品名称\t批号\t生产日期\t查询网址\n";
+        echo "防伪码\t产品名称\t批号\t生产日期\t查询网址\n";
     } else {
-        echo "溯源码\t批号\t生产日期\t查询网址\n";
+        echo "防伪码\t批号\t生产日期\t查询网址\n";
     }
     
     foreach ($data as $item) {
@@ -771,7 +738,7 @@ function exportAsTxt($data, $title, $level) {
 
 // 导出为Excel文件（CSV格式）
 function exportAsExcel($data, $title, $level) {
-    $filename = $title . '溯源码_' . date('YmdHis') . '.csv';
+    $filename = $title . '防伪码_' . date('YmdHis') . '.csv';
     
     header('Content-Type: application/vnd.ms-excel; charset=utf-8');
     header('Content-Disposition: attachment; filename="' . $filename . '"');
@@ -780,9 +747,9 @@ function exportAsExcel($data, $title, $level) {
     fwrite($fp, chr(0xEF) . chr(0xBB) . chr(0xBF));
     
     if ($level == 'product') {
-        fputcsv($fp, ['溯源码', '产品名称', '批号', '生产日期', '查询网址']);
+        fputcsv($fp, ['防伪码', '产品名称', '批号', '生产日期', '查询网址']);
     } else {
-        fputcsv($fp, ['溯源码', '批号', '生产日期', '查询网址']);
+        fputcsv($fp, ['防伪码', '批号', '生产日期', '查询网址']);
     }
     
     foreach ($data as $item) {
@@ -825,7 +792,7 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
     <link rel="icon" type="image/webp" href="/favicon-DQ.webp">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>产品溯源系统 - 溯源码管理</title>
+    <title>产品防伪系统 - 防伪码管理</title>
     <style>
         body {
             font-family: "Microsoft YaHei", Arial, sans-serif;
@@ -835,13 +802,14 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
             background-color: #f4f4f4;
         }
         .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-        }
+                    width: 100%;
+                    margin: 0 auto;
+                    background: white;
+                    padding: 20px;
+                    border-radius: 8px;
+                    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+                    box-sizing: border-box;
+                }
         h1 {
             color: #4a3f69;
             font-size: 28px;
@@ -1126,7 +1094,42 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
                 min-width: auto !important;
             }
         }
-    </style>
+                .badge-active {
+                    display: inline-block;
+                    padding: 2px 8px;
+                    border-radius: 4px;
+                    font-size: 12px;
+                    background: #dff0d8;
+                    color: #3c763d;
+                }
+                .badge-query-1 {
+                    display: inline-block;
+                    padding: 2px 8px;
+                    border-radius: 4px;
+                    font-size: 12px;
+                    background: #fcf8e3;
+                    color: #8a6d3b;
+                }
+                .badge-disabled {
+                    display: inline-block;
+                    padding: 2px 8px;
+                    border-radius: 4px;
+                    font-size: 12px;
+                    background: #f2dede;
+                    color: #a94442;
+                }
+                .btn-copy {
+                    background: none;
+                    border: none;
+                    cursor: pointer;
+                    font-size: 14px;
+                    padding: 2px 4px;
+                    vertical-align: middle;
+                }
+                .btn-copy:hover {
+                    opacity: 0.7;
+                }
+            </style>
 </head>
 <body>
     <?php $activePage = 'admin_list.php'; include __DIR__ . '/sidebar.php'; ?>
@@ -1135,7 +1138,7 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
     <div class="main-content">
         <div class="container">
             <div class="header">
-                <h1>溯源码管理</h1>
+                <h1>防伪码管理</h1>
             </div>
         
         <!-- 面包屑导航 -->
@@ -1161,7 +1164,7 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
         <div class="filter-form" style="background: #f5f3fa; padding: 15px; border-radius: 8px; margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 15px; align-items: center;">
             <form method="get" action="" style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap; width: 100%;">
                 <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
-                    <label for="box_code" style="white-space: nowrap;">箱子溯源码：</label>
+                    <label for="box_code" style="white-space: nowrap;">箱子防伪码：</label>
                     <input type="text" id="box_code" name="box_code" value="<?php echo htmlspecialchars($box_code); ?>" placeholder="支持精确匹配和模糊查询" style="width: 150px; padding: 8px 12px;">
                 </div>
                 <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
@@ -1190,7 +1193,7 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
                     <div class="stats" style="color: #666;">
                         共 <strong><?php echo $total_records; ?></strong> 条记录，当前第 <strong><?php echo $page; ?></strong> / <strong><?php echo max(1, $total_pages); ?></strong> 页
                     </div>
-                    <?php if ($level != 'carton'): ?>
+                    <?php if ($level == 'product'): ?>
                     <form method="post" action="" onsubmit="return confirmBatchDelete();" style="display: inline-block;">
                         <input type="hidden" name="level" value="<?php echo $level; ?>">
                         <input type="hidden" name="id" value="<?php echo $id; ?>">
@@ -1206,22 +1209,23 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
                 <thead>
                     <tr>
                         <?php if ($level == 'box'): ?>
-                            <th style="vertical-align: middle;"><div style="display: flex; flex-direction: column; align-items: center; gap: 4px;"><span>全选</span><input type="checkbox" id="selectAll" class="select-checkbox"></div></th>
-                            <th>箱子溯源码</th>
-                            <th>批号</th>
-                            <th>生产日期</th>
-                            <th>经销商</th>
-                            <th>盒子数量</th>
-                            <th>操作</th>
-                        <?php elseif ($level == 'carton'): ?>
-                                                    <th>盒子溯源码</th>
+                                                                            <th>ID</th>
+                                                                            <th>产品名</th>
+                                                                            <th>箱子防伪码</th>
+                                                                            <th>批号</th>
+                                                                            <th>经销商</th>
+                                                                            <th>使用状态</th>
+                                                                            <th>最后扫码时间</th>
+                                                                            <th>操作</th>
+                                                <?php elseif ($level == 'carton'): ?>
+                                                    <th>盒子防伪码</th>
                                                     <th>批号</th>
                                                     <th>生产日期</th>
                                                     <th>经销商</th>
                                                     <th>产品数量</th>
                         <?php elseif ($level == 'product'): ?>
                             <th style="vertical-align: middle;"><div style="display: flex; flex-direction: column; align-items: center; gap: 4px;"><span>全选</span><input type="checkbox" id="selectAll" class="select-checkbox"></div></th>
-                                                        <th>产品溯源码</th>
+                                                        <th>产品防伪码</th>
                                                         <th>产品名称</th>
                                                         <th>批号</th>
                                                         <th>生产日期</th>
@@ -1234,34 +1238,46 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
                     <?php foreach ($data as $item): ?>
                         <tr>
                             <?php if ($level == 'box'): ?>
-                                <td><input type="checkbox" class="selectItem select-checkbox" value="<?php echo $item['id']; ?>"></td>
-                                <td><?php echo htmlspecialchars($item['box_code']); ?></td>
-                                <td><?php echo htmlspecialchars($item['batch_number']); ?></td>
-                                <td><?php echo date('Y-m-d', strtotime($item['production_date'])); ?></td>
-                                <td><?php echo !empty($item['distributor_name']) ? htmlspecialchars($item['distributor_name']) : '未分配'; ?></td>
-                                <td><?php echo isset($box_carton_counts[$item['id']]) ? $box_carton_counts[$item['id']] : 0; ?></td>
-                                <td class="actions">
-                                    <?php 
-                                    $cartonCount = isset($box_carton_counts[$item['id']]) ? $box_carton_counts[$item['id']] : 0;
-                                    if ($cartonCount > 0): 
-                                    ?>
-                                        <a href="admin_list.php?level=carton&id=<?php echo $item['id']; ?>" class="btn">查看盒子</a>
-                                    <?php endif; ?>
-                                    <button class="btn btn-edit" onclick="openEditModal(
-    <?php echo $item['id']; ?>, 
-    'box', 
-    '<?php echo htmlspecialchars($item['batch_number']); ?>', 
-    '<?php echo date('Y-m-d', strtotime($item['production_date'])); ?>',
-    '', '', '',
-    <?php echo $item['distributor_id'] ?: '0'; ?> // 传递经销商ID
-)">编辑</button>
-                                    <form method="post" action="" onsubmit="return confirm('确定要删除这个箱子吗？');" style="display: inline;">
-                                        <input type="hidden" name="item_id" value="<?php echo $item['id']; ?>">
-                                        <input type="hidden" name="level" value="box">
-                                        <button type="submit" name="delete_single" class="btn btn-delete">删除</button>
-                                    </form>
-                                </td>
-                            <?php elseif ($level == 'carton'): ?>
+                                                                                        <td><?php echo $item['id']; ?></td>
+                                                                                        <td><?php echo htmlspecialchars($item['product_name'] ?? ''); ?></td>
+                                                                                        <td>
+                                                                                            <?php echo htmlspecialchars($item['box_code']); ?>
+                                                                                            <button class="btn-copy" onclick="copyBoxCode('<?php echo htmlspecialchars($item['box_code']); ?>')" title="复制查询链接">📋</button>
+                                                                                        </td>
+                                                                                        <td><?php echo htmlspecialchars($item['batch_number']); ?></td>
+                                                                                        <td>
+                                                                                            <?php if (!empty($item['distributor_name'])): ?>
+                                                                                                <?php echo htmlspecialchars($item['distributor_name']); ?>
+                                                                                            <?php else: ?>
+                                                                                                <button class="btn btn-secondary" onclick="openBoxDistributorModal(<?php echo $item['id']; ?>)">未分配</button>
+                                                                                            <?php endif; ?>
+                                                                                        </td>
+                                                            <td>
+                                                                <?php 
+                                                                $qc = intval($item['query_count'] ?? 0);
+                                                                if ($qc == 0) {
+                                                                    echo '<span class="badge-active">未使用</span>';
+                                                                } elseif ($qc == 1) {
+                                                                    echo '<span class="badge-query-1">已查询</span>';
+                                                                } else {
+                                                                    echo '<span class="badge-disabled">已失效</span>';
+                                                                }
+                                                                ?>
+                                                            </td>
+                                                            <td><?php echo !empty($item['last_scan_time']) ? date('Y-m-d H:i:s', strtotime($item['last_scan_time'])) : '-'; ?></td>
+                                                            <td class="actions">
+                                                                <?php 
+                                                                $cartonCount = isset($box_carton_counts[$item['id']]) ? $box_carton_counts[$item['id']] : 0;
+                                                                if ($cartonCount > 0): 
+                                                                ?>
+                                                                    <a href="admin_list.php?level=carton&id=<?php echo $item['id']; ?>" class="btn">查看<?php echo $cartonCount; ?>盒</a>
+                                                                <?php endif; ?>
+                                                                <form method="post" action="" style="display: inline;">
+                                                                    <input type="hidden" name="item_id" value="<?php echo $item['id']; ?>">
+                                                                    <button type="submit" name="reset_query_count" class="btn btn-secondary">重置</button>
+                                                                </form>
+                                                            </td>
+                                                        <?php elseif ($level == 'carton'): ?>
                                                             <td><?php echo htmlspecialchars($item['carton_code']); ?></td>
                                                             <td><?php echo htmlspecialchars($item['batch_number']); ?></td>
                                                             <td><?php echo date('Y-m-d', strtotime($item['production_date'])); ?></td>
@@ -1327,7 +1343,7 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
     <div id="editModal" class="modal">
         <div class="modal-content">
             <span class="close">&times;</span>
-            <h3>编辑信息</h3>
+            <h3><?php echo $level == 'box' ? '分配经销商' : '编辑信息'; ?></h3>
             <form id="editForm" method="post" action="">
                 <input type="hidden" id="editId" name="id">
                 
@@ -1344,17 +1360,17 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
         </select>
     </div>
                 
-                <?php if (true): ?>
-                    <div class="form-group">
-                        <label for="batch_number">批号</label>
-                        <input type="text" id="batch_number" name="batch_number" required>
-                    </div>
+                <?php if ($level != 'box'): ?>
+                                    <div class="form-group">
+                                        <label for="batch_number">批号</label>
+                                        <input type="text" id="batch_number" name="batch_number" required>
+                                    </div>
                     
-                    <div class="form-group">
-                                            <label for="production_date">生产日期</label>
-                                            <input type="date" id="production_date" name="production_date" required>
-                                        </div>
-                <?php endif; ?>
+                                    <div class="form-group">
+                                                            <label for="production_date">生产日期</label>
+                                                            <input type="date" id="production_date" name="production_date" required>
+                                                        </div>
+                                <?php endif; ?>
                 
                 <?php if ($level == 'product'): ?>
                                     <div class="form-group">
@@ -1476,7 +1492,54 @@ function openEditModal(id, level, batch = '', date = '', distributorId = '', nam
     console.log('openEditModal 函数执行完成');
 }
         
-        // 关闭模态框
+        // 为箱子级别打开经销商分配弹窗
+function openBoxDistributorModal(id) {
+    if (!id) {
+        alert('参数错误：缺少ID！');
+        return;
+    }
+
+    // 设置表单中的隐藏域 - ID
+    const editIdInput = document.getElementById("editId");
+    if (!editIdInput) {
+        console.error('未找到 editId 输入框');
+        return;
+    }
+    editIdInput.value = id;
+
+    // 设置层级为 box
+    let levelInput = document.querySelector('input[name="level"]');
+    if (!levelInput) {
+        levelInput = document.createElement('input');
+        levelInput.type = 'hidden';
+        levelInput.name = 'level';
+        const editForm = document.getElementById("editForm");
+        if (editForm) {
+            editForm.appendChild(levelInput);
+        } else {
+            console.error('未找到 editForm 表单');
+            return;
+        }
+    }
+    levelInput.value = 'box';
+
+    // 清空批号、日期（非必填）
+    const batchInput = document.getElementById("batch_number");
+    if (batchInput) batchInput.value = '';
+    const dateInput = document.getElementById("production_date");
+    if (dateInput) dateInput.value = '';
+
+    // 重置经销商选择
+    const distributorSelect = document.getElementById("distributor_id");
+    if (distributorSelect) distributorSelect.value = '';
+
+    // 显示模态框
+    if (modal) {
+        modal.style.display = "block";
+    }
+}
+
+// 关闭模态框
         btnClose.onclick = function() {
             modal.style.display = "none";
         }
@@ -1489,14 +1552,15 @@ function openEditModal(id, level, batch = '', date = '', distributorId = '', nam
         }
 
         // 全选/反选功能
-        document.getElementById('selectAll').onclick = function() {
+                var selectAllEl = document.getElementById('selectAll');
+                if (selectAllEl) {
+                selectAllEl.onclick = function() {
             var checkboxes = document.getElementsByClassName('selectItem');
             for (var i = 0; i < checkboxes.length; i++) {
                 checkboxes[i].checked = this.checked;
             }
         };
-
-        // 批量删除确认及选中ID收集
+                }
         function confirmBatchDelete() {
             var selectedItems = document.querySelectorAll('.selectItem:checked');
             if (selectedItems.length === 0) {
@@ -1511,5 +1575,41 @@ function openEditModal(id, level, batch = '', date = '', distributorId = '', nam
             return confirm('确定要删除选中的' + selectedItems.length + '条记录吗？');
         }
     </script>
-</body>
-</html>
+        <script>
+            // 复制箱子查询链接到剪贴板
+            var portalDomain = '<?php echo htmlspecialchars($portalDomain ?: ''); ?>';
+            function copyBoxCode(boxCode) {
+                if (!portalDomain) {
+                    alert('未配置扫码域名，请联系管理员设置');
+                    return;
+                }
+                var url = 'https://' + portalDomain + '/index.php?code=' + encodeURIComponent(boxCode);
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(url).then(function() {
+                        alert('查询链接已复制到剪贴板');
+                    }).catch(function() {
+                        // 降级方案
+                        fallbackCopy(url);
+                    });
+                } else {
+                    fallbackCopy(url);
+                }
+            }
+            function fallbackCopy(text) {
+                var textarea = document.createElement('textarea');
+                textarea.value = text;
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
+                document.body.appendChild(textarea);
+                textarea.select();
+                try {
+                    document.execCommand('copy');
+                    alert('查询链接已复制到剪贴板');
+                } catch (e) {
+                    alert('复制失败，请手动复制');
+                }
+                document.body.removeChild(textarea);
+            }
+        </script>
+    </body>
+    </html>

@@ -643,15 +643,20 @@ $scanBgUrl = getImageUrl($scanBgUrl);
     <script>
     // 微信JS-SDK就绪
     wx.ready(function() {
+        wx.configured = true;
         console.log('微信SDK配置成功');
     });
     wx.error(function(err) {
-        console.error('微信SDK配置失败:', err);
+        alert('微信SDK配置失败，请刷新页面重试');
     });
 
     // 扫码函数
     function handleScanClick() {
         if (typeof wx !== 'undefined' && wx.scanQRCode) {
+            if (!wx.configured) {
+                alert('SDK配置中，请稍后再试');
+                return;
+            }
             wx.scanQRCode({
                 needResult: 1,
                 scanType: ["barCode"],

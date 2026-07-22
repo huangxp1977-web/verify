@@ -170,7 +170,7 @@ $base_brands = getBrands($pdo, true); // 获取所有品牌（包括禁用的）
     <link rel="icon" type="image/webp" href="/favicon-DQ.webp">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>产品溯源系统 - 品牌管理</title>
+    <title>产品防伪系统 - 品牌管理</title>
     <style>
         body {
             font-family: "Microsoft YaHei", Arial, sans-serif;
@@ -187,7 +187,8 @@ $base_brands = getBrands($pdo, true); // 获取所有品牌（包括禁用的）
             padding: 20px;
         }
         .container {
-            max-width: 1000px;
+            width: 100%;
+            box-sizing: border-box;
             margin: 0 auto;
             background: white;
             padding: 20px;

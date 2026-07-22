@@ -349,12 +349,12 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
     <link rel="icon" type="image/webp" href="/favicon-DQ.webp">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>产品溯源系统 - 图片素材</title>
+    <title>产品防伪系统 - 图片素材</title>
     <style>
         body, .main-content, .container, .image-item, .image-item-info, .upload-area, .modal, .modal img, input, select, textarea, button { box-sizing: border-box; }
         body { font-family: "Microsoft YaHei", Arial, sans-serif; line-height: 1.6; margin: 0; padding: 0; background-color: #f4f4f4; display: flex; min-height: 100vh; }
         .main-content { margin-left: 220px; padding: 20px; flex: 1; }
-        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        .container { width: 100%; box-sizing: border-box; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
         h1 {
             color: #4a3f69;
             font-size: 28px;
