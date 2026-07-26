@@ -4,6 +4,12 @@ ini_set('memory_limit', '256M');
 ini_set('max_execution_time', 300);
 
 session_start();
+
+// 读取一次性 flash 消息（PRG模式）
+$success = isset($_SESSION['flash_success']) ? $_SESSION['flash_success'] : null;
+$error = isset($_SESSION['flash_error']) ? $_SESSION['flash_error'] : null;
+unset($_SESSION['flash_success'], $_SESSION['flash_error']);
+
 require __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/tenant.php';
@@ -63,44 +69,7 @@ $carton_product_counts = [];  // 盒子ID => 产品数量
 // 【已移除】获取备份日期功能（不再需要，因为改用了软删除）
 
 
-// 处理单独删除（软删除：UPDATE status=0）
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_single'])) {
-    $item_id = isset($_POST['item_id']) ? intval($_POST['item_id']) : 0;
-    if ($item_id <= 0) {
-        $error = "无效的记录ID";
-    } else {
-        try {
-            $pdo->beginTransaction();
-
-            if ($level == 'carton' && $id > 0) {
-                // 软删除该盒子下的所有产品
-                $stmt = $pdo->prepare("UPDATE products SET status = 0 WHERE carton_id = ? AND tenant_id = ?");
-                $stmt->execute([$item_id, getCurrentTenantId()]);
-
-                // 软删除该盒子
-                $stmt = $pdo->prepare("UPDATE cartons SET status = 0 WHERE id = ? AND box_id = ? AND tenant_id = ?");
-                $stmt->execute([$item_id, $id, getCurrentTenantId()]);
-                
-                $success = "盒子【ID:$item_id】及其下属产品已删除";
-
-            } elseif ($level == 'product' && $id > 0) {
-                // 软删除该产品
-                $stmt = $pdo->prepare("UPDATE products SET status = 0 WHERE id = ? AND carton_id = ? AND tenant_id = ?");
-                $stmt->execute([$item_id, $id, getCurrentTenantId()]);
-                
-                $success = "产品【ID:$item_id】已删除";
-            }
-
-            $pdo->commit();
-        } catch (PDOException $e) {
-            $pdo->rollBack();
-            $error = "删除失败: " . $e->getMessage();
-        }
-    }
-}
-
-
-// 重置查询次数（清零query_count）
+// 重置查询次数（清零query_count）- PRG模式
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['reset_query_count'])) {
     $item_id = isset($_POST['item_id']) ? intval($_POST['item_id']) : 0;
     if ($item_id > 0) {
@@ -108,70 +77,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['reset_query_count'])) 
             if ($level == 'box') {
                 $stmt = $pdo->prepare("UPDATE boxes SET query_count = 0, last_scan_time = NULL WHERE id = ? AND tenant_id = ?");
                 $stmt->execute([$item_id, getCurrentTenantId()]);
-                $success = "箱子【ID:$item_id】的查询次数已重置";
+                $_SESSION['flash_success'] = "箱码查询次数已重置";
             } elseif ($level == 'carton') {
-                            $stmt = $pdo->prepare("UPDATE cartons SET query_count = 0, last_scan_time = NULL WHERE id = ? AND tenant_id = ?");
-                            $stmt->execute([$item_id, getCurrentTenantId()]);
-                            $success = "盒子【ID:$item_id】的查询次数已重置";
-                        } elseif ($level == 'product') {
-                            $stmt = $pdo->prepare("UPDATE products SET query_count = 0, last_scan_time = NULL WHERE id = ? AND tenant_id = ?");
-                            $stmt->execute([$item_id, getCurrentTenantId()]);
-                            $success = "产品【ID:$item_id】的查询次数已重置";
-                        }
+                $stmt = $pdo->prepare("UPDATE cartons SET query_count = 0, last_scan_time = NULL WHERE id = ? AND tenant_id = ?");
+                $stmt->execute([$item_id, getCurrentTenantId()]);
+                $_SESSION['flash_success'] = "盒码查询次数已重置";
+            } elseif ($level == 'product') {
+                $stmt = $pdo->prepare("UPDATE products SET query_count = 0, last_scan_time = NULL WHERE id = ? AND tenant_id = ?");
+                $stmt->execute([$item_id, getCurrentTenantId()]);
+                $_SESSION['flash_success'] = "产品防伪码查询次数已重置";
+            }
         } catch (PDOException $e) {
-            $error = "重置失败: " . $e->getMessage();
+            $_SESSION['flash_error'] = "重置失败: " . $e->getMessage();
         }
     }
+    header('Location: ' . $_SERVER['REQUEST_URI']);
+    exit;
 }
 
 
 // 【已移除】一键清空功能（设计缺陷，导致数据膨胀）
-
-// 批量删除（软删除：UPDATE status=0）
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['batch_delete']) && !empty($_POST['selected_ids'])) {
-    try {
-        $pdo->beginTransaction();
-        $selectedIds = explode(',', $_POST['selected_ids']);
-        $selectedIds = array_map('intval', $selectedIds); // 过滤非数字ID
-        $idsStr = implode(',', $selectedIds);
-
-        $tenantId = getCurrentTenantId();
-        $placeholders = implode(',', array_fill(0, count($selectedIds), '?'));
-
-        if ($level == 'carton' && $id > 0) {
-            // 软删除选中盒子下的所有产品
-            $params1 = $selectedIds;
-            $params1[] = $tenantId;
-            $stmt = $pdo->prepare("UPDATE products SET status = 0 WHERE carton_id IN ($placeholders) AND tenant_id = ?");
-            $stmt->execute($params1);
-
-            // 软删除选中的盒子
-            $params2 = $selectedIds;
-            $params2[] = $id;
-            $params2[] = $tenantId;
-            $stmt = $pdo->prepare("UPDATE cartons SET status = 0 WHERE id IN ($placeholders) AND box_id = ? AND tenant_id = ?");
-            $stmt->execute($params2);
-
-            $success = "已删除选中的" . count($selectedIds) . "个盒子及其下属产品";
-
-        } elseif ($level == 'product' && $id > 0) {
-            // 软删除选中的产品
-            $params1 = $selectedIds;
-            $params1[] = $id;
-            $params1[] = $tenantId;
-            $stmt = $pdo->prepare("UPDATE products SET status = 0 WHERE id IN ($placeholders) AND carton_id = ? AND tenant_id = ?");
-            $stmt->execute($params1);
-
-            $success = "已删除选中的" . count($selectedIds) . "个产品";
-        }
-
-        $pdo->commit();
-    } catch (PDOException $e) {
-        $pdo->rollBack();
-        $error = "批量删除失败: " . $e->getMessage();
-    }
-}
-
 
 // 【已移除】恢复已删除数据（软恢复：UPDATE status=1）
 /*
@@ -784,16 +709,6 @@ function exportAsExcel($data, $title, $level) {
     exit;
 }
 
-// 分批次删除数据的函数
-function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
-    $where = $whereClause ? "WHERE $whereClause" : '';
-    
-    do {
-        $stmt = $pdo->query("DELETE FROM $table $where LIMIT $batchSize");
-        $deletedRows = $stmt->rowCount();
-        unset($stmt);
-    } while ($deletedRows >= $batchSize);
-}
 ?>
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -1128,15 +1043,19 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
                     color: #a94442;
                 }
                 .btn-copy {
-                    background: none;
-                    border: none;
+                    background: #f0f0f0;
+                    border: 1px solid #ddd;
+                    border-radius: 4px;
                     cursor: pointer;
-                    font-size: 14px;
-                    padding: 2px 4px;
+                    font-size: 12px;
+                    padding: 2px 8px;
+                    margin-left: 5px;
                     vertical-align: middle;
+                    display: inline-block;
+                    flex-shrink: 0;
                 }
                 .btn-copy:hover {
-                    opacity: 0.7;
+                    background: #e0e0e0;
                 }
             /* 经销商选择列表样式 */
             .distributor-search-input {
@@ -1287,7 +1206,7 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
                                                                                         <td><?php echo htmlspecialchars($item['product_name'] ?? ''); ?></td>
                                                                                         <td>
                                                                                             <?php echo htmlspecialchars($item['box_code']); ?>
-                                                                                            <button class="btn-copy" onclick="copyBoxCode('<?php echo htmlspecialchars($item['box_code']); ?>')" title="复制查询链接">📋</button>
+                                                                                            <button class="btn-copy" onclick="copyToClipboard('https://<?php echo htmlspecialchars($portalDomain); ?>/?code=<?php echo urlencode($item['box_code']); ?>')" title="https://<?php echo htmlspecialchars($portalDomain); ?>/?code=<?php echo htmlspecialchars($item['box_code']); ?>">复制链接</button>
                                                                                         </td>
                                                                                         <td><?php echo htmlspecialchars($item['batch_number']); ?></td>
                                                                                         <td>
@@ -1317,9 +1236,10 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
                                                                 ?>
                                                                     <a href="admin_list.php?level=carton&id=<?php echo $item['id']; ?>" class="btn">查看<?php echo $cartonCount; ?>盒</a>
                                                                 <?php endif; ?>
-                                                                <form method="post" action="" style="display: inline;">
+                                                                <button class="btn btn-danger" onclick="return resetCount(<?php echo $item['id']; ?>)" style="padding: 2px 8px; font-size: 12px;">重置</button>
+                                                                <form method="post" action="" style="display:none;" id="resetForm_<?php echo $item['id']; ?>">
                                                                     <input type="hidden" name="item_id" value="<?php echo $item['id']; ?>">
-                                                                    <button type="submit" name="reset_query_count" class="btn btn-secondary">重置</button>
+                                                                    <input type="hidden" name="reset_query_count" value="1">
                                                                 </form>
                                                             </td>
                                                         <?php elseif ($level == 'carton'): ?>
@@ -1327,7 +1247,7 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
                                                                                                                     <td><?php echo htmlspecialchars($item['product_name'] ?? ''); ?></td>
                                                                                                                     <td>
                                                                                                                         <?php echo htmlspecialchars($item['carton_code']); ?>
-                                                                                                                        <button class="btn-copy" onclick="copyBoxCode('<?php echo htmlspecialchars($item['carton_code']); ?>')" title="复制查询链接">📋</button>
+                                                                                                                        <button class="btn-copy" onclick="copyToClipboard('https://<?php echo htmlspecialchars($portalDomain); ?>/?code=<?php echo urlencode($item['carton_code']); ?>')" title="https://<?php echo htmlspecialchars($portalDomain); ?>/?code=<?php echo htmlspecialchars($item['carton_code']); ?>">复制链接</button>
                                                                                                                     </td>
                                                                                                                     <td>
                                                                                                                         <?php 
@@ -1349,9 +1269,10 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
                                                                                                                         ?>
                                                                                                                             <a href="admin_list.php?level=product&id=<?php echo $item['id']; ?>" class="btn">查看<?php echo $productCount; ?>支</a>
                                                                                                                         <?php endif; ?>
-                                                                                                                        <form method="post" action="" style="display: inline;">
+                                                                                                                        <button class="btn btn-danger" onclick="return resetCount(<?php echo $item['id']; ?>)" style="padding: 2px 8px; font-size: 12px;">重置</button>
+                                                                                                                        <form method="post" action="" style="display:none;" id="resetForm_<?php echo $item['id']; ?>">
                                                                                                                             <input type="hidden" name="item_id" value="<?php echo $item['id']; ?>">
-                                                                                                                            <button type="submit" name="reset_query_count" class="btn btn-secondary">重置</button>
+                                                                                                                            <input type="hidden" name="reset_query_count" value="1">
                                                                                                                         </form>
                                                                                                                     </td>
                             <?php elseif ($level == 'product'): ?>
@@ -1359,7 +1280,7 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
                                                                                             <td><?php echo htmlspecialchars($item['product_name'] ?? ''); ?></td>
                                                                                             <td>
                                                                 <?php echo htmlspecialchars($item['product_code']); ?>
-                                                                <button class="btn-copy" onclick="copyBoxCode('<?php echo htmlspecialchars($item['product_code']); ?>')" title="复制查询链接">📋</button>
+                                                                <button class="btn-copy" onclick="copyToClipboard('https://<?php echo htmlspecialchars($portalDomain); ?>/?code=<?php echo urlencode($item['product_code']); ?>')" title="https://<?php echo htmlspecialchars($portalDomain); ?>/?code=<?php echo htmlspecialchars($item['product_code']); ?>">复制链接</button>
                                                             </td>
                                                             <td>
                                                                 <?php 
@@ -1375,9 +1296,10 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
                                                             </td>
                                                             <td><?php echo !empty($item['last_scan_time']) ? date('Y-m-d H:i:s', strtotime($item['last_scan_time'])) : '-'; ?></td>
                                                             <td class="actions">
-                                                                <form method="post" action="" style="display: inline;">
+                                                                <button class="btn btn-danger" onclick="return resetCount(<?php echo $item['id']; ?>)" style="padding: 2px 8px; font-size: 12px;">重置</button>
+                                                                <form method="post" action="" style="display:none;" id="resetForm_<?php echo $item['id']; ?>">
                                                                     <input type="hidden" name="item_id" value="<?php echo $item['id']; ?>">
-                                                                    <button type="submit" name="reset_query_count" class="btn btn-secondary">重置</button>
+                                                                    <input type="hidden" name="reset_query_count" value="1">
                                                                 </form>
                                                             </td>
                             <?php endif; ?>
@@ -1410,7 +1332,7 @@ function batchDelete($pdo, $table, $batchSize = 1000, $whereClause = '') {
     <div id="editModal" class="modal">
         <div class="modal-content">
             <span class="close">&times;</span>
-            <h3><?php echo $level == 'box' ? '分配经销商' : '编辑信息'; ?></h3>
+            <h3>分配经销商</h3>
             <form id="editForm" method="post" action="">
                 <input type="hidden" id="editId" name="id">
                 
@@ -1678,65 +1600,82 @@ function openBoxDistributorModal(id) {
             }
         }
 
-        // 全选/反选功能
-                var selectAllEl = document.getElementById('selectAll');
-                if (selectAllEl) {
-                selectAllEl.onclick = function() {
-            var checkboxes = document.getElementsByClassName('selectItem');
-            for (var i = 0; i < checkboxes.length; i++) {
-                checkboxes[i].checked = this.checked;
+        // 重置次数确认
+        function resetCount(id) {
+            if (confirm('确定要将此码的扫码次数重置为0吗？\n重置后该码将变成"未使用"状态。')) {
+                document.getElementById('resetForm_' + id).submit();
             }
-        };
-                }
-        function confirmBatchDelete() {
-            var selectedItems = document.querySelectorAll('.selectItem:checked');
-            if (selectedItems.length === 0) {
-                alert('请先选择要删除的记录！');
-                return false;
-            }
-            // 收集选中的ID
-            var ids = [];
-            selectedItems.forEach(item => ids.push(item.value));
-            document.getElementById('selectedIds').value = ids.join(',');
-            // 确认删除提示
-            return confirm('确定要删除选中的' + selectedItems.length + '条记录吗？');
+            return false;
         }
     </script>
         <script>
-            // 复制箱子查询链接到剪贴板
-            var portalDomain = '<?php echo htmlspecialchars($portalDomain ?: ''); ?>';
-            function copyBoxCode(boxCode) {
-                if (!portalDomain) {
-                    alert('未配置扫码域名，请联系管理员设置');
-                    return;
-                }
-                var url = 'https://' + portalDomain + '/?code=' + encodeURIComponent(boxCode);
-                if (navigator.clipboard && navigator.clipboard.writeText) {
-                    navigator.clipboard.writeText(url).then(function() {
-                        alert('查询链接已复制到剪贴板');
-                    }).catch(function() {
-                        // 降级方案
-                        fallbackCopy(url);
-                    });
-                } else {
-                    fallbackCopy(url);
-                }
+    // 复制到剪贴板功能
+    function copyToClipboard(text) {
+        if (!text) return;
+        
+        // 使用现代 API
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text).then(function() {
+                showToast('链接已复制');
+            }, function(err) {
+                console.error('复制失败', err);
+                fallbackCopyText(text);
+            });
+        } else {
+            fallbackCopyText(text);
+        }
+    }
+    
+    // 降级兼容处理
+    function fallbackCopyText(text) {
+        var textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-9999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        
+        try {
+            var successful = document.execCommand('copy');
+            if (successful) {
+                showToast('链接已复制');
+            } else {
+                showToast('复制失败，请手动复制');
             }
-            function fallbackCopy(text) {
-                var textarea = document.createElement('textarea');
-                textarea.value = text;
-                textarea.style.position = 'fixed';
-                textarea.style.opacity = '0';
-                document.body.appendChild(textarea);
-                textarea.select();
-                try {
-                    document.execCommand('copy');
-                    alert('查询链接已复制到剪贴板');
-                } catch (e) {
-                    alert('复制失败，请手动复制');
-                }
-                document.body.removeChild(textarea);
-            }
+        } catch (err) {
+            console.error('Fallback: Oops, unable to copy', err);
+            showToast('复制失败，请手动复制');
+        }
+        
+        document.body.removeChild(textArea);
+    }
+
+    // 简单的提示框
+    function showToast(message) {
+        var toast = document.createElement('div');
+        toast.textContent = message;
+        toast.style.position = 'fixed';
+        toast.style.bottom = '20px';
+        toast.style.left = '50%';
+        toast.style.transform = 'translateX(-50%)';
+        toast.style.background = 'rgba(0,0,0,0.7)';
+        toast.style.color = '#fff';
+        toast.style.padding = '8px 16px';
+        toast.style.borderRadius = '4px';
+        toast.style.zIndex = '9999';
+        toast.style.fontSize = '14px';
+        
+        document.body.appendChild(toast);
+        
+        setTimeout(function() {
+            toast.style.opacity = '0';
+            toast.style.transition = 'opacity 0.5s';
+            setTimeout(function() {
+                document.body.removeChild(toast);
+            }, 500);
+        }, 1500);
+    }
         </script>
     </body>
     </html>
