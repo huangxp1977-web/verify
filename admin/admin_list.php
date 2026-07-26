@@ -332,7 +332,7 @@ $page_size = 50;
 $offset = ($page - 1) * $page_size;
 $total_records = 0;
 
-// 获取当前租户的portal域名（用于复制链接）
+// 获取当前租户的portal域名（用于复制）
 $portalDomain = '';
 $pdStmt = $pdo->prepare("SELECT domain FROM tenant_domains WHERE tenant_id = ? AND type = 'portal' AND status = 1 LIMIT 1");
 $pdStmt->execute([getCurrentTenantId()]);
@@ -1206,7 +1206,7 @@ function exportAsExcel($data, $title, $level) {
                                                                                         <td><?php echo htmlspecialchars($item['product_name'] ?? ''); ?></td>
                                                                                         <td>
                                                                                             <?php echo htmlspecialchars($item['box_code']); ?>
-                                                                                            <button class="btn-copy" onclick="copyToClipboard('https://<?php echo htmlspecialchars($portalDomain); ?>/?code=<?php echo urlencode($item['box_code']); ?>')" title="https://<?php echo htmlspecialchars($portalDomain); ?>/?code=<?php echo htmlspecialchars($item['box_code']); ?>">复制链接</button>
+                                                                                            <button class="btn-copy" onclick="copyToClipboard('https://<?php echo htmlspecialchars($portalDomain); ?>/?code=<?php echo urlencode($item['box_code']); ?>')" title="https://<?php echo htmlspecialchars($portalDomain); ?>/?code=<?php echo htmlspecialchars($item['box_code']); ?>">复制</button>
                                                                                         </td>
                                                                                         <td><?php echo htmlspecialchars($item['batch_number']); ?></td>
                                                                                         <td>
@@ -1247,7 +1247,7 @@ function exportAsExcel($data, $title, $level) {
                                                                                                                     <td><?php echo htmlspecialchars($item['product_name'] ?? ''); ?></td>
                                                                                                                     <td>
                                                                                                                         <?php echo htmlspecialchars($item['carton_code']); ?>
-                                                                                                                        <button class="btn-copy" onclick="copyToClipboard('https://<?php echo htmlspecialchars($portalDomain); ?>/?code=<?php echo urlencode($item['carton_code']); ?>')" title="https://<?php echo htmlspecialchars($portalDomain); ?>/?code=<?php echo htmlspecialchars($item['carton_code']); ?>">复制链接</button>
+                                                                                                                        <button class="btn-copy" onclick="copyToClipboard('https://<?php echo htmlspecialchars($portalDomain); ?>/?code=<?php echo urlencode($item['carton_code']); ?>')" title="https://<?php echo htmlspecialchars($portalDomain); ?>/?code=<?php echo htmlspecialchars($item['carton_code']); ?>">复制</button>
                                                                                                                     </td>
                                                                                                                     <td>
                                                                                                                         <?php 
@@ -1280,7 +1280,7 @@ function exportAsExcel($data, $title, $level) {
                                                                                             <td><?php echo htmlspecialchars($item['product_name'] ?? ''); ?></td>
                                                                                             <td>
                                                                 <?php echo htmlspecialchars($item['product_code']); ?>
-                                                                <button class="btn-copy" onclick="copyToClipboard('https://<?php echo htmlspecialchars($portalDomain); ?>/?code=<?php echo urlencode($item['product_code']); ?>')" title="https://<?php echo htmlspecialchars($portalDomain); ?>/?code=<?php echo htmlspecialchars($item['product_code']); ?>">复制链接</button>
+                                                                <button class="btn-copy" onclick="copyToClipboard('https://<?php echo htmlspecialchars($portalDomain); ?>/?code=<?php echo urlencode($item['product_code']); ?>')" title="https://<?php echo htmlspecialchars($portalDomain); ?>/?code=<?php echo htmlspecialchars($item['product_code']); ?>">复制</button>
                                                             </td>
                                                             <td>
                                                                 <?php 
