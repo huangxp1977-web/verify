@@ -550,13 +550,13 @@ try {
                     $cartonDataParams[':carton_code'] = $carton_code;
                 }
                 $stmt = $pdo->prepare("
-                                                    SELECT cartons.id, cartons.carton_code, cartons.box_id, cartons.distributor_id, cartons.status, cartons.query_count, cartons.last_scan_time, cartons.created_at, cartons.tenant_id,
+                                                    SELECT cartons.id, cartons.carton_code, cartons.box_id, boxes.distributor_id, cartons.status, cartons.query_count, cartons.last_scan_time, cartons.created_at, cartons.tenant_id,
                                                         boxes.batch_number, boxes.production_date,
                                                         base_distributors.name as distributor_name,
-                                                        (SELECT bp.product_name FROM base_products bp JOIN products p ON bp.id = p.product_id WHERE p.carton_id = cartons.id AND p.status = 1 LIMIT 1) as product_name
+                                                        (SELECT bp.product_name FROM base_products bp WHERE bp.id = boxes.product_id LIMIT 1) as product_name
                                                     FROM cartons
                                                     LEFT JOIN boxes ON cartons.box_id = boxes.id
-                                                    LEFT JOIN base_distributors ON cartons.distributor_id = base_distributors.id
+                                                    LEFT JOIN base_distributors ON boxes.distributor_id = base_distributors.id
                                                     WHERE box_id = :box_id AND cartons.status = 1" . $cartonTenant . $cartonFilter . "
                                     ORDER BY carton_code ASC
                                     LIMIT :offset, :page_size
@@ -634,7 +634,7 @@ try {
         $productDataParams = [':carton_id' => $id];
                 $productDataParams[':tenant_id'] = getCurrentTenantId();
         $stmt = $pdo->prepare("
-                    SELECT products.id, products.product_code, products.carton_id, products.product_id, products.distributor_id, products.status, products.query_count, products.last_scan_time, products.created_at, products.tenant_id,
+                    SELECT products.id, products.product_code, products.carton_id, products.product_id, boxes.distributor_id, products.status, products.query_count, products.last_scan_time, products.created_at, products.tenant_id,
                         boxes.batch_number, boxes.production_date,
                         bp.product_name,
                         base_distributors.name as distributor_name
@@ -642,7 +642,7 @@ try {
                     LEFT JOIN cartons ON products.carton_id = cartons.id
                     LEFT JOIN boxes ON cartons.box_id = boxes.id
                     LEFT JOIN base_products bp ON products.product_id = bp.id
-                    LEFT JOIN base_distributors ON products.distributor_id = base_distributors.id
+                    LEFT JOIN base_distributors ON boxes.distributor_id = base_distributors.id
                     WHERE carton_id = :carton_id AND products.status = 1" . $productTenant . "
                     ORDER BY product_code ASC
                     LIMIT :offset, :page_size
