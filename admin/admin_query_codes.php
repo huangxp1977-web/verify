@@ -1,5 +1,11 @@
 <?php
 session_start();
+
+// 读取一次性 flash 消息（PRG模式）
+$flash_success = isset($_SESSION['flash_success']) ? $_SESSION['flash_success'] : null;
+$flash_error = isset($_SESSION['flash_error']) ? $_SESSION['flash_error'] : null;
+unset($_SESSION['flash_success'], $_SESSION['flash_error']);
+
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/tenant.php';
@@ -91,12 +97,17 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
     header('Location: /login.php');
     exit;
 }
-// 重置扫码次数
+// 重置扫码次数 - PRG模式
 if (isset($_GET['action']) && $_GET['action'] == 'reset_count' && isset($_GET['id'])) {
     $id = intval($_GET['id']);
-    $resetStmt = $pdo->prepare("UPDATE certificate_links SET query_count = 0, last_scan_time = NULL WHERE id = ? AND tenant_id = ?");
-    $resetStmt->execute([$id, getCurrentTenantId()]);
-    echo "<script>alert('重置成功！'); window.location.href='admin_query_codes.php';</script>";
+    try {
+        $resetStmt = $pdo->prepare("UPDATE certificate_links SET query_count = 0, last_scan_time = NULL WHERE id = ? AND tenant_id = ?");
+        $resetStmt->execute([$id, getCurrentTenantId()]);
+        $_SESSION['flash_success'] = '监管码查询次数已重置';
+    } catch (PDOException $e) {
+        $_SESSION['flash_error'] = '重置失败: ' . $e->getMessage();
+    }
+    header('Location: admin_query_codes.php');
     exit;
 }
 ?>
@@ -312,6 +323,20 @@ if (isset($_GET['action']) && $_GET['action'] == 'reset_count' && isset($_GET['i
             white-space: nowrap;
             max-width: 250px;
         }
+        .success {
+            background-color: #dff0d8;
+            color: #3c763d;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+        .error {
+            background-color: #f2dede;
+            color: #a94442;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
@@ -396,7 +421,15 @@ if (isset($_GET['action']) && $_GET['action'] == 'reset_count' && isset($_GET['i
     
     <div class="main-content">
         <div class="container">
+
             <h1>电子监管码</h1>
+
+            <?php if ($flash_success): ?>
+                <div class="success"><?php echo htmlspecialchars($flash_success); ?></div>
+            <?php endif; ?>
+            <?php if ($flash_error): ?>
+                <div class="error"><?php echo htmlspecialchars($flash_error); ?></div>
+            <?php endif; ?>
             
             <!-- 搜索区域 -->
             <form class="search-box" method="get">

@@ -1019,28 +1019,15 @@ function exportAsExcel($data, $title, $level) {
             }
         }
                 .badge-active {
-                    display: inline-block;
-                    padding: 2px 8px;
-                    border-radius: 4px;
-                    font-size: 12px;
-                    background: #dff0d8;
-                    color: #3c763d;
+                    color: #27ae60;
+                    font-weight: bold;
                 }
                 .badge-query-1 {
-                    display: inline-block;
-                    padding: 2px 8px;
-                    border-radius: 4px;
-                    font-size: 12px;
-                    background: #fcf8e3;
-                    color: #8a6d3b;
+                    color: #f39c12;
+                    font-weight: bold;
                 }
                 .badge-disabled {
-                    display: inline-block;
-                    padding: 2px 8px;
-                    border-radius: 4px;
-                    font-size: 12px;
-                    background: #f2dede;
-                    color: #a94442;
+                    color: #999;
                 }
                 .btn-copy {
                     background: #f0f0f0;
@@ -1153,7 +1140,7 @@ function exportAsExcel($data, $title, $level) {
                 </div>
                 <input type="hidden" name="level" value="box">
                 <button type="submit" class="btn">筛选</button>
-                <a href="admin_list.php?level=box" class="btn btn-secondary">重置</a>
+                <a href="admin_list.php?level=box" class="btn btn-danger">重置</a>
             </form>
         </div>
         <?php endif; ?>
@@ -1220,11 +1207,11 @@ function exportAsExcel($data, $title, $level) {
                                                                 <?php 
                                                                 $qc = intval($item['query_count'] ?? 0);
                                                                 if ($qc == 0) {
-                                                                    echo '<span class="badge-active">未使用</span>';
+                                                                    echo '<span class="badge-active">● 未使用</span>';
                                                                 } elseif ($qc == 1) {
-                                                                    echo '<span class="badge-query-1">已查询</span>';
+                                                                    echo '<span class="badge-query-1">● 已用1次</span>';
                                                                 } else {
-                                                                    echo '<span class="badge-disabled">已失效</span>';
+                                                                    echo '<span class="badge-disabled">● 已失效</span>';
                                                                 }
                                                                 ?>
                                                             </td>
@@ -1253,11 +1240,11 @@ function exportAsExcel($data, $title, $level) {
                                                                                                                         <?php 
                                                                                                                         $qc = intval($item['query_count'] ?? 0);
                                                                                                                         if ($qc == 0) {
-                                                                                                                            echo '<span class="badge-active">未使用</span>';
+                                                                                                                            echo '<span class="badge-active">● 未使用</span>';
                                                                                                                         } elseif ($qc == 1) {
-                                                                                                                            echo '<span class="badge-query-1">已查询</span>';
+                                                                                                                            echo '<span class="badge-query-1">● 已用1次</span>';
                                                                                                                         } else {
-                                                                                                                            echo '<span class="badge-disabled">已失效</span>';
+                                                                                                                            echo '<span class="badge-disabled">● 已失效</span>';
                                                                                                                         }
                                                                                                                         ?>
                                                                                                                     </td>
@@ -1286,11 +1273,11 @@ function exportAsExcel($data, $title, $level) {
                                                                 <?php 
                                                                 $qc = intval($item['query_count'] ?? 0);
                                                                 if ($qc == 0) {
-                                                                    echo '<span class="badge-active">未使用</span>';
+                                                                    echo '<span class="badge-active">● 未使用</span>';
                                                                 } elseif ($qc == 1) {
-                                                                    echo '<span class="badge-query-1">已查询</span>';
+                                                                    echo '<span class="badge-query-1">● 已用1次</span>';
                                                                 } else {
-                                                                    echo '<span class="badge-disabled">已失效</span>';
+                                                                    echo '<span class="badge-disabled">● 已失效</span>';
                                                                 }
                                                                 ?>
                                                             </td>
