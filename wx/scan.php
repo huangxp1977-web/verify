@@ -497,7 +497,10 @@ wx.ready(function() {
     <!-- Tab 1: 产品信息 -->
     <div class="tab-content active" id="tabContent1">
       <div class="card">
-        <div class="card-header">产品信息</div>
+        <div class="card-header" onclick="toggleSection('productInfoBody', this)" style="cursor:pointer;">
+          <span>产品信息</span>
+          <span class="toggle-arrow" style="float:right;transition:transform 0.2s;">▼</span>
+        </div>
         <div class="card-body" id="productInfoBody">
           <div class="info-row">
             <span class="label">品牌名称</span>
@@ -523,8 +526,11 @@ wx.ready(function() {
       </div>
 
       <div class="card">
-        <div class="card-header">产品详情图</div>
-        <div class="card-body">
+        <div class="card-header" onclick="toggleSection('productImagesBody', this)" style="cursor:pointer;">
+          <span>产品详情</span>
+          <span class="toggle-arrow" style="float:right;transition:transform 0.2s;">▶</span>
+        </div>
+        <div class="card-body" id="productImagesBody" style="display:none;">
           <div class="product-images" id="productImages"></div>
         </div>
       </div>
@@ -554,6 +560,12 @@ wx.ready(function() {
             </div>
           </div>
           <div id="queryWarning" class="query-warning" style="display:none"></div>
+          <div class="warm-tips" style="margin-top:0.2rem;padding:0.15rem 0.2rem;background:#f0f4ff;border-radius:0.08rem;font-size:0.22rem;color:#666;line-height:1.5;">
+            <div style="font-weight:bold;color:#4a3f69;margin-bottom:0.05rem;">💡 温馨提示</div>
+            <div>1. 请核对防伪码与产品包装上的防伪码是否一致</div>
+            <div>2. 正品防伪码仅可查询2次，超过次数将显示已失效</div>
+            <div>3. 如发现防伪码已被查询过，请谨慎核实产品真伪</div>
+          </div>
         </div>
       </div>
     </div>
@@ -635,6 +647,19 @@ function switchTab(index) {
   var navBtns = document.querySelectorAll('.bottom-nav .nav-btn');
   for (var k = 0; k < navBtns.length; k++) {
     navBtns[k].classList.toggle('active', k + 1 === index);
+  }
+}
+
+// 折叠/展开卡片内容
+function toggleSection(bodyId, headerEl) {
+  var body = document.getElementById(bodyId);
+  var arrow = headerEl.querySelector('.toggle-arrow');
+  if (body.style.display === 'none') {
+    body.style.display = 'block';
+    arrow.textContent = '▼';
+  } else {
+    body.style.display = 'none';
+    arrow.textContent = '▶';
   }
 }
 
@@ -769,7 +794,7 @@ function fillProductData(data) {
     for (var i = 0; i < images.length; i++) {
       var img = document.createElement('img');
       img.src = images[i];
-      img.alt = '产品详情图';
+      img.alt = '产品详情';
       img.onerror = function() { this.style.display = 'none'; };
       imagesContainer.appendChild(img);
     }
@@ -787,7 +812,7 @@ function fillCartonData(data) {
   document.getElementById('productionDate').textContent = data.production_date || '-';
   document.getElementById('distributorName').textContent = data.distributor_name || '-';
 
-  // 产品详情图：显示该产品的 product_images（来自第一个子产品）
+  // 产品详情：显示该产品的 product_images（来自第一个子产品）
   var imagesContainer = document.getElementById('productImages');
   imagesContainer.innerHTML = '';
   var images = data.product_images || [];
@@ -795,7 +820,7 @@ function fillCartonData(data) {
     for (var i = 0; i < images.length; i++) {
       var img = document.createElement('img');
       img.src = images[i];
-      img.alt = '产品详情图';
+      img.alt = '产品详情';
       img.onerror = function() { this.style.display = 'none'; };
       imagesContainer.appendChild(img);
     }
@@ -835,7 +860,7 @@ function fillBoxData(data) {
   document.getElementById('productionDate').textContent = data.production_date || '-';
   document.getElementById('distributorName').textContent = data.distributor_name || '-';
 
-  // 产品详情图：显示该产品的 product_images（来自第一个子产品）
+  // 产品详情：显示该产品的 product_images
   var imagesContainer = document.getElementById('productImages');
   imagesContainer.innerHTML = '';
   var images = data.product_images || [];
@@ -843,36 +868,12 @@ function fillBoxData(data) {
     for (var i = 0; i < images.length; i++) {
       var img = document.createElement('img');
       img.src = images[i];
-      img.alt = '产品详情图';
+      img.alt = '产品详情';
       img.onerror = function() { this.style.display = 'none'; };
       imagesContainer.appendChild(img);
     }
   } else {
     imagesContainer.innerHTML = '<div class="empty-hint">暂无产品详情图片</div>';
-  }
-
-  // 显示子盒子列表
-  if (data.cartons && data.cartons.length > 0) {
-    var html = '<div style="margin-top:0.2rem;padding-top:0.15rem;border-top:1px solid #f0f0f0;font-size:0.24rem;color:#666;">共 ' + data.cartons.length + ' 个盒子</div>';
-    for (var i = 0; i < data.cartons.length; i++) {
-      var c = data.cartons[i];
-      html += '<div class="product-list-item">';
-      html += '<div class="prod-code">' + c.carton_code + '</div>';
-      html += '<div>生产日期：' + (c.production_date || '-') + '</div>';
-      html += '</div>';
-    }
-    var infoBody = document.getElementById('productInfoBody');
-    var existingChild = infoBody.querySelector('.child-products-section');
-    if (existingChild) existingChild.remove();
-    var childDiv = document.createElement('div');
-    childDiv.className = 'child-products-section';
-    childDiv.innerHTML = html;
-    infoBody.appendChild(childDiv);
-  } else {
-    // 移除旧的子产品列表
-    var infoBody = document.getElementById('productInfoBody');
-    var existingChild = infoBody.querySelector('.child-products-section');
-    if (existingChild) existingChild.remove();
   }
 }
 

@@ -224,22 +224,12 @@ try {
     $stmt = $pdo->prepare("
         SELECT b.*,
         d.name as distributor_name,
-        (SELECT CONCAT(br.name_cn, ' (', br.name_en, ')') FROM cartons c
-         JOIN products p ON p.carton_id = c.id
-         LEFT JOIN base_products bp ON p.product_id = bp.id
-         LEFT JOIN base_brands br ON bp.brand_id = br.id
-         WHERE c.box_id = b.id AND c.status = 1 AND p.status = 1 LIMIT 1) as brand_name,
-        (SELECT bp.product_name FROM cartons c
-         JOIN products p ON p.carton_id = c.id
-         LEFT JOIN base_products bp ON p.product_id = bp.id
-         WHERE c.box_id = b.id AND c.status = 1 AND p.status = 1 LIMIT 1) as product_name,
-        (SELECT bp.product_images FROM cartons c
-         JOIN products p ON p.carton_id = c.id
-         LEFT JOIN base_products bp ON p.product_id = bp.id
-         WHERE c.box_id = b.id AND c.status = 1 AND p.status = 1 LIMIT 1) as product_images,
-        (SELECT COUNT(*) FROM cartons WHERE box_id = b.id AND status = 1) as carton_count,
-        (SELECT GROUP_CONCAT(carton_code SEPARATOR ', ') FROM cartons WHERE box_id = b.id AND status = 1) as carton_codes
+        CONCAT(br.name_cn, ' (', br.name_en, ')') as brand_name,
+        bp.product_name,
+        bp.product_images
         FROM boxes b
+        LEFT JOIN base_products bp ON b.product_id = bp.id
+        LEFT JOIN base_brands br ON bp.brand_id = br.id
         LEFT JOIN base_distributors d ON b.distributor_id = d.id
         WHERE b.box_code = :code AND b.status = 1 AND b.tenant_id = :tenant_id
     ");
@@ -270,26 +260,6 @@ try {
         $updateStmt->bindParam(':new_count', $newQueryCount, PDO::PARAM_INT);
         $updateStmt->bindParam(':id', $boxId, PDO::PARAM_INT);
         $updateStmt->execute();
-        
-        // 获取箱子下所有盒子详情
-        $stmtCartons = $pdo->prepare("SELECT c.id, c.carton_code, c.box_id, c.query_count, c.last_scan_time, c.created_at, c.status, c.tenant_id,
-            b.production_date, b.batch_number
-            FROM cartons c
-            JOIN boxes b ON c.box_id = b.id
-            WHERE c.box_id = :box_id AND c.status = 1");
-        $stmtCartons->bindParam(':box_id', $boxData['id']);
-        $stmtCartons->execute();
-        $cartonsList = $stmtCartons->fetchAll(PDO::FETCH_ASSOC);
-
-        // 格式化箱子数据
-        $formattedCartons = [];
-        foreach ($cartonsList as $c) {
-            $formattedCartons[] = [
-                'carton_code' => htmlspecialchars($c['carton_code']),
-                'production_date' => htmlspecialchars($c['production_date']),
-                'created_at' => htmlspecialchars($c['created_at'])
-            ];
-        }
 
         $response['success'] = true;
         $response['message'] = '查询成功（箱子）';
@@ -304,9 +274,6 @@ try {
             'distributor_name' => htmlspecialchars($boxData['distributor_name'] ?? ''),
             'production_date' => htmlspecialchars($boxData['production_date']),
             'batch_number' => htmlspecialchars($boxData['batch_number'] ?? ''),
-            'carton_count' => (int)$boxData['carton_count'],
-            'carton_codes' => $boxData['carton_codes'] ? explode(', ', $boxData['carton_codes']) : [],
-            'cartons' => $formattedCartons,
             'created_at' => htmlspecialchars($boxData['created_at']),
             'last_scan_time' => htmlspecialchars($boxData['last_scan_time'] ?? ''),
             'query_count' => $newQueryCount
