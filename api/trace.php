@@ -90,6 +90,13 @@ try {
         $updateStmt->bindParam(':id', $productId, PDO::PARAM_INT);
         $updateStmt->execute();
         
+        // 重新读取 first_scan_time（UPDATE 后可能已变更）
+        $stmtRefetch = $pdo->prepare("SELECT first_scan_time FROM products WHERE id = :id");
+        $stmtRefetch->bindParam(':id', $productId, PDO::PARAM_INT);
+        $stmtRefetch->execute();
+        $refreshedProduct = $stmtRefetch->fetch(PDO::FETCH_ASSOC);
+        $firstScanTime = $refreshedProduct['first_scan_time'] ?? null;
+        
         // 格式化产品数据（过滤敏感字段、统一格式）
         $response['success'] = true;
         $response['message'] = '查询成功（单支产品）';
@@ -108,7 +115,7 @@ try {
             }, json_decode($productData['product_images'] ?? '[]', true) ?: []),
             'created_at' => htmlspecialchars($productData['created_at']),
             'last_scan_time' => htmlspecialchars($productData['last_scan_time'] ?? ''),
-            'first_scan_time' => htmlspecialchars($productData['first_scan_time'] ?? ''),
+            'first_scan_time' => htmlspecialchars($firstScanTime ?? ''),
             'query_count' => $newQueryCount
         ];
         echo json_encode($response, JSON_UNESCAPED_UNICODE);
@@ -166,6 +173,13 @@ try {
         $updateStmt->bindParam(':id', $cartonId, PDO::PARAM_INT);
         $updateStmt->execute();
         
+        // 重新读取 first_scan_time（UPDATE 后可能已变更）
+        $stmtRefetch = $pdo->prepare("SELECT first_scan_time FROM cartons WHERE id = :id");
+        $stmtRefetch->bindParam(':id', $cartonId, PDO::PARAM_INT);
+        $stmtRefetch->execute();
+        $refreshedCarton = $stmtRefetch->fetch(PDO::FETCH_ASSOC);
+        $firstScanTime = $refreshedCarton['first_scan_time'] ?? null;
+        
         // 获取盒子下所有产品详情
         $stmtProducts = $pdo->prepare("SELECT p.id, p.product_code, p.carton_id, p.product_id, p.query_count, p.last_scan_time, p.created_at, p.status, p.tenant_id,
             b.production_date, b.batch_number,
@@ -215,7 +229,7 @@ try {
             'products' => $formattedProducts,
             'created_at' => htmlspecialchars($cartonData['created_at']),
             'last_scan_time' => htmlspecialchars($cartonData['last_scan_time'] ?? ''),
-            'first_scan_time' => htmlspecialchars($cartonData['first_scan_time'] ?? ''),
+            'first_scan_time' => htmlspecialchars($firstScanTime ?? ''),
             'query_count' => $newQueryCount
         ];
         echo json_encode($response, JSON_UNESCAPED_UNICODE);
@@ -262,6 +276,13 @@ try {
         $updateStmt->bindParam(':new_count', $newQueryCount, PDO::PARAM_INT);
         $updateStmt->bindParam(':id', $boxId, PDO::PARAM_INT);
         $updateStmt->execute();
+        
+        // 重新读取 first_scan_time（UPDATE 后可能已变更）
+        $stmtRefetch = $pdo->prepare("SELECT first_scan_time FROM boxes WHERE id = :id");
+        $stmtRefetch->bindParam(':id', $boxId, PDO::PARAM_INT);
+        $stmtRefetch->execute();
+        $refreshedBox = $stmtRefetch->fetch(PDO::FETCH_ASSOC);
+        $firstScanTime = $refreshedBox['first_scan_time'] ?? null;
 
         $response['success'] = true;
         $response['message'] = '查询成功（箱子）';
@@ -278,7 +299,7 @@ try {
             'batch_number' => htmlspecialchars($boxData['batch_number'] ?? ''),
             'created_at' => htmlspecialchars($boxData['created_at']),
             'last_scan_time' => htmlspecialchars($boxData['last_scan_time'] ?? ''),
-            'first_scan_time' => htmlspecialchars($boxData['first_scan_time'] ?? ''),
+            'first_scan_time' => htmlspecialchars($firstScanTime ?? ''),
             'query_count' => $newQueryCount
         ];
         echo json_encode($response, JSON_UNESCAPED_UNICODE);
