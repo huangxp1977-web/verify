@@ -18,6 +18,7 @@ if (isset($_SESSION['flash_error'])) { $error = $_SESSION['flash_error']; unset(
 // 权限定义
 $permGroups = [
     'brand' => ['label' => '品牌业务', 'items' => [
+        'brand_code_generate' => '防伪码生成',
         'brand_list' => '防伪码管理',
         'brand_distributors' => '经销商管理', 'brand_brands' => '品牌管理',
         'brand_products' => '产品管理',
@@ -27,7 +28,6 @@ $permGroups = [
     ]],
     'system' => ['label' => '系统设置', 'items' => [
         'system_qiniu' => '基础设置', 'system_images' => '图片素材',
-        'system_scan_editor' => '背景设计',
         'system_roles' => '角色管理', 'system_users' => '用户管理',
         'system_password' => '个人资料',
     ]],

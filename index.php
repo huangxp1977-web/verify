@@ -42,17 +42,13 @@ if ($isGuoKong) {
     if ($isWechat) {
         // 微信环境 -> 产品防伪
         if (!empty($code)) {
-            $targetUrl = 'wx/fw.php?code=' . urlencode($code);
+            $targetUrl = 'wx/scan.php?code=' . urlencode($code);
         } else {
             $targetUrl = 'wx/scan.php';
         }
     } else {
-        // PC环境 -> 检查code参数
-        if (!empty($code)) {
-            $targetUrl = 'wx/fw.php?code=' . urlencode($code);
-        } else {
-            $targetUrl = 'wx/scan.php';
-        }
+        // PC环境 -> 扫码页（和微信显示一样）
+        $targetUrl = 'wx/scan.php';
     }
 }
 

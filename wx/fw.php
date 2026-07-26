@@ -3,6 +3,19 @@
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../includes/tenant.php';
 require_once __DIR__ . '/../includes/qiniu_helper.php';
+
+// 获取当前企业配置（产品矩阵等）
+$tenantMapping = getTenantByDomain($pdo);
+$productMatrix = null;
+if ($tenantMapping) {
+    $stmt = $pdo->prepare("SELECT base_config FROM tenants WHERE id = ?");
+    $stmt->execute([$tenantMapping['tenant_id']]);
+    $tenantRow = $stmt->fetch();
+    if ($tenantRow) {
+        $baseConfig = json_decode($tenantRow['base_config'] ?? '{}', true);
+        $productMatrix = $baseConfig['product_matrix'] ?? null;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html data-use-rem="750">
@@ -345,16 +358,18 @@ require_once __DIR__ . '/../includes/qiniu_helper.php';
     <div class="bottom-nav">
         <a class="nav-btn active" href="javascript:void(0)" onclick="scrollToTop()">
             <span class="nav-icon">🛡️</span>
-            <span class="nav-label">防伪信息</span>
+            <span class="nav-label">产品信息</span>
         </a>
-        <a class="nav-btn" href="scan.php">
+        <a class="nav-btn" href="javascript:void(0)" onclick="scrollToTop()">
             <span class="nav-icon">🔍</span>
             <span class="nav-label">防伪查询</span>
         </a>
-        <a class="nav-btn" href="javascript:void(0)" onclick="alert('即将上线')">
+        <?php if ($productMatrix && !empty($productMatrix['name']) && !empty($productMatrix['url'])): ?>
+        <a class="nav-btn" href="<?php echo htmlspecialchars($productMatrix['url']); ?>" target="_blank">
             <span class="nav-icon">📋</span>
-            <span class="nav-label">产品矩阵</span>
+            <span class="nav-label"><?php echo htmlspecialchars($productMatrix['name']); ?></span>
         </a>
+        <?php endif; ?>
     </div>
 
     <script type="text/javascript" src="static/js/rem.js"></script>

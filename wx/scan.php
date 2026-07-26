@@ -3,6 +3,7 @@
 error_reporting(0);
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../includes/tenant.php';
+require_once __DIR__ . '/../includes/qiniu_helper.php';
 require_once "jssdk.php";
 
 // 域名解析租户，获取品牌微信配置
@@ -10,15 +11,23 @@ $wxAppId = defined('WX_APP_ID') ? WX_APP_ID : '';
 $wxAppSecret = defined('WX_APP_SECRET') ? WX_APP_SECRET : '';
 global $pdo;
 $domainTenant = getTenantByDomain($pdo);
+$tenantName = '防伪验证';
+$productMatrix = null;
 if ($domainTenant && !empty($domainTenant['tenant_id'])) {
-    $stmt = $pdo->prepare("SELECT base_config FROM tenants WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT name, base_config FROM tenants WHERE id = ?");
     $stmt->execute([$domainTenant['tenant_id']]);
     $tenant = $stmt->fetch();
-    if ($tenant && !empty($tenant['base_config'])) {
-        $bc = json_decode($tenant['base_config'], true);
-        if (!empty($bc['wechat']['brand']['app_id']) && !empty($bc['wechat']['brand']['app_secret'])) {
-            $wxAppId = $bc['wechat']['brand']['app_id'];
-            $wxAppSecret = $bc['wechat']['brand']['app_secret'];
+    if ($tenant) {
+        if (!empty($tenant['name'])) {
+            $tenantName = $tenant['name'];
+        }
+        if (!empty($tenant['base_config'])) {
+            $bc = json_decode($tenant['base_config'], true);
+            if (!empty($bc['wechat']['brand']['app_id']) && !empty($bc['wechat']['brand']['app_secret'])) {
+                $wxAppId = $bc['wechat']['brand']['app_id'];
+                $wxAppSecret = $bc['wechat']['brand']['app_secret'];
+            }
+            $productMatrix = $bc['product_matrix'] ?? null;
         }
     }
 }
@@ -30,41 +39,18 @@ try {
     // 本地开发或非微信环境，使用空配置
     $signPackage = ['appId' => '', 'timestamp' => time(), 'nonceStr' => '', 'signature' => ''];
 }
-
-// 读取扫码页背景配置（按租户隔离）
-$scanBgUrl = '/wx/static/images/default_bg.png'; // 中性默认背景图
-
-global $pdo;
-$domainTenant = getTenantByDomain($pdo);
-if ($domainTenant && !empty($domainTenant['tenant_id'])) {
-    $stmt = $pdo->prepare("SELECT scan_layout FROM tenants WHERE id = ?");
-    $stmt->execute([$domainTenant['tenant_id']]);
-    $tenant = $stmt->fetch();
-    if ($tenant && !empty($tenant['scan_layout'])) {
-        $config = json_decode($tenant['scan_layout'], true);
-        if (!empty($config['background'])) {
-            $scanBgUrl = $config['background'];
-        }
-    }
-}
-
-// 引入七牛云辅助函数，处理图片URL
-require_once __DIR__ . '/../includes/qiniu_helper.php';
-$scanBgUrl = getImageUrl($scanBgUrl);
-?>
-<!DOCTYPE html>
+?><!DOCTYPE html>
 <html data-use-rem="750">
 <head>
 <meta charset="UTF-8">
-<title>德欧美提</title>
+<title><?php echo htmlspecialchars($tenantName); ?></title>
 <meta name="renderer" content="webkit">
 <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
 <meta name="format-detection" content="telephone=no, email=no">
 <meta name="google" value="notranslate">
 <meta name="description" content="">
 <meta name="author" content="Administrator">
-<meta name="apple-itunes-app" content="app-id=123131232132">
 <meta name="HandheldFriendly" content="true">
 <meta name="MobileOptimized" content="320">
 <meta name="screen-orientation" content="portrait">
@@ -73,7 +59,6 @@ $scanBgUrl = getImageUrl($scanBgUrl);
 <meta name="x5-fullscreen" content="true">
 <meta name="browsermode" content="application">
 <meta name="x5-page-mode" content="app">
-<meta name="x5-page-mode" content="default">
 <link rel="icon" type="image/webp" href="/favicon-DQ.webp">
 <link rel="stylesheet" href="static/css/reset.css">
 <link rel="stylesheet" href="static/css/index.css">
@@ -90,186 +75,817 @@ wx.config({
   ]
 });
 
-// 扫码点击处理 - 全局定义以支持非微信环境
 function handleScanClick() {
-  // 检查是否在微信环境且 wx.scanQRCode 可用
   if (typeof wx !== 'undefined' && wx.scanQRCode) {
     if (!wx.configured) {
       alert('SDK配置中，请稍后再试');
       return;
     }
     wx.scanQRCode({
-      needResult: 1, // 返回扫码结果让JS处理
+      needResult: 1,
       scanType: ["qrCode","barCode"],
       success: function (res) {
         var result = res.resultStr;
-        
         if (result) {
-          // 判断是否为有效的防伪链接（排除证书链接）
-          var isCertLink = result.indexOf('cert/') !== -1 || result.indexOf('cert_no=') !== -1;
-          var isTraceLink = result.indexOf('wx/') !== -1 || result.indexOf('code=') !== -1 ||
-              result.indexOf('PRODUCT') !== -1 || result.indexOf('CARTON') !== -1 || result.indexOf('BOX') !== -1;
-          
-          if (!isCertLink && isTraceLink) {
-            // 是防伪链接或防伪码，提取code并跳转
-            var code = result;
-            if (result.indexOf('http') === 0 && result.indexOf('code=') !== -1) {
-              try {
-                code = new URL(result).searchParams.get('code') || result;
-              } catch(e) { }
-            }
-            window.location.href = 'fw.php?code=' + encodeURIComponent(code);
-          } else {
-            // 其他情况（包括证书链接），提示不适用
-            alert('此二维码不适用于产品防伪系统');
+          var code = result;
+          if (result.indexOf('http') === 0 && result.indexOf('code=') !== -1) {
+            try {
+              code = new URL(result).searchParams.get('code') || result;
+            } catch(e) { }
           }
+          window.location.href = 'scan.php?code=' + encodeURIComponent(code);
         } else {
           alert('扫码失败，请重试');
         }
       }
     });
   } else {
-    // 非微信环境，提示或直接打开输码弹窗
-    alert('请在微信中打开此页面使用扫码功能，或使用输码查询');
+    alert('请在微信中打开此页面使用扫码功能');
   }
 }
 
-// 微信JS-SDK就绪标记
 wx.ready(function() {
   wx.configured = true;
 });
 </script>
 <style>
-  /* 输码查询弹窗样式 */
-  .inputModal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.2); /* 透明遮罩 */
-    display: none;
-    justify-content: center;
-    align-items: center;
-    z-index: 999;
+  body {
+    background-color: #f0f0f0;
+    padding-bottom: 1.2rem;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   }
-  .inputModal .modalContent {
-    width: 6.56rem;
-    background-color: rgba(255, 255, 255, 0.9); /* 弹窗背景透明 */
-    border-radius: 0.1rem;
-    padding: 0.2rem 0.2rem;
-    text-align: center;
-    box-shadow: 0 0.1rem 0.3rem rgba(0, 0, 0, 0.1);
-    position: relative; /* 定位关闭按钮 */
-  }
-  .inputModal .modalContent h3 {
-    font-size: 0.36rem;
-    color: #251E1C;
-  }
-  .inputModal .modalContent .input_vul {
-    width: 5.6rem;
-    height: 0.86rem;
-    line-height: 0.86rem;
-    border-top-left-radius: 0.1rem;
-    border-bottom-left-radius: 0.1rem;
+
+  /* 页面标题 */
+  .page-header {
     background: #fff;
-    font-size: 0.26rem;
-    padding: 0 0.23rem;
-    border: none;
-    box-shadow: 0px 1px 1px 1px rgba(0, 0, 0, 0.1) inset;
-    margin: 0.3rem 0; /* 增加输入框上下间距，优化布局 */
+    text-align: center;
+    padding: 0.3rem 0.2rem;
+    font-size: 0.36rem;
+    font-weight: bold;
+    color: #333;
+    border-bottom: 1px solid #e8e8e8;
+    position: relative;
   }
-  .inputModal .modalContent .input_btn {
-    width: 5.62rem; /* 按钮宽度与输入框对齐 */
-    height: 0.9rem;
-    background: url(static/images/search.png) no-repeat; /* 查询按钮图片 */
-    background-size: 100% 100%;
-    border: none;
-    cursor: pointer; /* 鼠标悬浮变指针，提示可点击 */
+
+  /* Tab 切换栏 */
+  .tab-bar {
+    display: flex;
+    background: #fff;
+    border-bottom: 1px solid #e8e8e8;
+    position: sticky;
+    top: 0;
+    z-index: 50;
   }
-  .inputModal .closeBtn {
+
+  .tab-bar .tab-btn {
+    flex: 1;
+    text-align: center;
+    padding: 0.2rem 0;
+    font-size: 0.28rem;
+    color: #666;
+    cursor: pointer;
+    position: relative;
+    transition: color 0.2s;
+  }
+
+  .tab-bar .tab-btn.active {
+    color: #4a3f69;
+    font-weight: bold;
+  }
+
+  .tab-bar .tab-btn.active::after {
+    content: '';
     position: absolute;
-    top: 0.2rem;
-    right: 0.2rem;
-    width: 0.5rem;
-    height: 0.5rem;
-    border-radius: 50%; /* 圆形 */
-    background-color: #ccc; /* 灰色背景 */
+    bottom: 0;
+    left: 20%;
+    right: 20%;
+    height: 3px;
+    background: #4a3f69;
+    border-radius: 2px;
+  }
+
+  .tab-content {
+    display: none;
+  }
+
+  .tab-content.active {
+    display: block;
+  }
+
+  /* 输入区域（无 code 时显示） */
+  .input-area {
+    background: #fff;
+    margin: 0.3rem 0.2rem;
+    border-radius: 0.12rem;
+    padding: 0.4rem 0.3rem;
+    text-align: center;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+
+  .input-area .input-title {
+    font-size: 0.3rem;
+    color: #333;
+    margin-bottom: 0.2rem;
+    font-weight: bold;
+  }
+
+  .input-area .input-row {
     display: flex;
-    justify-content: center;
     align-items: center;
-    color: #fff;
-    font-size: 0.24rem;
-    cursor: pointer; /* 提示可点击 */
-  }
-  /* 按钮容器样式 - 原始设计 */
-  .btnGroup {
-    display: flex;
     justify-content: center;
-    margin-top: 8.58rem; /* 原始值：LOGO与按钮间距 */
-    margin-left: -0.8rem; /* 整体往左移 */
+    gap: 0.1rem;
   }
-  /* 透明热区按钮 - 覆盖背景图上的假按钮 */
-  .scanBtn {
-    width: 2.12rem;
-    height: 0.8rem;
-    background: transparent; /* 透明 - 原始被注释掉的图片不存在 */
-    background-size: 100% 100%;
-    margin: 0 0.8rem;
-    cursor: pointer;
 
+  .input-area .input-row input {
+    flex: 1;
+    height: 0.8rem;
+    line-height: 0.8rem;
+    border: 1px solid #ddd;
+    border-radius: 0.08rem;
+    font-size: 0.26rem;
+    padding: 0 0.2rem;
+    box-sizing: border-box;
   }
-  .inputBtn {
-    width: 2.12rem;
-    height: 0.8rem;
-    background: transparent;
-    background-size: 100% 100%;
-    cursor: pointer;
 
+  .input-area .input-row .search-btn {
+    height: 0.8rem;
+    line-height: 0.8rem;
+    padding: 0 0.3rem;
+    background: #4a3f69;
+    color: #fff;
+    border: none;
+    border-radius: 0.08rem;
+    font-size: 0.26rem;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .input-area .scan-btn-row {
+    margin-top: 0.2rem;
+  }
+
+  .input-area .scan-btn-row .scan-btn {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    background: #fff;
+    color: #4a3f69;
+    border: 1px solid #4a3f69;
+    border-radius: 0.08rem;
+    font-size: 0.26rem;
+    cursor: pointer;
+  }
+
+  /* 加载中 */
+  .loading {
+    text-align: center;
+    padding: 0.5rem;
+    font-size: 0.28rem;
+    color: #666;
+    margin-top: 1rem;
+  }
+
+  .loading .spinner {
+    display: inline-block;
+    width: 0.6rem;
+    height: 0.6rem;
+    border: 3px solid #e0e0e0;
+    border-top-color: #4a3f69;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-bottom: 0.2rem;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* 防伪码状态徽章 */
+  .badge-wrap {
+    text-align: center;
+    padding: 0.3rem 0 0.15rem;
+  }
+
+  .status-badge {
+    display: inline-block;
+    padding: 0.08rem 0.3rem;
+    border-radius: 0.3rem;
+    font-size: 0.28rem;
+    font-weight: bold;
+  }
+
+  .status-badge.genuine {
+    background: #e8f5e9;
+    color: #2e7d32;
+    border: 1px solid #a5d6a7;
+  }
+
+  .status-badge.invalid {
+    background: #fbe9e7;
+    color: #c62828;
+    border: 1px solid #ef9a9a;
+  }
+
+  .status-badge.error {
+    background: #fff3e0;
+    color: #e65100;
+    border: 1px solid #ffcc80;
+  }
+
+  /* 防伪码文本 */
+  .code-text {
+    text-align: center;
+    font-size: 0.24rem;
+    color: #999;
+    margin-bottom: 0.2rem;
+    word-break: break-all;
+    padding: 0 0.3rem;
+  }
+
+  /* 卡片容器 */
+  .card {
+    background: #fff;
+    border-radius: 0.12rem;
+    margin: 0 0.2rem 0.2rem;
+    overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+
+  .card-header {
+    padding: 0.28rem 0.3rem;
+    font-size: 0.28rem;
+    font-weight: bold;
+    color: #333;
+    border-bottom: 1px solid #f0f0f0;
+  }
+
+  .card-body {
+    padding: 0.2rem 0.3rem;
+  }
+
+  /* 信息行 */
+  .info-row {
+    display: flex;
+    padding: 0.12rem 0;
+    font-size: 0.26rem;
+    line-height: 1.6;
+  }
+
+  .info-row .label {
+    flex: 0 0 1.6rem;
+    color: #999;
+  }
+
+  .info-row .value {
+    flex: 1;
+    color: #333;
+  }
+
+  /* 产品详情图片 */
+  .product-images {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.15rem;
+  }
+
+  .product-images img {
+    width: 100%;
+    border-radius: 0.08rem;
+    display: block;
+    margin-bottom: 0.15rem;
+  }
+
+  /* 错误信息卡片 */
+  .error-card {
+    background: #fff;
+    border-radius: 0.12rem;
+    margin: 0.2rem;
+    padding: 0.4rem 0.3rem;
+    text-align: center;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+
+  .error-card .error-icon {
+    font-size: 0.5rem;
+    margin-bottom: 0.15rem;
+  }
+
+  .error-card .error-title {
+    font-size: 0.28rem;
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 0.1rem;
+  }
+
+  .error-card .error-desc {
+    font-size: 0.24rem;
+    color: #999;
+  }
+
+  /* 产品矩阵链接 */
+  .matrix-link {
+    display: block;
+    background: #fff;
+    border-radius: 0.12rem;
+    margin: 0.2rem;
+    padding: 0.3rem;
+    text-align: center;
+    font-size: 0.28rem;
+    color: #4a3f69;
+    text-decoration: none;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+
+  .matrix-link:hover {
+    background: #f5f3fa;
+  }
+
+  .matrix-link .matrix-icon {
+    font-size: 0.4rem;
+    display: block;
+    margin-bottom: 0.1rem;
+  }
+
+  /* 底部固定导航 */
+  .bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #fff;
+    display: flex;
+    border-top: 1px solid #e8e8e8;
+    z-index: 100;
+    box-shadow: 0 -2px 8px rgba(0,0,0,0.05);
+  }
+
+  .bottom-nav .nav-btn {
+    flex: 1;
+    text-align: center;
+    padding: 0.18rem 0;
+    font-size: 0.24rem;
+    color: #666;
+    text-decoration: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.04rem;
+    cursor: pointer;
+  }
+
+  .bottom-nav .nav-btn.active {
+    color: #4a3f69;
+  }
+
+  .bottom-nav .nav-btn .nav-icon {
+    font-size: 0.32rem;
+    line-height: 1;
+  }
+
+  .bottom-nav .nav-btn .nav-label {
+    font-size: 0.2rem;
+    line-height: 1;
+  }
+
+  .bottom-spacer {
+    height: 1.2rem;
+  }
+
+  /* 产品列表（盒/箱场景） */
+  .product-list-item {
+    padding: 0.15rem 0;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 0.24rem;
+    color: #333;
+  }
+
+  .product-list-item:last-child {
+    border-bottom: none;
+  }
+
+  .product-list-item .prod-code {
+    color: #4a3f69;
+    font-weight: bold;
+  }
+
+  .product-list-item .prod-brand {
+    color: #666;
+    font-size: 0.22rem;
+  }
+
+  /* 查询次数警示 */
+  .query-warning {
+    background: #fff8e1;
+    border: 1px solid #ffe082;
+    border-radius: 0.08rem;
+    padding: 0.15rem 0.2rem;
+    margin: 0.15rem 0;
+    font-size: 0.24rem;
+    color: #f57f17;
+    text-align: center;
+  }
+
+  /* 空状态提示 */
+  .empty-hint {
+    text-align: center;
+    padding: 0.3rem 0;
+    font-size: 0.24rem;
+    color: #999;
+  }
+
+  /* 重新查询按钮 */
+  .requery-btn {
+    display: inline-block;
+    margin-top: 0.2rem;
+    padding: 0.12rem 0.4rem;
+    background: #4a3f69;
+    color: #fff;
+    border: none;
+    border-radius: 0.08rem;
+    font-size: 0.24rem;
+    cursor: pointer;
   }
 </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="scanBg" style="background: url(<?php echo htmlspecialchars($scanBgUrl); ?>) no-repeat; background-size: 100% 100%;">
-      <!-- 按钮容器 -->
-      <div class="btnGroup">
-        <!-- 扫描按钮 -->
-        <div class="scanBtn" onclick="handleScanClick()"></div>
-        <!-- 输码查询按钮 -->
-        <div class="inputBtn" onclick="showInputModal()"></div>
+<div class="wrap">
+  <!-- 页面标题 -->
+  <div class="page-header"><?php echo htmlspecialchars($tenantName); ?></div>
+
+  <!-- 输入区域（无 code 时显示） -->
+  <div id="inputArea" class="input-area" style="display:<?php echo empty($_GET['code']) ? 'block' : 'none'; ?>">
+    <div class="input-title">请输入防伪码查询</div>
+    <div class="input-row">
+      <input type="text" id="manualCode" placeholder="请输入防伪码" onkeydown="if(event.key==='Enter')queryByInput()">
+      <button class="search-btn" onclick="queryByInput()">查询</button>
+    </div>
+    <div class="scan-btn-row">
+      <button class="scan-btn" onclick="handleScanClick()">📷 扫码查询</button>
+    </div>
+  </div>
+
+  <!-- 加载中 -->
+  <div id="loading" class="loading" style="display:none">
+    <div class="spinner"></div>
+    <div>正在查询防伪码信息，请稍候...</div>
+  </div>
+
+  <!-- 查询结果区域 -->
+  <div id="resultArea" style="display:none">
+    <!-- Tab 切换栏 -->
+    <div class="tab-bar" id="tabBar">
+      <div class="tab-btn active" data-tab="1" onclick="switchTab(1)">产品信息</div>
+      <div class="tab-btn" data-tab="2" onclick="switchTab(2)">防伪记录</div>
+      <div class="tab-btn" data-tab="3" id="matrixTabBtn" onclick="switchTab(3)" style="display:none">产品矩阵</div>
+    </div>
+
+    <!-- Tab 1: 产品信息 -->
+    <div class="tab-content active" id="tabContent1">
+      <div class="card">
+        <div class="card-header">产品信息</div>
+        <div class="card-body" id="productInfoBody">
+          <div class="info-row">
+            <span class="label">品牌名称</span>
+            <span class="value" id="brandName">-</span>
+          </div>
+          <div class="info-row">
+            <span class="label">产品名称</span>
+            <span class="value" id="productName">-</span>
+          </div>
+          <div class="info-row">
+            <span class="label">产品批号</span>
+            <span class="value" id="batchNumber">-</span>
+          </div>
+          <div class="info-row">
+            <span class="label">生产日期</span>
+            <span class="value" id="productionDate">-</span>
+          </div>
+          <div class="info-row">
+            <span class="label">经销商</span>
+            <span class="value" id="distributorName">-</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">产品详情图</div>
+        <div class="card-body">
+          <div class="product-images" id="productImages"></div>
+        </div>
       </div>
     </div>
-  </div>
-  <!-- 输码查询弹窗 -->
-  <div class="inputModal" id="inputModal">
-    <div class="modalContent">
-      <div class="closeBtn" onclick="hideInputModal()">X</div>
-      <h3>输码查询</h3>
-      <input type="text" class="input_vul" placeholder="请输入防伪码">
-      <button class="input_btn" onclick="queryCode()"></button>
+
+    <!-- Tab 2: 防伪记录 -->
+    <div class="tab-content" id="tabContent2">
+      <div class="card">
+        <div class="card-header">防伪验证</div>
+        <div class="card-body">
+          <div class="badge-wrap">
+            <span class="status-badge" id="statusBadge">正品 ✅</span>
+          </div>
+          <div class="code-text" id="codeText"></div>
+          <div id="queryInfo"></div>
+          <div id="queryWarning" class="query-warning" style="display:none"></div>
+        </div>
+      </div>
     </div>
+
+    <!-- Tab 3: 产品矩阵 -->
+    <div class="tab-content" id="tabContent3">
+      <div class="card">
+        <div class="card-header">产品矩阵</div>
+        <div class="card-body" id="matrixBody">
+          <a id="matrixLink" class="matrix-link" href="" target="_blank" style="display:none">
+            <span class="matrix-icon">📋</span>
+            <span id="matrixLinkText">查看产品矩阵</span>
+          </a>
+          <div id="matrixEmpty" class="empty-hint" style="display:none">暂无产品矩阵信息</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 底部留白 -->
+    <div class="bottom-spacer"></div>
   </div>
-</body>
+
+  <!-- 错误信息 -->
+  <div id="errorPage" class="error-card" style="display:none">
+    <div class="error-icon" id="errorIcon">⚠️</div>
+    <div class="error-title" id="errorTitle">查询失败</div>
+    <div class="error-desc" id="errorDesc">请稍后重试</div>
+  </div>
+</div>
+
+<!-- 底部固定导航 -->
+<div class="bottom-nav">
+  <div class="nav-btn active" onclick="switchTab(1)">
+    <span class="nav-icon">🛡️</span>
+    <span class="nav-label">产品信息</span>
+  </div>
+  <div class="nav-btn" onclick="switchTab(2)">
+    <span class="nav-icon">🔍</span>
+    <span class="nav-label">防伪记录</span>
+  </div>
+  <div class="nav-btn" id="matrixNavBtn" onclick="switchTab(3)" style="display:none">
+    <span class="nav-icon">📋</span>
+    <span class="nav-label" id="matrixNavLabel">产品矩阵</span>
+  </div>
+</div>
+
 <script type="text/javascript" src="static/js/rem.js"></script>
-
 <script>
-// 显示/隐藏弹窗逻辑
-function showInputModal() {
-  document.getElementById('inputModal').style.display = 'flex';
-}
-function hideInputModal() {
-  document.getElementById('inputModal').style.display = 'none';
+// 产品矩阵配置
+var productMatrixConfig = <?php echo json_encode($productMatrix, JSON_UNESCAPED_UNICODE); ?>;
+
+// 初始化产品矩阵Tab
+(function() {
+  if (productMatrixConfig && productMatrixConfig.name && productMatrixConfig.url) {
+    document.getElementById('matrixTabBtn').style.display = '';
+    document.getElementById('matrixNavBtn').style.display = '';
+    document.getElementById('matrixNavLabel').textContent = productMatrixConfig.name;
+    document.getElementById('matrixLink').href = productMatrixConfig.url;
+    document.getElementById('matrixLinkText').textContent = '查看' + productMatrixConfig.name;
+    document.getElementById('matrixLink').style.display = 'block';
+  }
+})();
+
+// 工具函数：从URL获取参数
+function getUrlParam(name) {
+  var reg = new RegExp('(^|&)' + name + '=([^&]*)(&|$)');
+  var r = window.location.search.substr(1).match(reg);
+  if (r != null) return decodeURIComponent(r[2]);
+  return null;
 }
 
-// 输码查询逻辑：跳转到fw.php并携带参数
-function queryCode() {
-  var code = document.querySelector('.input_vul').value.trim();
+// Tab 切换
+function switchTab(index) {
+  // 更新 tab bar
+  var tabBtns = document.querySelectorAll('#tabBar .tab-btn');
+  for (var i = 0; i < tabBtns.length; i++) {
+    tabBtns[i].classList.toggle('active', parseInt(tabBtns[i].dataset.tab) === index);
+  }
+  // 更新 tab content
+  for (var j = 1; j <= 3; j++) {
+    var el = document.getElementById('tabContent' + j);
+    if (el) el.classList.toggle('active', j === index);
+  }
+  // 更新底部导航
+  var navBtns = document.querySelectorAll('.bottom-nav .nav-btn');
+  for (var k = 0; k < navBtns.length; k++) {
+    navBtns[k].classList.toggle('active', k + 1 === index);
+  }
+}
+
+// 输入框查询
+function queryByInput() {
+  var code = document.getElementById('manualCode').value.trim();
   if (code) {
-    window.location.href = 'fw.php?code=' + encodeURIComponent(code);
+    window.location.href = 'scan.php?code=' + encodeURIComponent(code);
   } else {
     alert('请输入防伪码');
   }
 }
+
+// 主查询函数
+async function queryTraceCode() {
+  var code = getUrlParam('code');
+  var inputArea = document.getElementById('inputArea');
+  var loadingEl = document.getElementById('loading');
+  var resultArea = document.getElementById('resultArea');
+  var errorPage = document.getElementById('errorPage');
+
+  // 没有 code 参数，只显示输入区域
+  if (!code || code.trim() === '') {
+    return;
+  }
+
+  // 隐藏输入区域，显示加载中
+  inputArea.style.display = 'none';
+  loadingEl.style.display = 'block';
+  resultArea.style.display = 'none';
+  errorPage.style.display = 'none';
+
+  try {
+    var response = await fetch('../api/trace.php?code=' + encodeURIComponent(code.trim()), {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      credentials: 'same-origin'
+    });
+    var apiResult = await response.json();
+
+    // 隐藏加载
+    loadingEl.style.display = 'none';
+
+    if (apiResult.success) {
+      // 查询成功
+      var data = apiResult.data;
+      resultArea.style.display = 'block';
+
+      // 设置状态徽章
+      var badge = document.getElementById('statusBadge');
+      badge.textContent = '正品 ✅';
+      badge.className = 'status-badge genuine';
+
+      // 设置防伪码文本
+      document.getElementById('codeText').textContent = '防伪码：' + code.trim();
+
+      // 清除查询信息
+      document.getElementById('queryInfo').innerHTML = '';
+
+      // 根据类型填充数据
+      if (apiResult.type === 'product') {
+        fillProductData(data);
+      } else if (apiResult.type === 'carton') {
+        fillCartonData(data);
+      } else if (apiResult.type === 'box') {
+        fillBoxData(data);
+      } else {
+        fillProductData(data);
+      }
+
+      // 查询次数信息
+      if (data.query_count !== undefined) {
+        var qc = parseInt(data.query_count);
+        var qHtml = '<div class="info-row"><span class="label">查询次数</span><span class="value">第 ' + qc + ' 次查询</span></div>';
+        document.getElementById('queryInfo').innerHTML = qHtml;
+        if (qc >= 2) {
+          document.getElementById('queryWarning').style.display = 'block';
+          document.getElementById('queryWarning').textContent = '⚠️ 该防伪码已达最大查询次数（2次），请谨慎核实产品真伪';
+        }
+      }
+    } else {
+      // 查询失败
+      loadingEl.style.display = 'none';
+      errorPage.style.display = 'block';
+      var errorIcon = document.getElementById('errorIcon');
+      var errorTitle = document.getElementById('errorTitle');
+      var errorDesc = document.getElementById('errorDesc');
+
+      if (apiResult.code === 403) {
+        errorIcon.textContent = '⚠️';
+        errorTitle.textContent = '防伪码已失效';
+        errorDesc.textContent = apiResult.message || '该防伪码已达最大查询次数';
+
+        // 也显示失效徽章和结果区域
+        resultArea.style.display = 'block';
+        var badge = document.getElementById('statusBadge');
+        badge.textContent = '已失效 ⚠️';
+        badge.className = 'status-badge invalid';
+        document.getElementById('codeText').textContent = '防伪码：' + code.trim();
+        document.getElementById('queryInfo').innerHTML = '';
+        document.getElementById('queryWarning').style.display = 'none';
+        fillProductData({});
+      } else {
+        errorIcon.textContent = '❌';
+        errorTitle.textContent = '未查询到该讯息';
+        errorDesc.textContent = apiResult.message || '请检查防伪码是否正确';
+      }
+    }
+
+  } catch (e) {
+    console.error('查询异常：', e);
+    loadingEl.style.display = 'none';
+    errorPage.style.display = 'block';
+    document.getElementById('errorIcon').textContent = '⚠️';
+    document.getElementById('errorTitle').textContent = '系统异常';
+    document.getElementById('errorDesc').textContent = '当前查询服务暂时不可用，请稍后重试';
+  }
+}
+
+// 填充单支产品数据
+function fillProductData(data) {
+  document.getElementById('brandName').textContent = data.brand_name || '-';
+  document.getElementById('productName').textContent = data.product_name || '-';
+  document.getElementById('batchNumber').textContent = data.batch_number || '-';
+  document.getElementById('productionDate').textContent = data.production_date || '-';
+  document.getElementById('distributorName').textContent = data.distributor_name || '-';
+
+  // 填充产品详情图片
+  var imagesContainer = document.getElementById('productImages');
+  imagesContainer.innerHTML = '';
+  var images = data.product_images || [];
+  if (images.length > 0) {
+    for (var i = 0; i < images.length; i++) {
+      var img = document.createElement('img');
+      img.src = images[i];
+      img.alt = '产品详情图';
+      img.onerror = function() { this.style.display = 'none'; };
+      imagesContainer.appendChild(img);
+    }
+  } else {
+    imagesContainer.innerHTML = '<div class="empty-hint">暂无产品详情图片</div>';
+  }
+}
+
+// 填充盒子（箱）数据
+function fillCartonData(data) {
+  document.getElementById('brandName').textContent = '';
+  document.getElementById('productName').textContent = '盒子防伪码：' + (data.carton_code || '-');
+  document.getElementById('batchNumber').textContent = '关联箱码：' + (data.box_code || '-');
+  document.getElementById('productionDate').textContent = data.production_date || '-';
+  document.getElementById('distributorName').textContent = data.distributor_name || '-';
+
+  // 显示子产品列表
+  var imagesContainer = document.getElementById('productImages');
+  imagesContainer.innerHTML = '';
+
+  if (data.products && data.products.length > 0) {
+    var html = '<div style="font-size:0.24rem;color:#666;margin-bottom:0.15rem;">共 ' + data.products.length + ' 支产品</div>';
+    for (var i = 0; i < data.products.length; i++) {
+      var p = data.products[i];
+      html += '<div class="product-list-item">';
+      html += '<div class="prod-code">' + p.product_code + '</div>';
+      if (p.brand_name) {
+        html += '<div class="prod-brand">' + p.brand_name + '</div>';
+      }
+      html += '<div>' + (p.product_name || '-') + '</div>';
+      if (p.product_images && p.product_images.length > 0) {
+        for (var j = 0; j < p.product_images.length; j++) {
+          html += '<img src="' + p.product_images[j] + '" alt="产品图" style="width:100%;border-radius:0.08rem;margin-top:0.1rem;">';
+        }
+      }
+      html += '</div>';
+    }
+    imagesContainer.innerHTML = html;
+    // 绑定onerror事件
+    var imgs = imagesContainer.querySelectorAll('img');
+    for (var k = 0; k < imgs.length; k++) {
+      imgs[k].onerror = function() { this.style.display = 'none'; };
+    }
+  } else {
+    imagesContainer.innerHTML = '<div class="empty-hint">暂无子产品数据</div>';
+  }
+}
+
+// 填充箱子数据
+function fillBoxData(data) {
+  document.getElementById('brandName').textContent = '';
+  document.getElementById('productName').textContent = '箱子防伪码：' + (data.box_code || '-');
+  document.getElementById('batchNumber').textContent = '';
+  document.getElementById('productionDate').textContent = data.production_date || '-';
+  document.getElementById('distributorName').textContent = data.distributor_name || '-';
+
+  // 显示子盒子列表
+  var imagesContainer = document.getElementById('productImages');
+  imagesContainer.innerHTML = '';
+  if (data.cartons && data.cartons.length > 0) {
+    var html = '<div style="font-size:0.24rem;color:#666;margin-bottom:0.15rem;">共 ' + data.cartons.length + ' 个盒子</div>';
+    for (var i = 0; i < data.cartons.length; i++) {
+      var c = data.cartons[i];
+      html += '<div class="product-list-item">';
+      html += '<div class="prod-code">' + c.carton_code + '</div>';
+      html += '<div>生产日期：' + (c.production_date || '-') + '</div>';
+      html += '</div>';
+    }
+    imagesContainer.innerHTML = html;
+  } else {
+    imagesContainer.innerHTML = '<div class="empty-hint">暂无子盒子数据</div>';
+  }
+}
+
+// 页面加载完成后自动查询
+window.onload = function() {
+  queryTraceCode();
+};
 </script>
+</body>
 </html>

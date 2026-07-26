@@ -472,12 +472,10 @@ try {
         // 获取箱子数据
         $stmt = $pdo->prepare("        
                     SELECT boxes.*, base_distributors.name as distributor_name,
-                        (SELECT bp.product_name FROM base_products bp
-                         JOIN products p ON bp.id = p.product_id
-                         JOIN cartons c ON p.carton_id = c.id
-                         WHERE c.box_id = boxes.id AND c.status = 1 AND p.status = 1 LIMIT 1) as product_name
+                        bp.product_name
                     FROM boxes 
-                    LEFT JOIN base_distributors ON boxes.distributor_id = base_distributors.id" . $where_clause . "
+                    LEFT JOIN base_distributors ON boxes.distributor_id = base_distributors.id
+                    LEFT JOIN base_products bp ON boxes.product_id = bp.id" . $where_clause . "
             ORDER BY production_date DESC, box_code ASC
             LIMIT :offset, :page_size
         ");
@@ -1712,7 +1710,7 @@ function openBoxDistributorModal(id) {
                     alert('未配置扫码域名，请联系管理员设置');
                     return;
                 }
-                var url = 'https://' + portalDomain + '/index.php?code=' + encodeURIComponent(boxCode);
+                var url = 'https://' + portalDomain + '/?code=' + encodeURIComponent(boxCode);
                 if (navigator.clipboard && navigator.clipboard.writeText) {
                     navigator.clipboard.writeText(url).then(function() {
                         alert('查询链接已复制到剪贴板');

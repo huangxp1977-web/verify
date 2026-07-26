@@ -20,6 +20,11 @@ if (!isSuperAdmin() && !hasPermission('system_scan_editor')) {
     exit;
 }
 
+// 该功能已废弃，跳转到管理首页
+$_SESSION['flash_error'] = '背景设计功能已废弃';
+header('Location: admin.php');
+exit;
+
 // 超管不可访问业务页面，跳转企业管理
 if (isSuperAdmin()) {
     header('Location: admin_tenants.php');

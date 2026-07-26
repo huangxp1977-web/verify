@@ -38,16 +38,14 @@ if ($hasOem) {
     $categories['certificates'] = ['name' => '证书图片', 'dir' => 'uploads/certificates/', 'prefix' => 'cert_', 'index_dir' => 'uploads/certificates/'];
 }
 $categories['products'] = ['name' => '产品图片', 'dir' => 'uploads/products/', 'prefix' => 'prod_', 'index_dir' => 'uploads/products/'];
-$categories['backgrounds'] = ['name' => '扫码背景', 'dir' => 'uploads/backgrounds/', 'prefix' => 'bg_', 'index_dir' => 'uploads/backgrounds/'];
-$categories['banners'] = ['name' => '轮播图', 'dir' => 'uploads/banners/', 'prefix' => 'banner_', 'index_dir' => 'uploads/banners/'];
 
 // 非超管租户使用子目录隔离
 $tenantSuffix = '';
 if ($tenantId > 0) {
     $tenantSuffix = 'tenant_' . $tenantId . '/';
-    // 产品、背景、轮播图使用租户子目录，证书图片共享
+    // 产品使用租户子目录，证书图片共享
     // index_dir 保留根目录用于七牛云索引匹配（key 无 tenant 前缀，靠不同 bucket 隔离）
-    foreach (['products', 'backgrounds', 'banners'] as $catKey) {
+    foreach (['products'] as $catKey) {
         $categories[$catKey]['dir'] = 'uploads/' . $catKey . '/' . $tenantSuffix;
     }
 }
@@ -60,51 +58,6 @@ $uploadDir = __DIR__ . '/../' . $catConfig['dir'];
 // 确保上传目录存在
 if (!file_exists($uploadDir)) {
     mkdir($uploadDir, 0755, true);
-}
-
-// 获取当前扫码背景（按租户从数据库读取）
-function getCurrentBg() {
-    global $pdo;
-    $tenantId = getCurrentTenantId();
-    if ($tenantId > 0) {
-        $stmt = $pdo->prepare("SELECT scan_layout FROM tenants WHERE id = ?");
-        $stmt->execute([$tenantId]);
-        $tenant = $stmt->fetch();
-        if ($tenant && !empty($tenant['scan_layout'])) {
-            $config = json_decode($tenant['scan_layout'], true);
-            if (!empty($config['background'])) {
-                return $config['background'];
-            }
-        }
-    }
-    return '/wx/static/images/default_bg.png';
-}
-
-// 保存背景配置到数据库（按租户）
-function saveBgConfig($url) {
-    global $pdo;
-    $tenantId = getCurrentTenantId();
-    if ($tenantId <= 0) return;
-
-    // 读取当前 scan_layout 配置
-    $stmt = $pdo->prepare("SELECT scan_layout FROM tenants WHERE id = ?");
-    $stmt->execute([$tenantId]);
-    $tenant = $stmt->fetch();
-    $config = [];
-    if ($tenant && !empty($tenant['scan_layout'])) {
-        $config = json_decode($tenant['scan_layout'], true) ?: [];
-    }
-    $config['background'] = $url;
-    $json = json_encode($config, JSON_UNESCAPED_UNICODE);
-    $stmt = $pdo->prepare("UPDATE tenants SET scan_layout = ? WHERE id = ?");
-    $stmt->execute([$json, $tenantId]);
-}
-
-// 处理设置为扫码背景
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['action'] == 'set_bg') {
-    $imageUrl = $_POST['image_url'];
-    saveBgConfig($imageUrl);
-    $messages['success'][] = "扫码背景已更新";
 }
 
 // 获取七牛云索引文件路径（按租户隔离）—— 已废弃，改用数据库
@@ -187,14 +140,6 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['file']
         if ($stmt->fetchColumn() > 0) {
             $canDelete = false;
             $reason = "该图片正在被证书使用";
-        }
-    }
-
-    // 背景图片：检查是否正在使用（按租户隔离）
-    if ($currentCat == 'backgrounds') {
-        if (getCurrentBg() == $imageUrl) {
-            $canDelete = false;
-            $reason = "该图片正在作为扫码背景使用";
         }
     }
 
@@ -310,8 +255,6 @@ if (isQiniuEnabled()) {
 usort($images, function($a, $b) {
     return $b['time'] - $a['time'];
 });
-
-$currentBg = getCurrentBg();
 
 // 预计算各分类下被引用的文件名（用于UI显示删除按钮状态）
 $referencedFilenames = [];
@@ -457,9 +400,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
             pointer-events: none;
         }
 
-        /* 当前背景提示 */
-        .current-bg-label { background: #28a745; color: white; padding: 2px 8px; border-radius: 3px; font-size: 11px; margin-left: 5px; }
-    </style>
+        </style>
 </head>
 <body>
     <?php $activePage = 'admin_images.php'; include __DIR__ . '/sidebar.php'; ?>
@@ -494,25 +435,19 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
                 </form>
                 <small style="color: #999; margin-top: 10px; display: block;">
                     支持 JPG、PNG、GIF、WebP 格式，最大 5MB
-                    <?php if ($currentCat == 'backgrounds'): ?>
-                        ，建议尺寸 750×1624
-                    <?php endif; ?>
                 </small>
             </div>
             
             <!-- 统计信息 -->
             <div class="stats">
                 共 <strong><?php echo count($images); ?></strong> 张<?php echo $catConfig['name']; ?>
-                <?php if ($currentCat == 'backgrounds'): ?>
-                    &nbsp;|&nbsp; 当前扫码背景：<code><?php echo htmlspecialchars($currentBg); ?></code>
-                <?php endif; ?>
             </div>
             
             <!-- 图片网格 -->
             <?php if (count($images) > 0): ?>
                 <div class="image-grid">
                     <?php foreach ($images as $img): ?>
-                        <div class="image-item <?php echo ($currentCat == 'backgrounds' && $currentBg == $img['url']) ? 'current-bg' : ''; ?>">
+                        <div class="image-item">
                             <img src="<?php echo htmlspecialchars($img['url']); ?>" 
                                  alt="<?php echo htmlspecialchars($img['name']); ?>"
                                  onclick="showModal(this.src)">
@@ -524,25 +459,10 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
                                     <?php else: ?>
                                         <span style="color:#999;font-size:11px;margin-left:4px">本地</span>
                                     <?php endif; ?>
-                                    <?php if ($currentCat == 'backgrounds' && $currentBg == $img['url']): ?>
-                                        <span class="current-bg-label">当前使用</span>
-                                    <?php endif; ?>
                                 </small>
                                 <div class="image-item-actions">
-                                    <?php if ($currentCat == 'backgrounds'): ?>
-                                        <?php if ($currentBg != $img['url']): ?>
-                                            <form method="post">
-                                                <input type="hidden" name="action" value="set_bg">
-                                                <input type="hidden" name="image_url" value="<?php echo htmlspecialchars($img['url']); ?>">
-                                                <button type="submit" class="btn btn-sm">设为背景</button>
-                                            </form>
-                                        <?php endif; ?>
-                                    <?php endif; ?>
                                     <?php
                                     $imgReferenced = isset($referencedFilenames[$img['name']]);
-                                    if ($currentCat == 'backgrounds' && $currentBg == $img['url']) {
-                                        $imgReferenced = true;
-                                    }
                                     ?>
                                     <?php if ($imgReferenced): ?>
                                         <span class="btn btn-sm" style="background:#eee;color:#999;border-color:#ddd;cursor:not-allowed;">使用中</span>

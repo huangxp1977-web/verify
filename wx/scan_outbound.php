@@ -211,37 +211,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['confirm_outbound'])) {
                 } else {
                     $box_id = $box['id'];
 
-                    // 更新箱子出库状态
+                    // 更新箱子出库状态（cartons 和 products 的 outbound_at 已移除，统一以 boxes 为准）
                     $stmt = $pdo->prepare("UPDATE boxes SET outbound_at = NOW() WHERE id = ? AND tenant_id = ?");
                     $stmt->execute([$box_id, $tenantId]);
-
-                    // 获取该箱子下所有盒子
-                    $stmt = $pdo->prepare("SELECT id FROM cartons WHERE box_id = ? AND tenant_id = ?");
-                    $stmt->execute([$box_id, $tenantId]);
-                    $cartons = $stmt->fetchAll(PDO::FETCH_COLUMN);
-
-                    if (!empty($cartons)) {
-                        $placeholders = implode(',', array_fill(0, count($cartons), '?'));
-
-                        // 更新盒子出库状态
-                        $stmt = $pdo->prepare("UPDATE cartons SET outbound_at = NOW() WHERE id IN ({$placeholders}) AND tenant_id = ?");
-                        $params = array_merge($cartons, [$tenantId]);
-                        $stmt->execute($params);
-
-                        // 获取这些盒子下的所有产品
-                        $stmt = $pdo->prepare("SELECT id FROM products WHERE carton_id IN ({$placeholders}) AND tenant_id = ?");
-                        $productParams = array_merge($cartons, [$tenantId]);
-                        $stmt->execute($productParams);
-                        $products = $stmt->fetchAll(PDO::FETCH_COLUMN);
-
-                        // 更新产品出库状态
-                        if (!empty($products)) {
-                            $prodPlaceholders = implode(',', array_fill(0, count($products), '?'));
-                            $stmt = $pdo->prepare("UPDATE products SET outbound_at = NOW() WHERE id IN ({$prodPlaceholders}) AND tenant_id = ?");
-                            $prodParams = array_merge($products, [$tenantId]);
-                            $stmt->execute($prodParams);
-                        }
-                    }
 
                     $pdo->commit();
                     $box_info = getBoxInfo($pdo, $box_code, $tenantId);
@@ -294,20 +266,6 @@ if ($wechatConfig) {
     $signPackage = ['appId' => '', 'timestamp' => time(), 'nonceStr' => '', 'signature' => ''];
 }
 
-// 读取扫码页背景配置
-$scanBgUrl = '/wx/static/images/default_bg.png';
-if ($tenantId > 0) {
-    $stmt = $pdo->prepare("SELECT scan_layout FROM tenants WHERE id = ?");
-    $stmt->execute([$tenantId]);
-    $tenant = $stmt->fetch();
-    if ($tenant && !empty($tenant['scan_layout'])) {
-        $config = json_decode($tenant['scan_layout'], true);
-        if (!empty($config['background'])) {
-            $scanBgUrl = $config['background'];
-        }
-    }
-}
-$scanBgUrl = getImageUrl($scanBgUrl);
 ?>
 <!DOCTYPE html>
 <html lang="zh-CN">

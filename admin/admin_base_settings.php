@@ -28,6 +28,7 @@ $hasOem   = hasModule('oem');
 $brandWechat = ['app_id' => '', 'app_secret' => '', 'enabled' => false];
 $oemWechat   = ['app_id' => '', 'app_secret' => '', 'enabled' => false];
 $qiniuConfig = ['access_key' => '', 'secret_key' => '', 'bucket' => '', 'domain' => '', 'enabled' => false];
+$productMatrix = ['name' => '产品矩阵', 'url' => ''];
 if ($tenantId > 0) {
     $stmt = $pdo->prepare("SELECT base_config FROM tenants WHERE id = ?");
     $stmt->execute([$tenantId]);
@@ -43,6 +44,9 @@ if ($tenantId > 0) {
             }
             if (!empty($baseParsed['qiniu'])) {
                 $qiniuConfig = array_merge($qiniuConfig, $baseParsed['qiniu']);
+            }
+            if (!empty($baseParsed['product_matrix'])) {
+                $productMatrix = array_merge($productMatrix, $baseParsed['product_matrix']);
             }
         }
     }
@@ -147,11 +151,38 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_qiniu'])) {
     exit;
 }
 
+// ========== 保存产品矩阵配置 ==========
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_product_matrix'])) {
+    $matrix = [
+        'name' => trim($_POST['product_matrix_name'] ?? '产品矩阵'),
+        'url'  => trim($_POST['product_matrix_url'] ?? ''),
+    ];
+    $stmt = $pdo->prepare("SELECT base_config FROM tenants WHERE id = ?");
+    $stmt->execute([$tenantId]);
+    $existing = $stmt->fetch();
+    $base = ['product_matrix' => $matrix, 'qiniu' => new stdClass, 'wechat' => ['brand' => new stdClass, 'oem' => new stdClass]];
+    if ($existing && !empty($existing['base_config'])) {
+        $parsed = json_decode($existing['base_config'], true);
+        if (is_array($parsed)) {
+            $base = $parsed;
+            $base['product_matrix'] = $matrix;
+        }
+    }
+    $json = json_encode($base, JSON_UNESCAPED_UNICODE);
+    $stmt = $pdo->prepare("UPDATE tenants SET base_config = ? WHERE id = ?");
+    $stmt->execute([$json, $tenantId]);
+    $_SESSION['flash_success'] = '产品矩阵配置已保存';
+    $productMatrix = $matrix;
+    header('Location: admin_base_settings.php?tab=product_matrix');
+    exit;
+}
+
 // 构建有效的 tab 列表
 $validTabs = [];
 if ($hasBrand) $validTabs[] = 'brand_wechat';
 if ($hasOem)   $validTabs[] = 'oem_wechat';
 $validTabs[] = 'qiniu';
+$validTabs[] = 'product_matrix';
 $activeTab = isset($_GET['tab']) && in_array($_GET['tab'], $validTabs) ? $_GET['tab'] : $validTabs[0];
 ?>
 <!DOCTYPE html>
@@ -217,6 +248,7 @@ $activeTab = isset($_GET['tab']) && in_array($_GET['tab'], $validTabs) ? $_GET['
                 <button class="tab-btn <?php echo $activeTab === 'oem_wechat' ? 'active' : ''; ?>" onclick="switchTab('oem_wechat')">公众号（代工）</button>
                 <?php endif; ?>
                 <button class="tab-btn <?php echo $activeTab === 'qiniu' ? 'active' : ''; ?>" onclick="switchTab('qiniu')">七牛云配置</button>
+                <button class="tab-btn <?php echo $activeTab === 'product_matrix' ? 'active' : ''; ?>" onclick="switchTab('product_matrix')">产品矩阵</button>
             </div>
 
             <?php if ($hasBrand): ?>
@@ -323,6 +355,27 @@ $activeTab = isset($_GET['tab']) && in_array($_GET['tab'], $validTabs) ? $_GET['
                     </div>
                 </div>
                 <?php endif; ?>
+            </div>
+
+            <!-- ====== Tab: 产品矩阵 ====== -->
+            <div id="tab-product_matrix" class="tab-content <?php echo $activeTab === 'product_matrix' ? 'active' : ''; ?>">
+                <div class="section">
+                    <h2>产品矩阵配置</h2>
+                    <div class="info-box">配置扫码页面的产品矩阵跳转链接，用户扫码后可查看品牌全系列产品。</div>
+                    <form method="post">
+                        <div class="form-row">
+                            <div class="form-col"><div class="form-group">
+                                <label>产品矩阵名称</label>
+                                <input type="text" name="product_matrix_name" value="<?php echo htmlspecialchars($productMatrix['name'] ?? '产品矩阵'); ?>" placeholder="例如：产品矩阵">
+                            </div></div>
+                            <div class="form-col"><div class="form-group">
+                                <label>产品矩阵链接</label>
+                                <input type="text" name="product_matrix_url" value="<?php echo htmlspecialchars($productMatrix['url'] ?? ''); ?>" placeholder="https://...">
+                            </div></div>
+                        </div>
+                        <button type="submit" name="save_product_matrix" class="btn">保存配置</button>
+                    </form>
+                </div>
             </div>
         </div>
     </div>

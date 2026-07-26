@@ -48,14 +48,18 @@ try {
     
     // 1. 先查询是否为单支产品防伪码
     $stmt = $pdo->prepare("
-        SELECT p.id, p.product_code, p.carton_id, p.product_id, p.distributor_id, p.query_count, p.last_scan_time, p.created_at, p.status, p.tenant_id,
+        SELECT p.id, p.product_code, p.carton_id, p.product_id, p.query_count, p.last_scan_time, p.created_at, p.status, p.tenant_id,
             c.carton_code, b.box_code,
             b.production_date, b.batch_number,
-            bp.product_name, bp.product_images
+            bp.product_name, bp.product_images,
+            CONCAT(br.name_cn, ' (', br.name_en, ')') as brand_name,
+            d.name as distributor_name
         FROM products p
         JOIN cartons c ON p.carton_id = c.id
         JOIN boxes b ON c.box_id = b.id
         LEFT JOIN base_products bp ON p.product_id = bp.id
+        LEFT JOIN base_brands br ON bp.brand_id = br.id
+        LEFT JOIN base_distributors d ON b.distributor_id = d.id
         WHERE p.product_code = :code AND p.status = 1 AND p.tenant_id = :tenant_id
     ");
     $stmt->bindParam(':code', $code);
@@ -91,6 +95,8 @@ try {
         $response['message'] = '查询成功（单支产品）';
         $response['type'] = 'product';
         $response['data'] = [
+            'brand_name' => htmlspecialchars($productData['brand_name'] ?? ''),
+            'distributor_name' => htmlspecialchars($productData['distributor_name'] ?? ''),
             'product_name' => htmlspecialchars($productData['product_name']),
             'product_code' => htmlspecialchars($productData['product_code']),
             'carton_code' => htmlspecialchars($productData['carton_code']),
@@ -109,13 +115,15 @@ try {
 
     // 2. 若不是产品，查询是否为盒子防伪码
     $stmt = $pdo->prepare("
-        SELECT c.id, c.carton_code, c.box_id, c.distributor_id, c.query_count, c.last_scan_time, c.created_at, c.status, c.tenant_id,
+        SELECT c.id, c.carton_code, c.box_id, c.query_count, c.last_scan_time, c.created_at, c.status, c.tenant_id,
             b.box_code,
             b.production_date, b.batch_number,
+            d.name as distributor_name,
         (SELECT COUNT(*) FROM products WHERE carton_id = c.id AND status = 1) as product_count,
         (SELECT GROUP_CONCAT(product_code SEPARATOR ', ') FROM products WHERE carton_id = c.id AND status = 1) as product_codes
         FROM cartons c
         JOIN boxes b ON c.box_id = b.id
+        LEFT JOIN base_distributors d ON b.distributor_id = d.id
         WHERE c.carton_code = :code AND c.status = 1 AND c.tenant_id = :tenant_id
     ");
     $stmt->bindParam(':code', $code);
@@ -147,13 +155,15 @@ try {
         $updateStmt->execute();
         
         // 获取盒子下所有产品详情
-        $stmtProducts = $pdo->prepare("SELECT p.id, p.product_code, p.carton_id, p.product_id, p.distributor_id, p.query_count, p.last_scan_time, p.created_at, p.status, p.tenant_id,
+        $stmtProducts = $pdo->prepare("SELECT p.id, p.product_code, p.carton_id, p.product_id, p.query_count, p.last_scan_time, p.created_at, p.status, p.tenant_id,
             b.production_date, b.batch_number,
-            bp.product_name, bp.product_images
+            bp.product_name, bp.product_images,
+            CONCAT(br.name_cn, ' (', br.name_en, ')') as brand_name
             FROM products p
             JOIN cartons c ON p.carton_id = c.id
             JOIN boxes b ON c.box_id = b.id
             LEFT JOIN base_products bp ON p.product_id = bp.id
+            LEFT JOIN base_brands br ON bp.brand_id = br.id
             WHERE p.carton_id = :carton_id AND p.status = 1");
         $stmtProducts->bindParam(':carton_id', $cartonData['id']);
         $stmtProducts->execute();
@@ -165,6 +175,7 @@ try {
             $formattedProducts[] = [
                 'product_code' => htmlspecialchars($p['product_code']),
                 'product_name' => htmlspecialchars($p['product_name']),
+                'brand_name' => htmlspecialchars($p['brand_name'] ?? ''),
                 'production_date' => htmlspecialchars($p['production_date']),
                 'batch_number' => htmlspecialchars($p['batch_number']),
                 'product_images' => array_map(function($img) {
@@ -179,6 +190,7 @@ try {
         $response['data'] = [
             'carton_code' => htmlspecialchars($cartonData['carton_code']),
             'box_code' => htmlspecialchars($cartonData['box_code']),
+            'distributor_name' => htmlspecialchars($cartonData['distributor_name'] ?? ''),
             'production_date' => htmlspecialchars($cartonData['production_date']),
             'product_count' => (int)$cartonData['product_count'],
             'product_codes' => $cartonData['product_codes'] ? explode(', ', $cartonData['product_codes']) : [],
@@ -193,9 +205,11 @@ try {
     // 3. 若不是盒子，查询是否为箱子防伪码
     $stmt = $pdo->prepare("
         SELECT b.*,
+        d.name as distributor_name,
         (SELECT COUNT(*) FROM cartons WHERE box_id = b.id AND status = 1) as carton_count,
         (SELECT GROUP_CONCAT(carton_code SEPARATOR ', ') FROM cartons WHERE box_id = b.id AND status = 1) as carton_codes
         FROM boxes b
+        LEFT JOIN base_distributors d ON b.distributor_id = d.id
         WHERE b.box_code = :code AND b.status = 1 AND b.tenant_id = :tenant_id
     ");
     $stmt->bindParam(':code', $code);
@@ -227,7 +241,7 @@ try {
         $updateStmt->execute();
         
         // 获取箱子下所有盒子详情
-        $stmtCartons = $pdo->prepare("SELECT c.id, c.carton_code, c.box_id, c.distributor_id, c.query_count, c.last_scan_time, c.created_at, c.status, c.tenant_id,
+        $stmtCartons = $pdo->prepare("SELECT c.id, c.carton_code, c.box_id, c.query_count, c.last_scan_time, c.created_at, c.status, c.tenant_id,
             b.production_date, b.batch_number
             FROM cartons c
             JOIN boxes b ON c.box_id = b.id
@@ -251,6 +265,7 @@ try {
         $response['type'] = 'box';
         $response['data'] = [
             'box_code' => htmlspecialchars($boxData['box_code']),
+            'distributor_name' => htmlspecialchars($boxData['distributor_name'] ?? ''),
             'production_date' => htmlspecialchars($boxData['production_date']),
             'carton_count' => (int)$boxData['carton_count'],
             'carton_codes' => $boxData['carton_codes'] ? explode(', ', $boxData['carton_codes']) : [],

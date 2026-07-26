@@ -31,7 +31,7 @@ if (isSuperAdmin()) {
     if (hasModule('brand')) {
         $items = [];
         $items[] = ['file' => 'admin.php', 'label' => '数据概览', 'key' => 'dashboard'];
-        if (hasPermission('brand_list'))        $items[] = ['file' => 'admin_code_generate.php', 'label' => '防伪码生成', 'key' => 'brand_code_generate'];
+        if (hasPermission('brand_code_generate'))        $items[] = ['file' => 'admin_code_generate.php', 'label' => '防伪码生成', 'key' => 'brand_code_generate'];
         if (hasPermission('brand_list'))        $items[] = ['file' => 'admin_list.php', 'label' => '防伪码管理', 'key' => 'brand_list'];
         if (hasPermission('brand_distributors')) $items[] = ['file' => 'admin_base_distributors.php', 'label' => '经销商管理', 'key' => 'brand_distributors'];
         if (hasPermission('brand_brands'))      $items[] = ['file' => 'admin_base_brands.php', 'label' => '品牌管理', 'key' => 'brand_brands'];
@@ -55,7 +55,6 @@ if (isSuperAdmin()) {
     $sysItems = [];
     if (hasPermission('system_qiniu') && file_exists(__DIR__ . '/admin_base_settings.php')) $sysItems[] = ['file' => 'admin_base_settings.php', 'label' => '基础设置', 'key' => 'system_qiniu'];
     if (hasPermission('system_images') && file_exists(__DIR__ . '/admin_images.php'))      $sysItems[] = ['file' => 'admin_images.php', 'label' => '图片素材', 'key' => 'system_images'];
-    if (hasPermission('system_scan_editor') && file_exists(__DIR__ . '/admin_scan_editor.php')) $sysItems[] = ['file' => 'admin_scan_editor.php', 'label' => '背景设计', 'key' => 'system_scan_editor'];
     if (hasPermission('system_roles') && file_exists(__DIR__ . '/admin_roles.php'))       $sysItems[] = ['file' => 'admin_roles.php', 'label' => '角色管理', 'key' => 'system_roles'];
     if (hasPermission('system_users') && file_exists(__DIR__ . '/admin_users.php'))       $sysItems[] = ['file' => 'admin_users.php', 'label' => '用户管理', 'key' => 'system_users'];
     if (hasPermission('system_password')) $sysItems[] = ['file' => 'admin_password.php', 'label' => '个人资料', 'key' => 'system_password'];

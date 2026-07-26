@@ -25,7 +25,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'logout') {
 }
 
 // 权限检查
-if (!isSuperAdmin() && !hasPermission('brand_list')) {
+if (!isSuperAdmin() && !hasPermission('brand_code_generate')) {
     header('Location: admin.php');
     exit;
 }
