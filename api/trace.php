@@ -107,6 +107,7 @@ try {
                 return getImageUrl($img);
             }, json_decode($productData['product_images'] ?? '[]', true) ?: []),
             'created_at' => htmlspecialchars($productData['created_at']),
+            'last_scan_time' => htmlspecialchars($productData['last_scan_time'] ?? ''),
             'query_count' => $newQueryCount
         ];
         echo json_encode($response, JSON_UNESCAPED_UNICODE);
@@ -119,6 +120,16 @@ try {
             b.box_code,
             b.production_date, b.batch_number,
             d.name as distributor_name,
+            (SELECT CONCAT(br.name_cn, ' (', br.name_en, ')') FROM products p
+             LEFT JOIN base_products bp ON p.product_id = bp.id
+             LEFT JOIN base_brands br ON bp.brand_id = br.id
+             WHERE p.carton_id = c.id AND p.status = 1 LIMIT 1) as brand_name,
+            (SELECT bp.product_name FROM products p
+             LEFT JOIN base_products bp ON p.product_id = bp.id
+             WHERE p.carton_id = c.id AND p.status = 1 LIMIT 1) as product_name,
+            (SELECT bp.product_images FROM products p
+             LEFT JOIN base_products bp ON p.product_id = bp.id
+             WHERE p.carton_id = c.id AND p.status = 1 LIMIT 1) as product_images,
         (SELECT COUNT(*) FROM products WHERE carton_id = c.id AND status = 1) as product_count,
         (SELECT GROUP_CONCAT(product_code SEPARATOR ', ') FROM products WHERE carton_id = c.id AND status = 1) as product_codes
         FROM cartons c
@@ -190,12 +201,19 @@ try {
         $response['data'] = [
             'carton_code' => htmlspecialchars($cartonData['carton_code']),
             'box_code' => htmlspecialchars($cartonData['box_code']),
+            'brand_name' => htmlspecialchars($cartonData['brand_name'] ?? ''),
+            'product_name' => htmlspecialchars($cartonData['product_name'] ?? ''),
+            'product_images' => array_map(function($img) {
+                return getImageUrl($img);
+            }, json_decode($cartonData['product_images'] ?? '[]', true) ?: []),
             'distributor_name' => htmlspecialchars($cartonData['distributor_name'] ?? ''),
             'production_date' => htmlspecialchars($cartonData['production_date']),
+            'batch_number' => htmlspecialchars($cartonData['batch_number'] ?? ''),
             'product_count' => (int)$cartonData['product_count'],
             'product_codes' => $cartonData['product_codes'] ? explode(', ', $cartonData['product_codes']) : [],
             'products' => $formattedProducts,
             'created_at' => htmlspecialchars($cartonData['created_at']),
+            'last_scan_time' => htmlspecialchars($cartonData['last_scan_time'] ?? ''),
             'query_count' => $newQueryCount
         ];
         echo json_encode($response, JSON_UNESCAPED_UNICODE);
@@ -206,6 +224,19 @@ try {
     $stmt = $pdo->prepare("
         SELECT b.*,
         d.name as distributor_name,
+        (SELECT CONCAT(br.name_cn, ' (', br.name_en, ')') FROM cartons c
+         JOIN products p ON p.carton_id = c.id
+         LEFT JOIN base_products bp ON p.product_id = bp.id
+         LEFT JOIN base_brands br ON bp.brand_id = br.id
+         WHERE c.box_id = b.id AND c.status = 1 AND p.status = 1 LIMIT 1) as brand_name,
+        (SELECT bp.product_name FROM cartons c
+         JOIN products p ON p.carton_id = c.id
+         LEFT JOIN base_products bp ON p.product_id = bp.id
+         WHERE c.box_id = b.id AND c.status = 1 AND p.status = 1 LIMIT 1) as product_name,
+        (SELECT bp.product_images FROM cartons c
+         JOIN products p ON p.carton_id = c.id
+         LEFT JOIN base_products bp ON p.product_id = bp.id
+         WHERE c.box_id = b.id AND c.status = 1 AND p.status = 1 LIMIT 1) as product_images,
         (SELECT COUNT(*) FROM cartons WHERE box_id = b.id AND status = 1) as carton_count,
         (SELECT GROUP_CONCAT(carton_code SEPARATOR ', ') FROM cartons WHERE box_id = b.id AND status = 1) as carton_codes
         FROM boxes b
@@ -265,12 +296,19 @@ try {
         $response['type'] = 'box';
         $response['data'] = [
             'box_code' => htmlspecialchars($boxData['box_code']),
+            'brand_name' => htmlspecialchars($boxData['brand_name'] ?? ''),
+            'product_name' => htmlspecialchars($boxData['product_name'] ?? ''),
+            'product_images' => array_map(function($img) {
+                return getImageUrl($img);
+            }, json_decode($boxData['product_images'] ?? '[]', true) ?: []),
             'distributor_name' => htmlspecialchars($boxData['distributor_name'] ?? ''),
             'production_date' => htmlspecialchars($boxData['production_date']),
+            'batch_number' => htmlspecialchars($boxData['batch_number'] ?? ''),
             'carton_count' => (int)$boxData['carton_count'],
             'carton_codes' => $boxData['carton_codes'] ? explode(', ', $boxData['carton_codes']) : [],
             'cartons' => $formattedCartons,
             'created_at' => htmlspecialchars($boxData['created_at']),
+            'last_scan_time' => htmlspecialchars($boxData['last_scan_time'] ?? ''),
             'query_count' => $newQueryCount
         ];
         echo json_encode($response, JSON_UNESCAPED_UNICODE);

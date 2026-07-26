@@ -127,43 +127,6 @@ wx.ready(function() {
     position: relative;
   }
 
-  /* Tab 切换栏 */
-  .tab-bar {
-    display: flex;
-    background: #fff;
-    border-bottom: 1px solid #e8e8e8;
-    position: sticky;
-    top: 0;
-    z-index: 50;
-  }
-
-  .tab-bar .tab-btn {
-    flex: 1;
-    text-align: center;
-    padding: 0.2rem 0;
-    font-size: 0.28rem;
-    color: #666;
-    cursor: pointer;
-    position: relative;
-    transition: color 0.2s;
-  }
-
-  .tab-bar .tab-btn.active {
-    color: #4a3f69;
-    font-weight: bold;
-  }
-
-  .tab-bar .tab-btn.active::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 20%;
-    right: 20%;
-    height: 3px;
-    background: #4a3f69;
-    border-radius: 2px;
-  }
-
   .tab-content {
     display: none;
   }
@@ -531,13 +494,6 @@ wx.ready(function() {
 
   <!-- 查询结果区域 -->
   <div id="resultArea" style="display:none">
-    <!-- Tab 切换栏 -->
-    <div class="tab-bar" id="tabBar">
-      <div class="tab-btn active" data-tab="1" onclick="switchTab(1)">产品信息</div>
-      <div class="tab-btn" data-tab="2" onclick="switchTab(2)">防伪记录</div>
-      <div class="tab-btn" data-tab="3" id="matrixTabBtn" onclick="switchTab(3)" style="display:none">产品矩阵</div>
-    </div>
-
     <!-- Tab 1: 产品信息 -->
     <div class="tab-content active" id="tabContent1">
       <div class="card">
@@ -583,7 +539,20 @@ wx.ready(function() {
             <span class="status-badge" id="statusBadge">正品 ✅</span>
           </div>
           <div class="code-text" id="codeText"></div>
-          <div id="queryInfo"></div>
+          <div id="queryInfo">
+            <div class="info-row">
+              <span class="label">查询次数</span>
+              <span class="value" id="queryCount">-</span>
+            </div>
+            <div class="info-row">
+              <span class="label">首次查询</span>
+              <span class="value" id="firstScanTime">-</span>
+            </div>
+            <div class="info-row">
+              <span class="label">上次查询</span>
+              <span class="value" id="lastScanTime">-</span>
+            </div>
+          </div>
           <div id="queryWarning" class="query-warning" style="display:none"></div>
         </div>
       </div>
@@ -639,7 +608,6 @@ var productMatrixConfig = <?php echo json_encode($productMatrix, JSON_UNESCAPED_
 // 初始化产品矩阵Tab
 (function() {
   if (productMatrixConfig && productMatrixConfig.name && productMatrixConfig.url) {
-    document.getElementById('matrixTabBtn').style.display = '';
     document.getElementById('matrixNavBtn').style.display = '';
     document.getElementById('matrixNavLabel').textContent = productMatrixConfig.name;
     document.getElementById('matrixLink').href = productMatrixConfig.url;
@@ -658,11 +626,6 @@ function getUrlParam(name) {
 
 // Tab 切换
 function switchTab(index) {
-  // 更新 tab bar
-  var tabBtns = document.querySelectorAll('#tabBar .tab-btn');
-  for (var i = 0; i < tabBtns.length; i++) {
-    tabBtns[i].classList.toggle('active', parseInt(tabBtns[i].dataset.tab) === index);
-  }
   // 更新 tab content
   for (var j = 1; j <= 3; j++) {
     var el = document.getElementById('tabContent' + j);
@@ -728,9 +691,6 @@ async function queryTraceCode() {
       // 设置防伪码文本
       document.getElementById('codeText').textContent = '防伪码：' + code.trim();
 
-      // 清除查询信息
-      document.getElementById('queryInfo').innerHTML = '';
-
       // 根据类型填充数据
       if (apiResult.type === 'product') {
         fillProductData(data);
@@ -745,11 +705,14 @@ async function queryTraceCode() {
       // 查询次数信息
       if (data.query_count !== undefined) {
         var qc = parseInt(data.query_count);
-        var qHtml = '<div class="info-row"><span class="label">查询次数</span><span class="value">第 ' + qc + ' 次查询</span></div>';
-        document.getElementById('queryInfo').innerHTML = qHtml;
+        document.getElementById('queryCount').textContent = '第 ' + qc + ' 次查询';
+        document.getElementById('firstScanTime').textContent = data.created_at || '-';
+        document.getElementById('lastScanTime').textContent = data.last_scan_time || '-';
         if (qc >= 2) {
           document.getElementById('queryWarning').style.display = 'block';
           document.getElementById('queryWarning').textContent = '⚠️ 该防伪码已达最大查询次数（2次），请谨慎核实产品真伪';
+        } else {
+          document.getElementById('queryWarning').style.display = 'none';
         }
       }
     } else {
@@ -771,7 +734,6 @@ async function queryTraceCode() {
         badge.textContent = '已失效 ⚠️';
         badge.className = 'status-badge invalid';
         document.getElementById('codeText').textContent = '防伪码：' + code.trim();
-        document.getElementById('queryInfo').innerHTML = '';
         document.getElementById('queryWarning').style.display = 'none';
         fillProductData({});
       } else {
@@ -818,57 +780,80 @@ function fillProductData(data) {
 
 // 填充盒子（箱）数据
 function fillCartonData(data) {
-  document.getElementById('brandName').textContent = '';
-  document.getElementById('productName').textContent = '盒子防伪码：' + (data.carton_code || '-');
-  document.getElementById('batchNumber').textContent = '关联箱码：' + (data.box_code || '-');
+  // 优先使用顶层返回的品牌/产品信息（来自第一个子产品）
+  document.getElementById('brandName').textContent = data.brand_name || '-';
+  document.getElementById('productName').textContent = data.product_name || '-';
+  document.getElementById('batchNumber').textContent = data.batch_number || '-';
   document.getElementById('productionDate').textContent = data.production_date || '-';
   document.getElementById('distributorName').textContent = data.distributor_name || '-';
 
-  // 显示子产品列表
+  // 产品详情图：显示该产品的 product_images（来自第一个子产品）
   var imagesContainer = document.getElementById('productImages');
   imagesContainer.innerHTML = '';
-
-  if (data.products && data.products.length > 0) {
-    var html = '<div style="font-size:0.24rem;color:#666;margin-bottom:0.15rem;">共 ' + data.products.length + ' 支产品</div>';
-    for (var i = 0; i < data.products.length; i++) {
-      var p = data.products[i];
-      html += '<div class="product-list-item">';
-      html += '<div class="prod-code">' + p.product_code + '</div>';
-      if (p.brand_name) {
-        html += '<div class="prod-brand">' + p.brand_name + '</div>';
-      }
-      html += '<div>' + (p.product_name || '-') + '</div>';
-      if (p.product_images && p.product_images.length > 0) {
-        for (var j = 0; j < p.product_images.length; j++) {
-          html += '<img src="' + p.product_images[j] + '" alt="产品图" style="width:100%;border-radius:0.08rem;margin-top:0.1rem;">';
-        }
-      }
-      html += '</div>';
-    }
-    imagesContainer.innerHTML = html;
-    // 绑定onerror事件
-    var imgs = imagesContainer.querySelectorAll('img');
-    for (var k = 0; k < imgs.length; k++) {
-      imgs[k].onerror = function() { this.style.display = 'none'; };
+  var images = data.product_images || [];
+  if (images.length > 0) {
+    for (var i = 0; i < images.length; i++) {
+      var img = document.createElement('img');
+      img.src = images[i];
+      img.alt = '产品详情图';
+      img.onerror = function() { this.style.display = 'none'; };
+      imagesContainer.appendChild(img);
     }
   } else {
-    imagesContainer.innerHTML = '<div class="empty-hint">暂无子产品数据</div>';
+    imagesContainer.innerHTML = '<div class="empty-hint">暂无产品详情图片</div>';
+  }
+
+  // 在信息区显示子产品列表
+  if (data.products && data.products.length > 0) {
+    var childHtml = '<div style="margin-top:0.2rem;padding-top:0.15rem;border-top:1px solid #f0f0f0;font-size:0.24rem;color:#666;">共 ' + data.products.length + ' 支子产品</div>';
+    for (var i = 0; i < data.products.length; i++) {
+      var p = data.products[i];
+      childHtml += '<div class="product-list-item">';
+      childHtml += '<div class="prod-code">' + (p.product_code || '-') + '</div>';
+      if (p.brand_name) {
+        childHtml += '<div class="prod-brand">' + p.brand_name + '</div>';
+      }
+      childHtml += '<div>' + (p.product_name || '-') + '</div>';
+      childHtml += '</div>';
+    }
+    // 追加到经销商信息后面
+    var infoBody = document.getElementById('productInfoBody');
+    var existingChild = infoBody.querySelector('.child-products-section');
+    if (existingChild) existingChild.remove();
+    var childDiv = document.createElement('div');
+    childDiv.className = 'child-products-section';
+    childDiv.innerHTML = childHtml;
+    infoBody.appendChild(childDiv);
   }
 }
 
 // 填充箱子数据
 function fillBoxData(data) {
-  document.getElementById('brandName').textContent = '';
-  document.getElementById('productName').textContent = '箱子防伪码：' + (data.box_code || '-');
-  document.getElementById('batchNumber').textContent = '';
+  document.getElementById('brandName').textContent = data.brand_name || '-';
+  document.getElementById('productName').textContent = data.product_name || '-';
+  document.getElementById('batchNumber').textContent = data.batch_number || '-';
   document.getElementById('productionDate').textContent = data.production_date || '-';
   document.getElementById('distributorName').textContent = data.distributor_name || '-';
 
-  // 显示子盒子列表
+  // 产品详情图：显示该产品的 product_images（来自第一个子产品）
   var imagesContainer = document.getElementById('productImages');
   imagesContainer.innerHTML = '';
+  var images = data.product_images || [];
+  if (images.length > 0) {
+    for (var i = 0; i < images.length; i++) {
+      var img = document.createElement('img');
+      img.src = images[i];
+      img.alt = '产品详情图';
+      img.onerror = function() { this.style.display = 'none'; };
+      imagesContainer.appendChild(img);
+    }
+  } else {
+    imagesContainer.innerHTML = '<div class="empty-hint">暂无产品详情图片</div>';
+  }
+
+  // 显示子盒子列表
   if (data.cartons && data.cartons.length > 0) {
-    var html = '<div style="font-size:0.24rem;color:#666;margin-bottom:0.15rem;">共 ' + data.cartons.length + ' 个盒子</div>';
+    var html = '<div style="margin-top:0.2rem;padding-top:0.15rem;border-top:1px solid #f0f0f0;font-size:0.24rem;color:#666;">共 ' + data.cartons.length + ' 个盒子</div>';
     for (var i = 0; i < data.cartons.length; i++) {
       var c = data.cartons[i];
       html += '<div class="product-list-item">';
@@ -876,9 +861,18 @@ function fillBoxData(data) {
       html += '<div>生产日期：' + (c.production_date || '-') + '</div>';
       html += '</div>';
     }
-    imagesContainer.innerHTML = html;
+    var infoBody = document.getElementById('productInfoBody');
+    var existingChild = infoBody.querySelector('.child-products-section');
+    if (existingChild) existingChild.remove();
+    var childDiv = document.createElement('div');
+    childDiv.className = 'child-products-section';
+    childDiv.innerHTML = html;
+    infoBody.appendChild(childDiv);
   } else {
-    imagesContainer.innerHTML = '<div class="empty-hint">暂无子盒子数据</div>';
+    // 移除旧的子产品列表
+    var infoBody = document.getElementById('productInfoBody');
+    var existingChild = infoBody.querySelector('.child-products-section');
+    if (existingChild) existingChild.remove();
   }
 }
 
