@@ -123,7 +123,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id']))
     $id = intval($_GET['id']);
     try {
         // 检查是否有关联的防伪数据
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM products WHERE distributor_id = ?");
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM boxes WHERE distributor_id = ?");
         $stmt->execute([$id]);
         $relatedCount = $stmt->fetchColumn();
         
@@ -493,7 +493,7 @@ try {
                         <?php foreach ($base_distributors as $distributor): ?>
                             <?php 
                             // 检查是否有关联数据
-                            $checkStmt = $pdo->prepare("SELECT COUNT(*) FROM products WHERE distributor_id = ?");
+                            $checkStmt = $pdo->prepare("SELECT COUNT(*) FROM boxes WHERE distributor_id = ?");
                             $checkStmt->execute([$distributor['id']]);
                             $hasRelatedData = $checkStmt->fetchColumn() > 0;
                             $status = isset($distributor['status']) ? $distributor['status'] : 1;

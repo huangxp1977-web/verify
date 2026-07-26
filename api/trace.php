@@ -48,7 +48,7 @@ try {
     
     // 1. 先查询是否为单支产品防伪码
     $stmt = $pdo->prepare("
-        SELECT p.id, p.product_code, p.carton_id, p.product_id, p.query_count, p.last_scan_time, p.created_at, p.status, p.tenant_id,
+        SELECT p.id, p.product_code, p.carton_id, p.product_id, p.query_count, p.last_scan_time, p.first_scan_time, p.created_at, p.status, p.tenant_id,
             c.carton_code, b.box_code,
             b.production_date, b.batch_number,
             bp.product_name, bp.product_images,
@@ -83,7 +83,7 @@ try {
         $newQueryCount = $currentQueryCount + 1;
         $updateStmt = $pdo->prepare("
             UPDATE products 
-            SET query_count = :new_count, last_scan_time = NOW() 
+            SET query_count = :new_count, last_scan_time = NOW(), first_scan_time = COALESCE(first_scan_time, NOW())
             WHERE id = :id
         ");
         $updateStmt->bindParam(':new_count', $newQueryCount, PDO::PARAM_INT);
@@ -108,6 +108,7 @@ try {
             }, json_decode($productData['product_images'] ?? '[]', true) ?: []),
             'created_at' => htmlspecialchars($productData['created_at']),
             'last_scan_time' => htmlspecialchars($productData['last_scan_time'] ?? ''),
+            'first_scan_time' => htmlspecialchars($productData['first_scan_time'] ?? ''),
             'query_count' => $newQueryCount
         ];
         echo json_encode($response, JSON_UNESCAPED_UNICODE);
@@ -116,7 +117,7 @@ try {
 
     // 2. 若不是产品，查询是否为盒子防伪码
     $stmt = $pdo->prepare("
-        SELECT c.id, c.carton_code, c.box_id, c.query_count, c.last_scan_time, c.created_at, c.status, c.tenant_id,
+        SELECT c.id, c.carton_code, c.box_id, c.query_count, c.last_scan_time, c.first_scan_time, c.created_at, c.status, c.tenant_id,
             b.box_code,
             b.production_date, b.batch_number,
             d.name as distributor_name,
@@ -158,7 +159,7 @@ try {
         $newQueryCount = $currentQueryCount + 1;
         $updateStmt = $pdo->prepare("
             UPDATE cartons 
-            SET query_count = :new_count, last_scan_time = NOW() 
+            SET query_count = :new_count, last_scan_time = NOW(), first_scan_time = COALESCE(first_scan_time, NOW())
             WHERE id = :id
         ");
         $updateStmt->bindParam(':new_count', $newQueryCount, PDO::PARAM_INT);
@@ -214,6 +215,7 @@ try {
             'products' => $formattedProducts,
             'created_at' => htmlspecialchars($cartonData['created_at']),
             'last_scan_time' => htmlspecialchars($cartonData['last_scan_time'] ?? ''),
+            'first_scan_time' => htmlspecialchars($cartonData['first_scan_time'] ?? ''),
             'query_count' => $newQueryCount
         ];
         echo json_encode($response, JSON_UNESCAPED_UNICODE);
@@ -254,7 +256,7 @@ try {
         $newQueryCount = $currentQueryCount + 1;
         $updateStmt = $pdo->prepare("
             UPDATE boxes 
-            SET query_count = :new_count, last_scan_time = NOW() 
+            SET query_count = :new_count, last_scan_time = NOW(), first_scan_time = COALESCE(first_scan_time, NOW())
             WHERE id = :id
         ");
         $updateStmt->bindParam(':new_count', $newQueryCount, PDO::PARAM_INT);
@@ -276,6 +278,7 @@ try {
             'batch_number' => htmlspecialchars($boxData['batch_number'] ?? ''),
             'created_at' => htmlspecialchars($boxData['created_at']),
             'last_scan_time' => htmlspecialchars($boxData['last_scan_time'] ?? ''),
+            'first_scan_time' => htmlspecialchars($boxData['first_scan_time'] ?? ''),
             'query_count' => $newQueryCount
         ];
         echo json_encode($response, JSON_UNESCAPED_UNICODE);

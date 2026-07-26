@@ -731,7 +731,7 @@ async function queryTraceCode() {
       if (data.query_count !== undefined) {
         var qc = parseInt(data.query_count);
         document.getElementById('queryCount').textContent = '第 ' + qc + ' 次查询';
-        document.getElementById('firstScanTime').textContent = data.created_at || '-';
+        document.getElementById('firstScanTime').textContent = data.first_scan_time || '-';
         document.getElementById('lastScanTime').textContent = data.last_scan_time || '-';
         if (qc >= 2) {
           document.getElementById('queryWarning').style.display = 'block';
