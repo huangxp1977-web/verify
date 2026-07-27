@@ -470,7 +470,17 @@ if ($tenantMapping) {
                         badge.textContent = '已失效';
                         badge.className = 'status-badge invalid';
                         document.getElementById('codeText').textContent = '防伪码：' + code.trim();
-                        fillProductData({});
+                        // 使用返回的数据填充（已失效仍显示产品信息）
+                        var data = apiResult.data || {};
+                        if (apiResult.type === 'product') {
+                            fillProductData(data);
+                        } else if (apiResult.type === 'carton') {
+                            fillCartonData(data);
+                        } else if (apiResult.type === 'box') {
+                            fillBoxData(data);
+                        } else {
+                            fillProductData(data);
+                        }
                     } else {
                         errorIcon.textContent = '❌';
                         errorTitle.textContent = '未查询到该讯息';

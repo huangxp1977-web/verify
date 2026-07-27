@@ -75,6 +75,24 @@ try {
         if ($currentQueryCount >= MAX_QUERY_TIMES) {
             $response['code'] = 403;
             $response['message'] = "该防伪码已失效（已达最大" . MAX_QUERY_TIMES . "次有效查询）";
+            $response['type'] = 'product';
+            $response['data'] = [
+                'brand_name' => htmlspecialchars($productData['brand_name'] ?? ''),
+                'distributor_name' => htmlspecialchars($productData['distributor_name'] ?? ''),
+                'product_name' => htmlspecialchars($productData['product_name']),
+                'product_code' => htmlspecialchars($productData['product_code']),
+                'carton_code' => htmlspecialchars($productData['carton_code']),
+                'box_code' => htmlspecialchars($productData['box_code']),
+                'production_date' => htmlspecialchars($productData['production_date']),
+                'batch_number' => htmlspecialchars($productData['batch_number']),
+                'product_images' => array_map(function($img) {
+                    return getImageUrl($img);
+                }, json_decode($productData['product_images'] ?? '[]', true) ?: []),
+                'created_at' => htmlspecialchars($productData['created_at']),
+                'last_scan_time' => htmlspecialchars($productData['last_scan_time'] ?? ''),
+                'first_scan_time' => htmlspecialchars($productData['first_scan_time'] ?? ''),
+                'query_count' => $currentQueryCount
+            ];
             echo json_encode($response, JSON_UNESCAPED_UNICODE);
             exit;
         }
@@ -158,6 +176,26 @@ try {
         if ($currentQueryCount >= MAX_QUERY_TIMES) {
             $response['code'] = 403;
             $response['message'] = "该盒子防伪码已失效（已达最大" . MAX_QUERY_TIMES . "次有效查询）";
+            $response['type'] = 'carton';
+            $response['data'] = [
+                'carton_code' => htmlspecialchars($cartonData['carton_code']),
+                'box_code' => htmlspecialchars($cartonData['box_code']),
+                'brand_name' => htmlspecialchars($cartonData['brand_name'] ?? ''),
+                'product_name' => htmlspecialchars($cartonData['product_name'] ?? ''),
+                'product_images' => array_map(function($img) {
+                    return getImageUrl($img);
+                }, json_decode($cartonData['product_images'] ?? '[]', true) ?: []),
+                'distributor_name' => htmlspecialchars($cartonData['distributor_name'] ?? ''),
+                'production_date' => htmlspecialchars($cartonData['production_date']),
+                'batch_number' => htmlspecialchars($cartonData['batch_number'] ?? ''),
+                'product_count' => $cartonData['product_count'] ?? 0,
+                'product_codes' => $cartonData['product_codes'] ? explode(', ', $cartonData['product_codes']) : [],
+                'products' => [],
+                'created_at' => htmlspecialchars($cartonData['created_at']),
+                'last_scan_time' => htmlspecialchars($cartonData['last_scan_time'] ?? ''),
+                'first_scan_time' => htmlspecialchars($cartonData['first_scan_time'] ?? ''),
+                'query_count' => $currentQueryCount
+            ];
             echo json_encode($response, JSON_UNESCAPED_UNICODE);
             exit;
         }
@@ -262,6 +300,22 @@ try {
         if ($currentQueryCount >= MAX_QUERY_TIMES) {
             $response['code'] = 403;
             $response['message'] = "该箱子防伪码已失效（已达最大" . MAX_QUERY_TIMES . "次有效查询）";
+            $response['type'] = 'box';
+            $response['data'] = [
+                'box_code' => htmlspecialchars($boxData['box_code']),
+                'brand_name' => htmlspecialchars($boxData['brand_name'] ?? ''),
+                'product_name' => htmlspecialchars($boxData['product_name'] ?? ''),
+                'product_images' => array_map(function($img) {
+                    return getImageUrl($img);
+                }, json_decode($boxData['product_images'] ?? '[]', true) ?: []),
+                'distributor_name' => htmlspecialchars($boxData['distributor_name'] ?? ''),
+                'production_date' => htmlspecialchars($boxData['production_date']),
+                'batch_number' => htmlspecialchars($boxData['batch_number'] ?? ''),
+                'created_at' => htmlspecialchars($boxData['created_at']),
+                'last_scan_time' => htmlspecialchars($boxData['last_scan_time'] ?? ''),
+                'first_scan_time' => htmlspecialchars($boxData['first_scan_time'] ?? ''),
+                'query_count' => $currentQueryCount
+            ];
             echo json_encode($response, JSON_UNESCAPED_UNICODE);
             exit;
         }

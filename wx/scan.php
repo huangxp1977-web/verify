@@ -752,15 +752,29 @@ async function queryTraceCode() {
         errorIcon.textContent = '⚠️';
         errorTitle.textContent = '防伪码已失效';
         errorDesc.textContent = apiResult.message || '该防伪码已达最大查询次数';
-
-        // 也显示失效徽章和结果区域
         resultArea.style.display = 'block';
         var badge = document.getElementById('statusBadge');
         badge.textContent = '已失效 ⚠️';
         badge.className = 'status-badge invalid';
         document.getElementById('codeText').textContent = '防伪码：' + code.trim();
         document.getElementById('queryWarning').style.display = 'none';
-        fillProductData({});
+        // 使用返回的数据填充（已失效仍显示产品信息）
+        var data = apiResult.data || {};
+        if (apiResult.type === 'product') {
+          fillProductData(data);
+        } else if (apiResult.type === 'carton') {
+          fillCartonData(data);
+        } else if (apiResult.type === 'box') {
+          fillBoxData(data);
+        } else {
+          fillProductData(data);
+        }
+        // 显示查询次数信息
+        if (data.query_count !== undefined) {
+          document.getElementById('queryCount').textContent = '第 ' + data.query_count + ' 次查询（已失效）';
+          document.getElementById('firstScanTime').textContent = data.first_scan_time || '-';
+          document.getElementById('lastScanTime').textContent = data.last_scan_time || '-';
+        }
       } else {
         errorIcon.textContent = '❌';
         errorTitle.textContent = '未查询到该讯息';
