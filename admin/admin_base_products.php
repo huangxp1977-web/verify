@@ -783,8 +783,7 @@ $activeBrands = getActiveBrands($pdo);
         }
         .picker-item.selected {
             border-color: #4a3f69;
-            outline: 3px solid #4a3f69;
-            outline-offset: -3px;
+            box-shadow: 0 0 0 3px #4a3f69;
         }
         .picker-item .picker-checkbox {
             position: absolute;
