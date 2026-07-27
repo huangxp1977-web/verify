@@ -23,7 +23,15 @@ $dirs = [
     'backgrounds' => 'uploads/backgrounds/'
 ];
 $dirPath = isset($dirs[$cat]) ? $dirs[$cat] : $dirs['certificates'];
-$uploadDir = __DIR__ . '/../' . $dirPath;
+$tenantId = intval($_SESSION['admin_tenant_id'] ?? 0);
+
+// 非超管租户的产品图片使用子目录隔离（与 admin_images.php 一致）
+$scanDir = $dirPath;
+if ($cat === 'products' && $tenantId > 0) {
+    $scanDir = $dirPath . 'tenant_' . $tenantId . '/';
+}
+
+$uploadDir = __DIR__ . '/../' . $scanDir;
 $images = [];
 $localFiles = []; // 用于去重
 
@@ -38,7 +46,7 @@ if (is_dir($uploadDir)) {
             $localFiles[$file] = true;
             $images[] = [
                 'name' => $file,
-                'url' => '/' . $dirPath . $file,
+                'url' => '/' . $scanDir . $file,
                 'size' => filesize($filepath),
                 'time' => filemtime($filepath),
                 'source' => 'local'
@@ -49,12 +57,11 @@ if (is_dir($uploadDir)) {
 
 // 2. 如果七牛云启用，读取已同步的文件索引
 if (isQiniuEnabled()) {
-    $tenantId = intval($_SESSION['admin_tenant_id'] ?? 0);
     $index = getQiniuIndexFromDb($tenantId);
     if (!empty($index)) {
-        $config = getQiniuConfig();
-        $domain = rtrim($config['domain'] ?? '', '/');
-        
+        $qiniuConfig = getQiniuConfig();
+        $domain = rtrim($qiniuConfig['domain'] ?? '', '/');
+
         foreach ($index as $item) {
             // 只显示当前分类的文件
             if (strpos($item['key'], $dirPath) === 0) {
@@ -63,7 +70,7 @@ if (isQiniuEnabled()) {
                 if (!isset($localFiles[$fileName])) {
                     $images[] = [
                         'name' => $fileName,
-                        'url' => '/' . $item['key'],
+                        'url' => $domain . '/' . $item['key'],
                         'size' => $item['size'] ?? 0,
                         'time' => $item['time'] ?? 0,
                         'source' => 'qiniu'
