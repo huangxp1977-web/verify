@@ -868,7 +868,7 @@ $activeBrands = getActiveBrands($pdo);
             box-sizing: border-box;
         }
         .description-preview .preview-content img {
-            max-width: 100% !important;
+            width: 100% !important;
             height: auto !important;
             border-radius: 4px;
         }
