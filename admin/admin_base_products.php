@@ -682,7 +682,7 @@ $activeBrands = getActiveBrands($pdo);
     
     <!-- 图片选择器模态框 -->
     <div id="imagePickerModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1200; overflow: auto;">
-        <div style="background: white; margin: 50px auto; max-width: 1200px; border-radius: 8px; max-height: 85vh; display: flex; flex-direction: column;">
+        <div style="background: white; margin: 50px auto; max-width: 1200px; width: 90%; border-radius: 8px; max-height: 85vh; display: flex; flex-direction: column;">
             <div style="padding: 15px 20px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
                 <h3 id="imagePickerModalTitle" style="margin: 0; color: #4a3f69;">选择产品图片</h3>
                 <button onclick="closeImagePicker()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #999;">&times;</button>
