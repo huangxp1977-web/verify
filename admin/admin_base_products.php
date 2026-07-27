@@ -587,12 +587,16 @@ $activeBrands = getActiveBrands($pdo);
                         var html = '<div class="picker-grid">';
                         images.forEach(function(img) {
                             var safeUrl = img.url.replace(/'/g, '%27');
-                            html += '<div class="picker-item" onclick="insertImageToEditor(\'' + safeUrl + '\')">';
+                            html += '<div class="picker-item" data-url="' + safeUrl + '" onclick="togglePickerItem(this)">';
+                            html += '<div class="picker-checkbox"><input type="checkbox"></div>';
                             html += '<img src="' + img.url + '" alt="' + (img.name || '') + '">';
                             html += '</div>';
                         });
                         html += '</div>';
                         grid.innerHTML = html;
+                        // 重置按钮状态
+                        document.getElementById('insertImagesBtn').disabled = true;
+                        document.getElementById('insertImagesBtn').textContent = '插入 (0)';
                     })
                     .catch(err => {
                         console.error('加载图片失败:', err);
@@ -603,14 +607,32 @@ $activeBrands = getActiveBrands($pdo);
                     });
             }
 
-            function insertImageToEditor(url) {
+            function togglePickerItem(el) {
+                el.classList.toggle('selected');
+                var cb = el.querySelector('.picker-checkbox input');
+                if (cb) cb.checked = el.classList.contains('selected');
+                // 更新按钮计数
+                var count = document.querySelectorAll('.picker-item.selected').length;
+                var btn = document.getElementById('insertImagesBtn');
+                btn.disabled = count === 0;
+                btn.textContent = '插入 (' + count + ')';
+            }
+
+            function insertSelectedImages() {
+                var selected = document.querySelectorAll('.picker-item.selected');
+                if (selected.length === 0) return;
                 var textarea = document.getElementById('description');
                 var cursorPos = textarea.selectionStart;
                 var textBefore = textarea.value.substring(0, cursorPos);
                 var textAfter = textarea.value.substring(cursorPos);
-                textarea.value = textBefore + '<img src="' + url + '">' + textAfter;
+                var tags = [];
+                selected.forEach(function(item) {
+                    tags.push('<img src="' + item.getAttribute('data-url') + '">');
+                });
+                var html = tags.join('\n');
+                textarea.value = textBefore + html + textAfter;
                 textarea.focus();
-                textarea.selectionStart = textarea.selectionEnd = cursorPos + ('<img src="' + url + '">').length;
+                textarea.selectionStart = textarea.selectionEnd = cursorPos + html.length;
                 updateDescriptionPreview();
                 closeImagePicker();
             }
@@ -690,6 +712,10 @@ $activeBrands = getActiveBrands($pdo);
             <div id="imagePickerGrid" style="padding: 20px; overflow-y: auto; flex: 1; width: 100%; box-sizing: border-box;">
                 <div style="text-align: center; padding: 40px; color: #999;">加载中...</div>
             </div>
+            <div style="padding: 12px 20px; border-top: 1px solid #eee; display: flex; justify-content: flex-end; gap: 10px;">
+                <button class="btn btn-secondary" onclick="closeImagePicker()">取消</button>
+                <button id="insertImagesBtn" class="btn" onclick="insertSelectedImages()" disabled>插入 (0)</button>
+            </div>
         </div>
     </div>
 
@@ -705,10 +731,35 @@ $activeBrands = getActiveBrands($pdo);
             overflow: hidden;
             cursor: pointer;
             transition: border-color 0.3s, transform 0.2s;
+            position: relative;
         }
         .picker-item:hover {
             border-color: #4a3f69;
             transform: scale(1.05);
+        }
+        .picker-item.selected {
+            border-color: #4a3f69;
+            box-shadow: 0 0 0 2px #4a3f69;
+        }
+        .picker-item .picker-checkbox {
+            position: absolute;
+            top: 6px;
+            left: 6px;
+            z-index: 10;
+            background: rgba(255,255,255,0.85);
+            border-radius: 3px;
+            width: 22px;
+            height: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .picker-item .picker-checkbox input {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+            margin: 0;
+            padding: 0;
         }
         .picker-item img {
             width: 100% !important;
