@@ -594,9 +594,28 @@ $activeBrands = getActiveBrands($pdo);
                         });
                         html += '</div>';
                         grid.innerHTML = html;
-                        // 重置按钮状态
-                        document.getElementById('insertImagesBtn').disabled = true;
-                        document.getElementById('insertImagesBtn').textContent = '插入 (0)';
+                        // 自动勾选文本区已有的图片URL
+                        var textarea = document.getElementById('description');
+                        var existingUrls = [];
+                        var imgRegex = /<img[^>]+src="([^"]+)"/g;
+                        var match;
+                        while ((match = imgRegex.exec(textarea.value)) !== null) {
+                            existingUrls.push(match[1]);
+                        }
+                        document.querySelectorAll('.picker-item').forEach(function(item) {
+                            var url = item.getAttribute('data-url');
+                            if (existingUrls.indexOf(url) !== -1) {
+                                item.classList.add('selected');
+                                item.setAttribute('data-init-selected', 'true');
+                                var cb = item.querySelector('.picker-checkbox input');
+                                if (cb) cb.checked = true;
+                            }
+                        });
+                        // 更新按钮状态
+                        var count = document.querySelectorAll('.picker-item.selected').length;
+                        var btn = document.getElementById('insertImagesBtn');
+                        btn.disabled = count === 0;
+                        btn.textContent = '确定 (' + count + ')';
                     })
                     .catch(err => {
                         console.error('加载图片失败:', err);
@@ -615,25 +634,50 @@ $activeBrands = getActiveBrands($pdo);
                 var count = document.querySelectorAll('.picker-item.selected').length;
                 var btn = document.getElementById('insertImagesBtn');
                 btn.disabled = count === 0;
-                btn.textContent = '插入 (' + count + ')';
+                btn.textContent = '确定 (' + count + ')';
             }
 
-            function insertSelectedImages() {
-                var selected = document.querySelectorAll('.picker-item.selected');
-                if (selected.length === 0) return;
+            function confirmPickerSelection() {
                 var textarea = document.getElementById('description');
-                var cursorPos = textarea.selectionStart;
-                var textBefore = textarea.value.substring(0, cursorPos);
-                var textAfter = textarea.value.substring(cursorPos);
-                var tags = [];
-                selected.forEach(function(item) {
-                    tags.push('<img src="' + item.getAttribute('data-url') + '">');
+                var allItems = document.querySelectorAll('.picker-item');
+                var value = textarea.value;
+                var changed = false;
+
+                // 1. 删除取消勾选的图片标签（data-init-selected=true 但不再 selected）
+                allItems.forEach(function(item) {
+                    if (item.getAttribute('data-init-selected') === 'true' && !item.classList.contains('selected')) {
+                        var url = item.getAttribute('data-url');
+                        var escapedUrl = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                        var regex = new RegExp('<img[^>]*src="' + escapedUrl + '"[^>]*>\\n?', 'g');
+                        value = value.replace(regex, '');
+                        changed = true;
+                    }
                 });
-                var html = tags.join('\n');
-                textarea.value = textBefore + html + textAfter;
-                textarea.focus();
-                textarea.selectionStart = textarea.selectionEnd = cursorPos + html.length;
-                updateDescriptionPreview();
+
+                // 2. 插入新勾选的图片标签（selected 但非 data-init-selected）
+                var newItems = [];
+                allItems.forEach(function(item) {
+                    if (item.classList.contains('selected') && item.getAttribute('data-init-selected') !== 'true') {
+                        newItems.push(item);
+                    }
+                });
+
+                if (newItems.length > 0) {
+                    var tags = [];
+                    newItems.forEach(function(item) {
+                        tags.push('<img src="' + item.getAttribute('data-url') + '">');
+                    });
+                    var html = '\n' + tags.join('\n');
+                    // 在文本末尾插入
+                    value = value + html;
+                    changed = true;
+                }
+
+                if (changed) {
+                    textarea.value = value;
+                    textarea.focus();
+                    updateDescriptionPreview();
+                }
                 closeImagePicker();
             }
 
@@ -714,7 +758,7 @@ $activeBrands = getActiveBrands($pdo);
             </div>
             <div style="padding: 12px 20px; border-top: 1px solid #eee; display: flex; justify-content: flex-end; gap: 10px;">
                 <button class="btn btn-secondary" onclick="closeImagePicker()">取消</button>
-                <button id="insertImagesBtn" class="btn" onclick="insertSelectedImages()" disabled>插入 (0)</button>
+                <button id="insertImagesBtn" class="btn" onclick="confirmPickerSelection()" disabled>确定</button>
             </div>
         </div>
     </div>
@@ -739,7 +783,8 @@ $activeBrands = getActiveBrands($pdo);
         }
         .picker-item.selected {
             border-color: #4a3f69;
-            box-shadow: 0 0 0 2px #4a3f69;
+            outline: 3px solid #4a3f69;
+            outline-offset: -3px;
         }
         .picker-item .picker-checkbox {
             position: absolute;
