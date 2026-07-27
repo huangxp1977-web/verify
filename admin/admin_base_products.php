@@ -632,29 +632,6 @@ $activeBrands = getActiveBrands($pdo);
                 }
                 var html = '<div class="preview-content">' + content + '</div>';
                 preview.innerHTML = html;
-                // 给每个图片添加URL查看图标
-                preview.querySelectorAll('.preview-content img').forEach(function(img) {
-                    var wrapper = document.createElement('span');
-                    wrapper.className = 'preview-img-wrapper';
-                    img.parentNode.insertBefore(wrapper, img);
-                    wrapper.appendChild(img);
-                    var icon = document.createElement('span');
-                    icon.className = 'preview-img-url-icon';
-                    icon.textContent = '🔗';
-                    icon.title = '查看图片URL';
-                    wrapper.appendChild(icon);
-                    var urlDisplay = document.createElement('div');
-                    urlDisplay.className = 'preview-img-url';
-                    urlDisplay.textContent = img.getAttribute('src');
-                    urlDisplay.style.display = 'none';
-                    wrapper.appendChild(urlDisplay);
-                    icon.onclick = function(e) {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        var urlEl = this.parentNode.querySelector('.preview-img-url');
-                        urlEl.style.display = urlEl.style.display === 'none' ? 'block' : 'none';
-                    };
-                });
             }
 
             // 规格参数管理
@@ -714,8 +691,6 @@ $activeBrands = getActiveBrands($pdo);
             gap: 12px;
         }
         .picker-item {
-            position: relative;
-            padding-top: 100%;
             border: 2px solid #eee;
             border-radius: 4px;
             overflow: hidden;
@@ -727,12 +702,10 @@ $activeBrands = getActiveBrands($pdo);
             transform: scale(1.05);
         }
         .picker-item img {
-            position: absolute;
-            top: 0;
-            left: 0;
             width: 100%;
-            height: 100%;
+            height: 150px;
             object-fit: cover;
+            display: block;
         }
         .picker-empty {
             text-align: center;
@@ -788,47 +761,7 @@ $activeBrands = getActiveBrands($pdo);
             height: auto;
             border-radius: 4px;
         }
-        .preview-img-wrapper {
-            position: relative;
-            display: inline-block;
-            margin: 4px 0;
-        }
-        .preview-img-url-icon {
-            position: absolute;
-            top: 4px;
-            right: 4px;
-            cursor: pointer;
-            font-size: 13px;
-            background: rgba(0,0,0,0.5);
-            color: white;
-            padding: 2px 6px;
-            border-radius: 4px;
-            line-height: 1.4;
-            user-select: none;
-            opacity: 0.7;
-            transition: opacity 0.2s;
-        }
-        .preview-img-url-icon:hover {
-            opacity: 1;
-        }
-        .preview-img-url {
-            position: absolute;
-            top: -30px;
-            left: 0;
-            background: rgba(0,0,0,0.85);
-            color: #eee;
-            padding: 4px 10px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-family: Consolas, monospace;
-            white-space: nowrap;
-            max-width: 500px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            z-index: 10;
-            pointer-events: none;
-        }
-    </style>
+        </style>
     
     <script>
     // 点击遮罩关闭模态框
