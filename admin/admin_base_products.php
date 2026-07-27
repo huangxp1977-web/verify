@@ -573,17 +573,22 @@ $activeBrands = getActiveBrands($pdo);
 
             function loadProductImages() {
                 fetch('get_images.php?cat=products')
-                    .then(response => response.json())
+                    .then(response => {
+                        if (!response.ok) throw new Error('HTTP ' + response.status);
+                        return response.json();
+                    })
                     .then(images => {
                         const grid = document.getElementById('imagePickerGrid');
+                        if (!Array.isArray(images)) throw new Error('返回数据格式错误');
                         if (images.length === 0) {
                             grid.innerHTML = '<div class="picker-empty">暂无产品图片，请先在<a href="admin_images.php?cat=products">图片素材</a>上传</div>';
                             return;
                         }
                         var html = '<div class="picker-grid">';
                         images.forEach(function(img) {
-                            html += '<div class="picker-item" onclick="insertImageToEditor(\'' + img.url + '\')">';
-                            html += '<img src="' + img.url + '" alt="' + img.name + '">';
+                            var safeUrl = img.url.replace(/'/g, '%27');
+                            html += '<div class="picker-item" onclick="insertImageToEditor(\'' + safeUrl + '\')">';
+                            html += '<img src="' + img.url + '" alt="' + (img.name || '') + '">';
                             html += '</div>';
                         });
                         html += '</div>';
@@ -591,6 +596,10 @@ $activeBrands = getActiveBrands($pdo);
                     })
                     .catch(err => {
                         console.error('加载图片失败:', err);
+                        var grid = document.getElementById('imagePickerGrid');
+                        if (grid) {
+                            grid.innerHTML = '<div class="picker-empty" style="color:#e74c3c;">图片加载失败，请检查网络或刷新后重试</div>';
+                        }
                     });
             }
 
@@ -678,7 +687,7 @@ $activeBrands = getActiveBrands($pdo);
                 <h3 id="imagePickerModalTitle" style="margin: 0; color: #4a3f69;">选择产品图片</h3>
                 <button onclick="closeImagePicker()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #999;">&times;</button>
             </div>
-            <div id="imagePickerGrid" style="padding: 20px; overflow-y: auto; flex: 1;">
+            <div id="imagePickerGrid" style="padding: 20px; overflow-y: auto; flex: 1; width: 100%; box-sizing: border-box;">
                 <div style="text-align: center; padding: 40px; color: #999;">加载中...</div>
             </div>
         </div>
@@ -686,8 +695,8 @@ $activeBrands = getActiveBrands($pdo);
 
     <style>
         .picker-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            display: grid !important;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)) !important;
             gap: 12px;
         }
         .picker-item {
@@ -702,7 +711,7 @@ $activeBrands = getActiveBrands($pdo);
             transform: scale(1.05);
         }
         .picker-item img {
-            width: 100%;
+            width: 100% !important;
             height: 150px;
             object-fit: cover;
             display: block;
@@ -749,16 +758,23 @@ $activeBrands = getActiveBrands($pdo);
             font-family: "Microsoft YaHei", Arial, sans-serif;
             line-height: 1.8;
             overflow-y: auto;
+            overflow-x: hidden;
             max-height: 500px;
+            box-sizing: border-box;
+            width: 100%;
         }
         .description-preview .preview-empty {
             color: #999;
             text-align: center;
             padding: 40px 0;
         }
+        .description-preview .preview-content {
+            width: 100%;
+            box-sizing: border-box;
+        }
         .description-preview .preview-content img {
-            max-width: 100%;
-            height: auto;
+            max-width: 100% !important;
+            height: auto !important;
             border-radius: 4px;
         }
         </style>
