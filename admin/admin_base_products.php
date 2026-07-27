@@ -405,15 +405,14 @@ $activeBrands = getActiveBrands($pdo);
 
                     <!-- 产品详情（合并：HTML内容 + 图片） -->
                     <div class="form-group">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                            <label style="margin-bottom: 0;">产品详情</label>
-                            <button type="button" class="btn btn-secondary" onclick="previewProductDetail()" style="font-size: 12px; padding: 4px 12px;">预览</button>
-                        </div>
+                        <label style="margin-bottom: 5px;">产品详情</label>
                         <div style="margin-bottom: 6px;">
                             <button type="button" class="btn btn-secondary" onclick="openDetailImagePicker()" style="font-size: 12px; padding: 4px 10px;">+ 插入图片</button>
+                            <button type="button" class="btn btn-secondary" id="togglePreviewBtn" onclick="toggleDescriptionPreview()" style="font-size: 12px; padding: 4px 10px;">预览</button>
                             <span class="field-hint" style="display: inline; margin-left: 8px;">支持HTML标签，可直接粘贴图片URL</span>
                         </div>
-                        <textarea id="description" name="description" rows="12" style="font-family: Consolas, 'Courier New', monospace; font-size: 13px; line-height: 1.5;" placeholder="输入产品详情（支持HTML标签）"><?php echo $edit_product ? htmlspecialchars($edit_product['description'] ?? '') : ''; ?></textarea>
+                        <textarea id="description" name="description" rows="12" oninput="updateDescriptionPreview()" style="font-family: Consolas, 'Courier New', monospace; font-size: 13px; line-height: 1.5; display: block;" placeholder="输入产品详情（支持HTML标签）"><?php echo $edit_product ? htmlspecialchars($edit_product['description'] ?? '') : ''; ?></textarea>
+                        <div id="descriptionPreview" class="description-preview" style="display: none;"></div>
                     </div>
 
                     <!-- 规格 -->
@@ -603,18 +602,59 @@ $activeBrands = getActiveBrands($pdo);
                 textarea.value = textBefore + '<img src="' + url + '">' + textAfter;
                 textarea.focus();
                 textarea.selectionStart = textarea.selectionEnd = cursorPos + ('<img src="' + url + '">').length;
+                updateDescriptionPreview();
                 closeImagePicker();
             }
 
-            function previewProductDetail() {
-                var content = document.getElementById('description').value;
-                var w = window.open('', '_blank', 'width=800,height=600');
-                w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>产品详情预览</title>');
-                w.document.write('<style>body{font-family:"Microsoft YaHei",Arial,sans-serif;padding:20px;line-height:1.8;max-width:800px;margin:0 auto;}img{max-width:100%;height:auto;}</style>');
-                w.document.write('</head><body>');
-                w.document.write(content);
-                w.document.write('</body></html>');
-                w.document.close();
+            function toggleDescriptionPreview() {
+                var textarea = document.getElementById('description');
+                var preview = document.getElementById('descriptionPreview');
+                var btn = document.getElementById('togglePreviewBtn');
+                if (preview.style.display === 'none') {
+                    updateDescriptionPreview();
+                    preview.style.display = 'block';
+                    textarea.style.display = 'none';
+                    btn.textContent = '编辑';
+                } else {
+                    preview.style.display = 'none';
+                    textarea.style.display = 'block';
+                    btn.textContent = '预览';
+                }
+            }
+
+            function updateDescriptionPreview() {
+                var textarea = document.getElementById('description');
+                var preview = document.getElementById('descriptionPreview');
+                var content = textarea.value.trim();
+                if (!content) {
+                    preview.innerHTML = '<div class="preview-empty">暂无内容</div>';
+                    return;
+                }
+                var html = '<div class="preview-content">' + content + '</div>';
+                preview.innerHTML = html;
+                // 给每个图片添加URL查看图标
+                preview.querySelectorAll('.preview-content img').forEach(function(img) {
+                    var wrapper = document.createElement('span');
+                    wrapper.className = 'preview-img-wrapper';
+                    img.parentNode.insertBefore(wrapper, img);
+                    wrapper.appendChild(img);
+                    var icon = document.createElement('span');
+                    icon.className = 'preview-img-url-icon';
+                    icon.textContent = '🔗';
+                    icon.title = '查看图片URL';
+                    wrapper.appendChild(icon);
+                    var urlDisplay = document.createElement('div');
+                    urlDisplay.className = 'preview-img-url';
+                    urlDisplay.textContent = img.getAttribute('src');
+                    urlDisplay.style.display = 'none';
+                    wrapper.appendChild(urlDisplay);
+                    icon.onclick = function(e) {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        var urlEl = this.parentNode.querySelector('.preview-img-url');
+                        urlEl.style.display = urlEl.style.display === 'none' ? 'block' : 'none';
+                    };
+                });
             }
 
             // 规格参数管理
@@ -649,12 +689,14 @@ $activeBrands = getActiveBrands($pdo);
                 $(document).on('input', '.spec-value', function() {
                     updateSpecParamsField();
                 });
+                // 初始加载时如果已有内容，预览可立即显示
+                updateDescriptionPreview();
             });
             </script>
     
     <!-- 图片选择器模态框 -->
     <div id="imagePickerModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1200; overflow: auto;">
-        <div style="background: white; margin: 50px auto; max-width: 900px; border-radius: 8px; max-height: 80vh; display: flex; flex-direction: column;">
+        <div style="background: white; margin: 50px auto; max-width: 1200px; border-radius: 8px; max-height: 85vh; display: flex; flex-direction: column;">
             <div style="padding: 15px 20px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
                 <h3 id="imagePickerModalTitle" style="margin: 0; color: #4a3f69;">选择产品图片</h3>
                 <button onclick="closeImagePicker()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #999;">&times;</button>
@@ -668,8 +710,8 @@ $activeBrands = getActiveBrands($pdo);
     <style>
         .picker-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-            gap: 10px;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 12px;
         }
         .picker-item {
             position: relative;
@@ -722,6 +764,69 @@ $activeBrands = getActiveBrands($pdo);
         }
         .clear-image:hover {
             background: #c82333;
+        }
+
+        /* 预览区域样式 */
+        .description-preview {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 12px 16px;
+            min-height: 150px;
+            background: #fff;
+            font-family: "Microsoft YaHei", Arial, sans-serif;
+            line-height: 1.8;
+            overflow-y: auto;
+            max-height: 500px;
+        }
+        .description-preview .preview-empty {
+            color: #999;
+            text-align: center;
+            padding: 40px 0;
+        }
+        .description-preview .preview-content img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 4px;
+        }
+        .preview-img-wrapper {
+            position: relative;
+            display: inline-block;
+            margin: 4px 0;
+        }
+        .preview-img-url-icon {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            background: rgba(0,0,0,0.5);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            line-height: 1.4;
+            user-select: none;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+        .preview-img-url-icon:hover {
+            opacity: 1;
+        }
+        .preview-img-url {
+            position: absolute;
+            top: -30px;
+            left: 0;
+            background: rgba(0,0,0,0.85);
+            color: #eee;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-family: Consolas, monospace;
+            white-space: nowrap;
+            max-width: 500px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            z-index: 10;
+            pointer-events: none;
         }
     </style>
     
