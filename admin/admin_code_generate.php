@@ -106,7 +106,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_products'])) 
 
     $max_boxes_per_batch = 1000;
 
-    if ($num_boxes > 0) {
+    if ($product_id == 0) {
+        $messages['error'][] = "请先选择产品";
+    } elseif ($num_boxes > 0) {
         try {
             $pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
 
@@ -120,6 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_products'])) 
 
                 $box_params = [];
                 $box_codes = [];
+                $tenantId = getCurrentTenantId();
 
                 for ($b = 1; $b <= $batch_size; $b++) {
                     do {
@@ -130,14 +133,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_products'])) 
                     } while ($exists);
 
                     $box_codes[] = $box_code;
-                    $box_params[] = [$box_code, $production_date, $batch_number, $product_id];
+                    $box_params[] = [$box_code, $production_date, $batch_number, $tenantId, $product_id];
                 }
 
-                $tenantId = getCurrentTenantId();
                 $placeholders = implode(',', array_fill(0, count($box_params), '(?,?,?,?,?)'));
                 $stmt = $pdo->prepare("INSERT INTO boxes (box_code, production_date, batch_number, tenant_id, product_id) VALUES $placeholders");
                 $flat = [];
-                foreach ($box_params as $row) { $row[] = $tenantId; $flat = array_merge($flat, $row); }
+                foreach ($box_params as $row) { $flat = array_merge($flat, $row); }
                 $stmt->execute($flat);
 
                 $stmt = $pdo->prepare("SELECT id, box_code FROM boxes WHERE box_code IN (" . implode(',', array_fill(0, count($box_codes), '?')) . ")");
@@ -302,7 +304,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_data'])) {
             $boxes = $boxStmt->fetchAll(PDO::FETCH_ASSOC);
 
             if (empty($boxes)) {
-                $messages['error'][] = "没有找到符合条件的箱子数据";
+                $messages['error'][] = "未找到匹配的导出数据";
             } else {
                 if (!extension_loaded('zip')) {
                     $messages['error'][] = "导出需要PHP ZIP扩展，请联系管理员开启";
@@ -474,7 +476,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_zero_product'
 
     $max_per_batch = 100;
 
-    try {
+    if ($product_id == 0) {
+        $messages['error'][] = "请先选择产品";
+    } else {
+        try {
         $pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
         $total_processed = 0;
         $start_index = time();
@@ -575,6 +580,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_zero_product'
     } catch(Exception $e) {
         $pdo->rollBack();
         $messages['error'][] = "生成过程出错: " . $e->getMessage();
+    }
     }
 }
 
@@ -1070,6 +1076,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_zero_data'])) {
                 $('.tab-btn').removeClass('active');
                 $(this).addClass('active');
                 $('.section[id]').hide();
+                $('.messages-container').empty();
                 $('#' + target).show();
             });
 
