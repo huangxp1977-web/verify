@@ -1,6 +1,6 @@
 <?php
 // 抑制本地开发环境的错误显示
-error_reporting(0);
+error_reporting(E_ALL);
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../includes/tenant.php';
 require_once __DIR__ . '/../includes/qiniu_helper.php';
