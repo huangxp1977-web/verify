@@ -1,6 +1,6 @@
 <?php
 // 抑制本地开发环境的错误显示
-error_reporting(E_ALL);
+error_reporting(0);
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../includes/tenant.php';
 require_once __DIR__ . '/../includes/qiniu_helper.php';
@@ -65,7 +65,7 @@ try {
 <script src="https://res.wx.qq.com/open/js/jweixin-1.6.0.js"></script>
 <script>
 wx.config({
-  debug: true,
+  debug: false,
   appId: '<?php echo $signPackage["appId"];?>',
   timestamp: <?php echo $signPackage["timestamp"];?>,
   nonceStr: '<?php echo $signPackage["nonceStr"];?>',
@@ -106,10 +106,6 @@ function handleScanClick() {
 
 wx.ready(function() {
   wx.configured = true;
-});
-
-wx.error(function(err) {
-  console.log('wx.config error:', err);
 });
 </script>
 <style>
