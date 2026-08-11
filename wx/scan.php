@@ -65,7 +65,7 @@ try {
 <script src="https://res.wx.qq.com/open/js/jweixin-1.6.0.js"></script>
 <script>
 wx.config({
-  debug: false,
+  debug: true,
   appId: '<?php echo $signPackage["appId"];?>',
   timestamp: <?php echo $signPackage["timestamp"];?>,
   nonceStr: '<?php echo $signPackage["nonceStr"];?>',
@@ -106,6 +106,10 @@ function handleScanClick() {
 
 wx.ready(function() {
   wx.configured = true;
+});
+
+wx.error(function(err) {
+  console.log('wx.config error:', err);
 });
 </script>
 <style>
