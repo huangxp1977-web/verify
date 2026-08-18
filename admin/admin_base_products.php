@@ -537,11 +537,7 @@ $activeBrands = getActiveBrands($pdo);
                             <?php endif; ?>
                         </td>
                         <td>
-                            <?php if ($hasRelatedData): ?>
-                                <span class="btn" style="background: #ccc; cursor: not-allowed; padding: 5px 10px; font-size: 12px;" title="有关联数据，无法编辑">编辑</span>
-                            <?php else: ?>
-                                <a href="?action=edit&id=<?php echo $prod['id']; ?>" class="btn btn-secondary" style="padding: 5px 10px; font-size: 12px;">编辑</a>
-                            <?php endif; ?>
+                            <a href="?action=edit&id=<?php echo $prod['id']; ?>" class="btn btn-secondary" style="padding: 5px 10px; font-size: 12px;">编辑</a>
                             
                             <?php if ($hasRelatedData): ?>
                                 <?php if ($status == 1): ?>
