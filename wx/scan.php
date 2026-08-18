@@ -317,6 +317,21 @@ wx.ready(function() {
     margin-bottom: 0.15rem;
   }
 
+  /* 产品详情描述（HTML文本） */
+  .product-desc {
+    font-size: 0.26rem;
+    line-height: 1.6;
+    color: #333;
+    word-break: break-all;
+    margin-bottom: 0.15rem;
+  }
+  .product-desc img {
+    max-width: 100%;
+    border-radius: 0.08rem;
+    display: block;
+    margin-bottom: 0.15rem;
+  }
+
   /* 错误信息卡片 */
   .error-card {
     background: #fff;
@@ -792,6 +807,33 @@ async function queryTraceCode() {
   }
 }
 
+// 渲染产品详情（description HTML 优先，product_images 补充）
+function renderProductDetail(data) {
+  var container = document.getElementById('productImages');
+  container.innerHTML = '';
+  var hasDesc = data.description && data.description.trim() !== '';
+
+  if (hasDesc) {
+    var descDiv = document.createElement('div');
+    descDiv.className = 'product-desc';
+    descDiv.innerHTML = data.description;
+    container.appendChild(descDiv);
+  }
+
+  var images = data.product_images || [];
+  if (images.length > 0) {
+    for (var i = 0; i < images.length; i++) {
+      var img = document.createElement('img');
+      img.src = images[i];
+      img.alt = '产品详情';
+      img.onerror = function() { this.style.display = 'none'; };
+      container.appendChild(img);
+    }
+  } else if (!hasDesc) {
+    container.innerHTML = '<div class="empty-hint">暂无产品详情图片</div>';
+  }
+}
+
 // 填充单支产品数据
 function fillProductData(data) {
   document.getElementById('brandName').textContent = data.brand_name || '-';
@@ -800,21 +842,8 @@ function fillProductData(data) {
   document.getElementById('productionDate').textContent = data.production_date || '-';
   document.getElementById('distributorName').textContent = data.distributor_name || '-';
 
-  // 填充产品详情图片
-  var imagesContainer = document.getElementById('productImages');
-  imagesContainer.innerHTML = '';
-  var images = data.product_images || [];
-  if (images.length > 0) {
-    for (var i = 0; i < images.length; i++) {
-      var img = document.createElement('img');
-      img.src = images[i];
-      img.alt = '产品详情';
-      img.onerror = function() { this.style.display = 'none'; };
-      imagesContainer.appendChild(img);
-    }
-  } else {
-    imagesContainer.innerHTML = '<div class="empty-hint">暂无产品详情图片</div>';
-  }
+  // 填充产品详情（description HTML 优先，product_images 补充）
+  renderProductDetail(data);
 }
 
 // 填充盒子（箱）数据
@@ -826,21 +855,8 @@ function fillCartonData(data) {
   document.getElementById('productionDate').textContent = data.production_date || '-';
   document.getElementById('distributorName').textContent = data.distributor_name || '-';
 
-  // 产品详情：显示该产品的 product_images（来自第一个子产品）
-  var imagesContainer = document.getElementById('productImages');
-  imagesContainer.innerHTML = '';
-  var images = data.product_images || [];
-  if (images.length > 0) {
-    for (var i = 0; i < images.length; i++) {
-      var img = document.createElement('img');
-      img.src = images[i];
-      img.alt = '产品详情';
-      img.onerror = function() { this.style.display = 'none'; };
-      imagesContainer.appendChild(img);
-    }
-  } else {
-    imagesContainer.innerHTML = '<div class="empty-hint">暂无产品详情图片</div>';
-  }
+  // 产品详情：description HTML 优先，product_images 补充
+  renderProductDetail(data);
 
   // 在信息区显示子产品列表
   if (data.products && data.products.length > 0) {
@@ -874,21 +890,8 @@ function fillBoxData(data) {
   document.getElementById('productionDate').textContent = data.production_date || '-';
   document.getElementById('distributorName').textContent = data.distributor_name || '-';
 
-  // 产品详情：显示该产品的 product_images
-  var imagesContainer = document.getElementById('productImages');
-  imagesContainer.innerHTML = '';
-  var images = data.product_images || [];
-  if (images.length > 0) {
-    for (var i = 0; i < images.length; i++) {
-      var img = document.createElement('img');
-      img.src = images[i];
-      img.alt = '产品详情';
-      img.onerror = function() { this.style.display = 'none'; };
-      imagesContainer.appendChild(img);
-    }
-  } else {
-    imagesContainer.innerHTML = '<div class="empty-hint">暂无产品详情图片</div>';
-  }
+  // 产品详情：description HTML 优先，product_images 补充
+  renderProductDetail(data);
 }
 
 // 页面加载完成后自动查询
