@@ -7,7 +7,11 @@ config/secrets.php
 # 运行时上传文件（已同步到七牛云，非源码）
 uploads/
 
-# 运行时缓存（微信 token）
+# 运行时缓存（微信 token，按AppID生成文件名变化）
+wx/access_token_*.php
+wx/jsapi_ticket_*.php
+cert/access_token_*.php
+cert/jsapi_ticket_*.php
 wx/access_token.php
 wx/jsapi_ticket.php
 cert/access_token.php
