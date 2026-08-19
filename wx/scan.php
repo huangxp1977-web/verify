@@ -526,12 +526,12 @@ wx.ready(function() {
             <span class="value" id="productName">-</span>
           </div>
           <div class="info-row">
-            <span class="label">产品批号</span>
-            <span class="value" id="batchNumber">-</span>
+            <span class="label">规格型号</span>
+            <span class="value" id="specParams">-</span>
           </div>
           <div class="info-row">
-            <span class="label">生产日期</span>
-            <span class="value" id="productionDate">-</span>
+            <span class="label">产品批号</span>
+            <span class="value" id="batchNumber">-</span>
           </div>
           <div class="info-row">
             <span class="label">经销商</span>
@@ -834,12 +834,44 @@ function renderProductDetail(data) {
   }
 }
 
+// 格式化规格型号（兼容新旧格式）
+// 新格式：简单数组 ["1","2","5"]，追加 ml 单位
+// 旧格式：对象 {"容量":"1ml"}，渲染为 "名称：值"
+function formatSpecParams(specParams) {
+  if (!specParams) return '-';
+  try {
+    var arr = typeof specParams === 'string' ? JSON.parse(specParams) : specParams;
+    if (Array.isArray(arr)) {
+      // 新格式：简单数组 ["1","2","5"]
+      if (arr.length === 0) return '-';
+      return arr.map(function(v) {
+        v = String(v);
+        // 值已含单位时不重复追加
+        if (!/ml$/i.test(v)) v += 'ml';
+        return v;
+      }).join('、');
+    } else if (typeof arr === 'object') {
+      // 旧格式：对象 {"容量":"1ml"}
+      var parts = [];
+      for (var key in arr) {
+        if (arr.hasOwnProperty(key)) {
+          parts.push(key + '：' + arr[key]);
+        }
+      }
+      return parts.length > 0 ? parts.join('、') : '-';
+    }
+    return '-';
+  } catch(e) {
+    return '-';
+  }
+}
+
 // 填充单支产品数据
 function fillProductData(data) {
   document.getElementById('brandName').textContent = data.brand_name || '-';
   document.getElementById('productName').textContent = data.product_name || '-';
+  document.getElementById('specParams').textContent = formatSpecParams(data.spec_params);
   document.getElementById('batchNumber').textContent = data.batch_number || '-';
-  document.getElementById('productionDate').textContent = data.production_date || '-';
   document.getElementById('distributorName').textContent = data.distributor_name || '-';
 
   // 填充产品详情（description HTML 优先，product_images 补充）
@@ -851,8 +883,8 @@ function fillCartonData(data) {
   // 优先使用顶层返回的品牌/产品信息（来自第一个子产品）
   document.getElementById('brandName').textContent = data.brand_name || '-';
   document.getElementById('productName').textContent = data.product_name || '-';
+  document.getElementById('specParams').textContent = formatSpecParams(data.spec_params);
   document.getElementById('batchNumber').textContent = data.batch_number || '-';
-  document.getElementById('productionDate').textContent = data.production_date || '-';
   document.getElementById('distributorName').textContent = data.distributor_name || '-';
 
   // 产品详情：description HTML 优先，product_images 补充
@@ -886,8 +918,8 @@ function fillCartonData(data) {
 function fillBoxData(data) {
   document.getElementById('brandName').textContent = data.brand_name || '-';
   document.getElementById('productName').textContent = data.product_name || '-';
+  document.getElementById('specParams').textContent = formatSpecParams(data.spec_params);
   document.getElementById('batchNumber').textContent = data.batch_number || '-';
-  document.getElementById('productionDate').textContent = data.production_date || '-';
   document.getElementById('distributorName').textContent = data.distributor_name || '-';
 
   // 产品详情：description HTML 优先，product_images 补充

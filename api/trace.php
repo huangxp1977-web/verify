@@ -51,7 +51,7 @@ try {
         SELECT p.id, p.product_code, p.carton_id, p.product_id, p.query_count, p.last_scan_time, p.first_scan_time, p.created_at, p.status, p.tenant_id,
             c.carton_code, b.box_code,
             b.production_date, b.batch_number,
-            bp.product_name, bp.product_images, bp.description,
+            bp.product_name, bp.product_images, bp.description, bp.spec_params,
             CONCAT(br.name_cn, ' (', br.name_en, ')') as brand_name,
             d.name as distributor_name
         FROM products p
@@ -85,6 +85,7 @@ try {
                 'box_code' => htmlspecialchars($productData['box_code']),
                 'production_date' => htmlspecialchars($productData['production_date']),
                 'batch_number' => htmlspecialchars($productData['batch_number']),
+                'spec_params' => $productData['spec_params'] ?? '',
                 'description' => $productData['description'] ?? '',
                 'product_images' => array_map(function($img) {
                     return getImageUrl($img);
@@ -129,6 +130,7 @@ try {
             'box_code' => htmlspecialchars($productData['box_code']),
             'production_date' => htmlspecialchars($productData['production_date']),
             'batch_number' => htmlspecialchars($productData['batch_number']),
+            'spec_params' => $productData['spec_params'] ?? '',
             'description' => $productData['description'] ?? '',
             'product_images' => array_map(function($img) {
                 return getImageUrl($img);
@@ -161,6 +163,9 @@ try {
             (SELECT bp.description FROM products p
              LEFT JOIN base_products bp ON p.product_id = bp.id
              WHERE p.carton_id = c.id AND p.status = 1 LIMIT 1) as description,
+            (SELECT bp.spec_params FROM products p
+             LEFT JOIN base_products bp ON p.product_id = bp.id
+             WHERE p.carton_id = c.id AND p.status = 1 LIMIT 1) as spec_params,
         (SELECT COUNT(*) FROM products WHERE carton_id = c.id AND status = 1) as product_count,
         (SELECT GROUP_CONCAT(product_code SEPARATOR ', ') FROM products WHERE carton_id = c.id AND status = 1) as product_codes
         FROM cartons c
@@ -188,6 +193,7 @@ try {
                 'brand_name' => htmlspecialchars($cartonData['brand_name'] ?? ''),
                 'product_name' => htmlspecialchars($cartonData['product_name'] ?? ''),
                 'description' => $cartonData['description'] ?? '',
+                'spec_params' => $cartonData['spec_params'] ?? '',
                 'product_images' => array_map(function($img) {
                     return getImageUrl($img);
                 }, json_decode($cartonData['product_images'] ?? '[]', true) ?: []),
@@ -227,7 +233,7 @@ try {
         // 获取盒子下所有产品详情
         $stmtProducts = $pdo->prepare("SELECT p.id, p.product_code, p.carton_id, p.product_id, p.query_count, p.last_scan_time, p.created_at, p.status, p.tenant_id,
             b.production_date, b.batch_number,
-            bp.product_name, bp.product_images,
+            bp.product_name, bp.product_images, bp.spec_params,
             CONCAT(br.name_cn, ' (', br.name_en, ')') as brand_name
             FROM products p
             JOIN cartons c ON p.carton_id = c.id
@@ -246,6 +252,7 @@ try {
                 'product_code' => htmlspecialchars($p['product_code']),
                 'product_name' => htmlspecialchars($p['product_name']),
                 'brand_name' => htmlspecialchars($p['brand_name'] ?? ''),
+                'spec_params' => $p['spec_params'] ?? '',
                 'production_date' => htmlspecialchars($p['production_date']),
                 'batch_number' => htmlspecialchars($p['batch_number']),
                 'product_images' => array_map(function($img) {
@@ -263,6 +270,7 @@ try {
             'brand_name' => htmlspecialchars($cartonData['brand_name'] ?? ''),
             'product_name' => htmlspecialchars($cartonData['product_name'] ?? ''),
             'description' => $cartonData['description'] ?? '',
+            'spec_params' => $cartonData['spec_params'] ?? '',
             'product_images' => array_map(function($img) {
                 return getImageUrl($img);
             }, json_decode($cartonData['product_images'] ?? '[]', true) ?: []),
@@ -288,6 +296,7 @@ try {
         CONCAT(br.name_cn, ' (', br.name_en, ')') as brand_name,
         bp.product_name,
         bp.product_images,
+        bp.spec_params,
         bp.description
         FROM boxes b
         LEFT JOIN base_products bp ON b.product_id = bp.id
@@ -313,6 +322,7 @@ try {
                 'box_code' => htmlspecialchars($boxData['box_code']),
                 'brand_name' => htmlspecialchars($boxData['brand_name'] ?? ''),
                 'product_name' => htmlspecialchars($boxData['product_name'] ?? ''),
+                'spec_params' => $boxData['spec_params'] ?? '',
                 'description' => $boxData['description'] ?? '',
                 'product_images' => array_map(function($img) {
                     return getImageUrl($img);
@@ -354,6 +364,7 @@ try {
             'box_code' => htmlspecialchars($boxData['box_code']),
             'brand_name' => htmlspecialchars($boxData['brand_name'] ?? ''),
             'product_name' => htmlspecialchars($boxData['product_name'] ?? ''),
+            'spec_params' => $boxData['spec_params'] ?? '',
             'description' => $boxData['description'] ?? '',
             'product_images' => array_map(function($img) {
                 return getImageUrl($img);
