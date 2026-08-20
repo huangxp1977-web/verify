@@ -170,21 +170,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_tenant'])) {
                 $stmt->execute([$existingDomains['portal']['id']]);
             }
 
-            // 产品矩阵配置
-            $productMatrixName = trim($_POST['product_matrix_name'] ?? '');
-            $productMatrixUrl = trim($_POST['product_matrix_url'] ?? '');
-            $confStmt = $pdo->prepare("SELECT base_config FROM tenants WHERE id = ?");
-            $confStmt->execute([$id]);
-            $confRow = $confStmt->fetch();
-            $baseConfig = json_decode($confRow['base_config'] ?? '{}', true);
-            if (empty($productMatrixName) && empty($productMatrixUrl)) {
-                unset($baseConfig['product_matrix']);
-            } else {
-                $baseConfig['product_matrix'] = ['name' => $productMatrixName, 'url' => $productMatrixUrl];
-            }
-            $stmt = $pdo->prepare("UPDATE tenants SET base_config = ? WHERE id = ?");
-            $stmt->execute([json_encode($baseConfig), $id]);
-
             $_SESSION['flash_success'] = "企业【{$name}】更新成功";
             header("Location: admin_tenants.php");
             exit;
@@ -230,9 +215,6 @@ if (isset($_GET['action']) && $_GET['action'] == 'edit' && isset($_GET['id'])) {
         while ($row = $domStmt->fetch()) {
             $domainBindings[$row['type']] = $row;
         }
-        // 解析基础配置（产品矩阵等）
-        $baseConfig = json_decode($edit_tenant['base_config'] ?? '{}', true);
-        $productMatrixConfig = $baseConfig['product_matrix'] ?? ['name' => '', 'url' => ''];
     }
 }
 
@@ -350,25 +332,6 @@ $tenants = $stmt->fetchAll();
                                             <input type="checkbox" name="domain_portal_status" value="1" <?php echo (isset($domainBindings['portal']) && $domainBindings['portal']['status'] == 1) ? 'checked' : ''; ?>> 启用
                                         </label>
                                     </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- ========== 产品矩阵 ========== -->
-                    <div style="background:#fff;padding:12px;border-radius:6px;margin-bottom:12px;border:1px solid #ddd">
-                        <h3 style="font-size:14px;color:#4a3f69;margin:0 0 8px 0">📋 产品矩阵</h3>
-                        <div class="form-row">
-                            <div class="form-col">
-                                <div class="form-group">
-                                    <label>产品矩阵名称</label>
-                                    <input type="text" name="product_matrix_name" value="<?php echo htmlspecialchars($productMatrixConfig['name'] ?? ''); ?>" placeholder="例如：产品中心">
-                                </div>
-                            </div>
-                            <div class="form-col">
-                                <div class="form-group">
-                                    <label>产品矩阵链接</label>
-                                    <input type="text" name="product_matrix_url" value="<?php echo htmlspecialchars($productMatrixConfig['url'] ?? ''); ?>" placeholder="例如：https://...">
                                 </div>
                             </div>
                         </div>

@@ -57,9 +57,9 @@ try {
     $product_lib = $stmt->fetchAll(PDO::FETCH_ASSOC);
     $product_lib_json = json_encode($product_lib);
 
-    // 导出筛选用的完整产品列表（含禁用的已生成数据，导出不受状态限制）
+    // 导出筛选用的产品列表（仅启用产品）
     $params = [];
-    $stmt = $pdo->prepare("SELECT * FROM base_products WHERE 1=1" . tenantWhere($params) . " ORDER BY product_name ASC");
+    $stmt = $pdo->prepare("SELECT * FROM base_products WHERE status = 1" . tenantWhere($params) . " ORDER BY product_name ASC");
     $stmt->execute($params);
     $export_product_lib = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
