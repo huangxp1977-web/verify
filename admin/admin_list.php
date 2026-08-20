@@ -171,7 +171,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export'])) {
                 SELECT box_code, batch_number, DATE(production_date) as production_date 
                 FROM boxes 
                 LEFT JOIN base_distributors ON boxes.distributor_id = base_distributors.id
+                LEFT JOIN base_products bp ON boxes.product_id = bp.id
                 $where_clause
+                AND (bp.id IS NULL OR bp.status = 1)
                 ORDER BY production_date DESC, box_code ASC
             ");
             
@@ -192,13 +194,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export'])) {
             $export_title = '箱子';
         } elseif ($level == 'carton') {
             $cartonExportParams = [':box_id' => $id];
-                        $cartonExportTenant = " AND tenant_id = :tenant_id";
+                        $cartonExportTenant = " AND cartons.tenant_id = :tenant_id";
                         $cartonExportParams[':tenant_id'] = getCurrentTenantId();
             $stmt = $pdo->prepare("
                             SELECT carton_code, boxes.batch_number, DATE(boxes.production_date) as production_date
                             FROM cartons
                             JOIN boxes ON cartons.box_id = boxes.id
-                            WHERE box_id = :box_id" . $cartonExportTenant . "
+                            LEFT JOIN base_products bp ON boxes.product_id = bp.id
+                            WHERE box_id = :box_id AND (bp.id IS NULL OR bp.status = 1)" . $cartonExportTenant . "
                             ORDER BY carton_code ASC
                         ");
             $stmt->execute($cartonExportParams);
@@ -215,7 +218,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export'])) {
             $export_title = '盒子';
         } elseif ($level == 'product') {
             $productExportParams = [':carton_id' => $id];
-                        $productExportTenant = " AND tenant_id = :tenant_id";
+                        $productExportTenant = " AND products.tenant_id = :tenant_id";
                         $productExportParams[':tenant_id'] = getCurrentTenantId();
             $stmt = $pdo->prepare("
                             SELECT product_code, boxes.batch_number, DATE(boxes.production_date) as production_date, bp.product_name
@@ -223,7 +226,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export'])) {
                             JOIN cartons ON products.carton_id = cartons.id
                             JOIN boxes ON cartons.box_id = boxes.id
                             LEFT JOIN base_products bp ON products.product_id = bp.id
-                            WHERE carton_id = :carton_id" . $productExportTenant . "
+                            WHERE products.carton_id = :carton_id AND (bp.id IS NULL OR bp.status = 1)" . $productExportTenant . "
                             ORDER BY product_code ASC
                         ");
             $stmt->execute($productExportParams);
@@ -355,8 +358,8 @@ try {
                     // 先尝试精确匹配（处理包含特殊字符的完整防伪码）
                     $exactParams2 = [':box_code' => $box_code];
                     $exactParams2[':tenant_id'] = getCurrentTenantId();
-                    $exactTenant = " AND tenant_id = :tenant_id";
-            $exactStmt = $pdo->prepare("SELECT COUNT(*) FROM boxes WHERE box_code = :box_code AND status = 1" . $exactTenant);
+                    $exactTenant = " AND boxes.tenant_id = :tenant_id";
+            $exactStmt = $pdo->prepare("SELECT COUNT(*) FROM boxes LEFT JOIN base_products bp ON boxes.product_id = bp.id WHERE boxes.box_code = :box_code AND boxes.status = 1 AND (bp.id IS NULL OR bp.status = 1)" . $exactTenant);
             $exactStmt->execute($exactParams2);
             $exactCount = $exactStmt->fetchColumn();
             
@@ -387,7 +390,7 @@ try {
         }
         
         // 获取总记录数
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM boxes LEFT JOIN base_distributors ON boxes.distributor_id = base_distributors.id" . $where_clause);
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM boxes LEFT JOIN base_distributors ON boxes.distributor_id = base_distributors.id LEFT JOIN base_products bp ON boxes.product_id = bp.id" . $where_clause . " AND (bp.id IS NULL OR bp.status = 1)");
         foreach ($params as $key => $value) {
             $stmt->bindValue($key, $value);
         }
@@ -401,6 +404,7 @@ try {
                     FROM boxes 
                     LEFT JOIN base_distributors ON boxes.distributor_id = base_distributors.id
                     LEFT JOIN base_products bp ON boxes.product_id = bp.id" . $where_clause . "
+            AND (bp.id IS NULL OR bp.status = 1)
             ORDER BY production_date DESC, box_code ASC
             LIMIT :offset, :page_size
         ");
@@ -464,7 +468,7 @@ try {
                     $cartonFilter = ' AND cartons.carton_code = :carton_code';
                     $cartonParams[':carton_code'] = $carton_code;
                 }
-                $stmt = $pdo->prepare("SELECT COUNT(*) FROM cartons WHERE box_id = :box_id AND status = 1" . $cartonTenant . $cartonFilter);
+                $stmt = $pdo->prepare("SELECT COUNT(*) FROM cartons LEFT JOIN boxes ON cartons.box_id = boxes.id LEFT JOIN base_products bp ON boxes.product_id = bp.id WHERE cartons.box_id = :box_id AND cartons.status = 1 AND (bp.id IS NULL OR bp.status = 1)" . $cartonTenant . $cartonFilter);
                 $stmt->execute($cartonParams);
                 $total_records = $stmt->fetchColumn();
 
@@ -478,11 +482,12 @@ try {
                                                     SELECT cartons.id, cartons.carton_code, cartons.box_id, boxes.distributor_id, cartons.status, cartons.query_count, cartons.last_scan_time, cartons.created_at, cartons.tenant_id,
                                                         boxes.batch_number, boxes.production_date,
                                                         base_distributors.name as distributor_name,
-                                                        (SELECT bp.product_name FROM base_products bp WHERE bp.id = boxes.product_id LIMIT 1) as product_name
+                                                        (SELECT bp2.product_name FROM base_products bp2 WHERE bp2.id = boxes.product_id LIMIT 1) as product_name
                                                     FROM cartons
                                                     LEFT JOIN boxes ON cartons.box_id = boxes.id
+                                                    LEFT JOIN base_products bp ON boxes.product_id = bp.id
                                                     LEFT JOIN base_distributors ON boxes.distributor_id = base_distributors.id
-                                                    WHERE box_id = :box_id AND cartons.status = 1" . $cartonTenant . $cartonFilter . "
+                                                    WHERE box_id = :box_id AND cartons.status = 1 AND (bp.id IS NULL OR bp.status = 1)" . $cartonTenant . $cartonFilter . "
                                     ORDER BY carton_code ASC
                                     LIMIT :offset, :page_size
                                 ");
@@ -551,7 +556,7 @@ try {
         $productParams = [':carton_id' => $id];
                 $productParams[':tenant_id'] = getCurrentTenantId();
                 $productTenant = " AND products.tenant_id = :tenant_id";
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM products WHERE carton_id = :carton_id AND status = 1" . $productTenant);
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM products LEFT JOIN base_products bp ON products.product_id = bp.id WHERE products.carton_id = :carton_id AND products.status = 1 AND (bp.id IS NULL OR bp.status = 1)" . $productTenant);
         $stmt->execute($productParams);
         $total_records = $stmt->fetchColumn();
 
@@ -568,7 +573,7 @@ try {
                     LEFT JOIN boxes ON cartons.box_id = boxes.id
                     LEFT JOIN base_products bp ON products.product_id = bp.id
                     LEFT JOIN base_distributors ON boxes.distributor_id = base_distributors.id
-                    WHERE carton_id = :carton_id AND products.status = 1" . $productTenant . "
+                    WHERE products.carton_id = :carton_id AND products.status = 1 AND (bp.id IS NULL OR bp.status = 1)" . $productTenant . "
                     ORDER BY product_code ASC
                     LIMIT :offset, :page_size
                 ");

@@ -50,8 +50,8 @@ try {
     $stmt = $pdo->prepare("
         SELECT p.id, p.product_code, p.carton_id, p.product_id, p.query_count, p.last_scan_time, p.first_scan_time, p.created_at, p.status, p.tenant_id,
             c.carton_code, b.box_code,
-            b.production_date, b.batch_number,
-            bp.product_name, bp.product_images, bp.description, bp.spec_params,
+            b.production_date, b.batch_number, b.spec,
+            bp.product_name, bp.product_images, bp.description, bp.spec_params, bp.status as bp_status,
             CONCAT(br.name_cn, ' (', br.name_en, ')') as brand_name,
             d.name as distributor_name
         FROM products p
@@ -71,6 +71,15 @@ try {
         $productId = $productData['id'];
         $currentQueryCount = isset($productData['query_count']) ? intval($productData['query_count']) : 0;
         
+        // 产品已下架（status != 1）：返回专用提示，避免消费者误以为假货
+        if (isset($productData['bp_status']) && intval($productData['bp_status']) != 1) {
+            $response['code'] = 410;
+            $response['message'] = '该产品已下架，如有疑问请联系商家';
+            $response['type'] = 'product';
+            echo json_encode($response, JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        
         // 判断是否已达最大查询次数
         if ($currentQueryCount >= MAX_QUERY_TIMES) {
             $response['code'] = 403;
@@ -85,6 +94,7 @@ try {
                 'box_code' => htmlspecialchars($productData['box_code']),
                 'production_date' => htmlspecialchars($productData['production_date']),
                 'batch_number' => htmlspecialchars($productData['batch_number']),
+                'spec' => htmlspecialchars($productData['spec'] ?? ''),
                 'spec_params' => $productData['spec_params'] ?? '',
                 'description' => $productData['description'] ?? '',
                 'product_images' => array_map(function($img) {
@@ -130,6 +140,7 @@ try {
             'box_code' => htmlspecialchars($productData['box_code']),
             'production_date' => htmlspecialchars($productData['production_date']),
             'batch_number' => htmlspecialchars($productData['batch_number']),
+            'spec' => htmlspecialchars($productData['spec'] ?? ''),
             'spec_params' => $productData['spec_params'] ?? '',
             'description' => $productData['description'] ?? '',
             'product_images' => array_map(function($img) {
@@ -148,8 +159,9 @@ try {
     $stmt = $pdo->prepare("
         SELECT c.id, c.carton_code, c.box_id, c.query_count, c.last_scan_time, c.first_scan_time, c.created_at, c.status, c.tenant_id,
             b.box_code,
-            b.production_date, b.batch_number,
+            b.production_date, b.batch_number, b.spec,
             d.name as distributor_name,
+            bp.status as bp_status,
             (SELECT CONCAT(br.name_cn, ' (', br.name_en, ')') FROM products p
              LEFT JOIN base_products bp ON p.product_id = bp.id
              LEFT JOIN base_brands br ON bp.brand_id = br.id
@@ -171,6 +183,7 @@ try {
         FROM cartons c
         JOIN boxes b ON c.box_id = b.id
         LEFT JOIN base_distributors d ON b.distributor_id = d.id
+        LEFT JOIN base_products bp ON b.product_id = bp.id
         WHERE c.carton_code = :code AND c.status = 1 AND c.tenant_id = :tenant_id
     ");
     $stmt->bindParam(':code', $code);
@@ -181,6 +194,15 @@ try {
         $cartonData = $stmt->fetch(PDO::FETCH_ASSOC);
         $cartonId = $cartonData['id'];
         $currentQueryCount = isset($cartonData['query_count']) ? intval($cartonData['query_count']) : 0;
+        
+        // 产品已下架：校验盒子所属产品状态
+        if (isset($cartonData['bp_status']) && intval($cartonData['bp_status']) != 1) {
+            $response['code'] = 410;
+            $response['message'] = '该产品已下架，如有疑问请联系商家';
+            $response['type'] = 'carton';
+            echo json_encode($response, JSON_UNESCAPED_UNICODE);
+            exit;
+        }
         
         // 判断是否已达最大查询次数
         if ($currentQueryCount >= MAX_QUERY_TIMES) {
@@ -193,6 +215,7 @@ try {
                 'brand_name' => htmlspecialchars($cartonData['brand_name'] ?? ''),
                 'product_name' => htmlspecialchars($cartonData['product_name'] ?? ''),
                 'description' => $cartonData['description'] ?? '',
+                'spec' => htmlspecialchars($cartonData['spec'] ?? ''),
                 'spec_params' => $cartonData['spec_params'] ?? '',
                 'product_images' => array_map(function($img) {
                     return getImageUrl($img);
@@ -270,6 +293,7 @@ try {
             'brand_name' => htmlspecialchars($cartonData['brand_name'] ?? ''),
             'product_name' => htmlspecialchars($cartonData['product_name'] ?? ''),
             'description' => $cartonData['description'] ?? '',
+            'spec' => htmlspecialchars($cartonData['spec'] ?? ''),
             'spec_params' => $cartonData['spec_params'] ?? '',
             'product_images' => array_map(function($img) {
                 return getImageUrl($img);
@@ -297,7 +321,8 @@ try {
         bp.product_name,
         bp.product_images,
         bp.spec_params,
-        bp.description
+        bp.description,
+        bp.status as bp_status
         FROM boxes b
         LEFT JOIN base_products bp ON b.product_id = bp.id
         LEFT JOIN base_brands br ON bp.brand_id = br.id
@@ -313,6 +338,15 @@ try {
         $boxId = $boxData['id'];
         $currentQueryCount = isset($boxData['query_count']) ? intval($boxData['query_count']) : 0;
         
+        // 产品已下架：校验箱子所属产品状态
+        if (isset($boxData['bp_status']) && intval($boxData['bp_status']) != 1) {
+            $response['code'] = 410;
+            $response['message'] = '该产品已下架，如有疑问请联系商家';
+            $response['type'] = 'box';
+            echo json_encode($response, JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        
         // 判断是否已达最大查询次数
         if ($currentQueryCount >= MAX_QUERY_TIMES) {
             $response['code'] = 403;
@@ -322,6 +356,7 @@ try {
                 'box_code' => htmlspecialchars($boxData['box_code']),
                 'brand_name' => htmlspecialchars($boxData['brand_name'] ?? ''),
                 'product_name' => htmlspecialchars($boxData['product_name'] ?? ''),
+                'spec' => htmlspecialchars($boxData['spec'] ?? ''),
                 'spec_params' => $boxData['spec_params'] ?? '',
                 'description' => $boxData['description'] ?? '',
                 'product_images' => array_map(function($img) {
@@ -364,6 +399,7 @@ try {
             'box_code' => htmlspecialchars($boxData['box_code']),
             'brand_name' => htmlspecialchars($boxData['brand_name'] ?? ''),
             'product_name' => htmlspecialchars($boxData['product_name'] ?? ''),
+            'spec' => htmlspecialchars($boxData['spec'] ?? ''),
             'spec_params' => $boxData['spec_params'] ?? '',
             'description' => $boxData['description'] ?? '',
             'product_images' => array_map(function($img) {

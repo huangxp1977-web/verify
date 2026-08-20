@@ -52,10 +52,16 @@ try {
     $batches = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
     $params = [];
-    $stmt = $pdo->prepare("SELECT * FROM base_products WHERE 1=1" . tenantWhere($params) . " ORDER BY product_name ASC");
+    $stmt = $pdo->prepare("SELECT * FROM base_products WHERE status = 1" . tenantWhere($params) . " ORDER BY product_name ASC");
     $stmt->execute($params);
     $product_lib = $stmt->fetchAll(PDO::FETCH_ASSOC);
     $product_lib_json = json_encode($product_lib);
+
+    // 导出筛选用的完整产品列表（含禁用的已生成数据，导出不受状态限制）
+    $params = [];
+    $stmt = $pdo->prepare("SELECT * FROM base_products WHERE 1=1" . tenantWhere($params) . " ORDER BY product_name ASC");
+    $stmt->execute($params);
+    $export_product_lib = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     // 获取产品与批号对应关系（用于按产品导出）
     $product_batches = [];
@@ -376,7 +382,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_data'])) {
 
                     $listContent = "导出时间: " . date('Y-m-d H:i:s') . "\n";
                     $product_filter_name = '';
-                    foreach ($product_lib as $p) {
+                    foreach ($export_product_lib as $p) {
                         if ($p['id'] == $product_filter) {
                             $product_filter_name = $p['product_name'];
                             break;
@@ -998,7 +1004,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_zero_data'])) {
                                     <label for="dc_product_name">产品名称</label>
                                     <select id="dc_product_name" name="dc_product_name" required>
                                         <option value="">-- 请选择产品 --</option>
-                                        <?php foreach ($product_lib as $p): ?>
+                                        <?php foreach ($export_product_lib as $p): ?>
                                             <option value="<?php echo $p['id']; ?>"><?php echo htmlspecialchars($p['product_name']); ?></option>
                                         <?php endforeach; ?>
                                     </select>
@@ -1031,7 +1037,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_zero_data'])) {
                         <label for="dc_zero_product_name">产品名称</label>
                         <select id="dc_zero_product_name" name="dc_zero_product_name" required>
                             <option value="">-- 请选择产品 --</option>
-                            <?php foreach ($product_lib as $p): ?>
+                            <?php foreach ($export_product_lib as $p): ?>
                                 <option value="<?php echo htmlspecialchars($p['product_name']); ?>"><?php echo htmlspecialchars($p['product_name']); ?></option>
                             <?php endforeach; ?>
                         </select>

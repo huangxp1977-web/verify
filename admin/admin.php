@@ -50,8 +50,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['search_code'])) {
         try {
             if ($search_type == 'box') {
                 $params = [$search_code];
-                $tenantSql = tenantWhere($params);
-                $stmt = $pdo->prepare("SELECT id FROM boxes WHERE box_code = ?{$tenantSql}");
+                                $tenantSql = tenantWhere($params, 'boxes');
+                                $stmt = $pdo->prepare("SELECT id FROM boxes LEFT JOIN base_products bp ON boxes.product_id = bp.id WHERE boxes.box_code = ? AND (bp.id IS NULL OR bp.status = 1){$tenantSql}");
                 $stmt->execute($params);
                 $result = $stmt->fetch(PDO::FETCH_ASSOC);
                 if ($result) {
@@ -62,8 +62,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['search_code'])) {
                 }
             } else {
                 $params = [$search_code];
-                $tenantSql = tenantWhere($params);
-                $stmt = $pdo->prepare("SELECT id, box_id FROM cartons WHERE carton_code = ?{$tenantSql}");
+                                $tenantSql = tenantWhere($params, 'cartons');
+                                $stmt = $pdo->prepare("SELECT id, box_id FROM cartons LEFT JOIN boxes ON cartons.box_id = boxes.id LEFT JOIN base_products bp ON boxes.product_id = bp.id WHERE carton_code = ? AND (bp.id IS NULL OR bp.status = 1){$tenantSql}");
                 $stmt->execute($params);
                 $result = $stmt->fetch(PDO::FETCH_ASSOC);
                 if ($result) {

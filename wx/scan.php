@@ -790,6 +790,12 @@ async function queryTraceCode() {
           document.getElementById('firstScanTime').textContent = data.first_scan_time || '-';
           document.getElementById('lastScanTime').textContent = data.last_scan_time || '-';
         }
+      } else if (apiResult.code === 410) {
+        // 产品已下架：显示专用提示，不说"查不到"
+        errorIcon.textContent = 'ℹ️';
+        errorTitle.textContent = '该产品已下架';
+        errorDesc.textContent = apiResult.message || '该产品已下架，如有疑问请联系商家';
+        resultArea.style.display = 'none';
       } else {
         errorIcon.textContent = '❌';
         errorTitle.textContent = '未查询到该讯息';
@@ -834,43 +840,11 @@ function renderProductDetail(data) {
   }
 }
 
-// 格式化规格型号（兼容新旧格式）
-// 新格式：简单数组 ["1","2","5"]，追加 ml 单位
-// 旧格式：对象 {"容量":"1ml"}，渲染为 "名称：值"
-function formatSpecParams(specParams) {
-  if (!specParams) return '-';
-  try {
-    var arr = typeof specParams === 'string' ? JSON.parse(specParams) : specParams;
-    if (Array.isArray(arr)) {
-      // 新格式：简单数组 ["1","2","5"]
-      if (arr.length === 0) return '-';
-      return arr.map(function(v) {
-        v = String(v);
-        // 值已含单位时不重复追加
-        if (!/ml$/i.test(v)) v += 'ml';
-        return v;
-      }).join('、');
-    } else if (typeof arr === 'object') {
-      // 旧格式：对象 {"容量":"1ml"}
-      var parts = [];
-      for (var key in arr) {
-        if (arr.hasOwnProperty(key)) {
-          parts.push(key + '：' + arr[key]);
-        }
-      }
-      return parts.length > 0 ? parts.join('、') : '-';
-    }
-    return '-';
-  } catch(e) {
-    return '-';
-  }
-}
-
 // 填充单支产品数据
 function fillProductData(data) {
   document.getElementById('brandName').textContent = data.brand_name || '-';
   document.getElementById('productName').textContent = data.product_name || '-';
-  document.getElementById('specParams').textContent = formatSpecParams(data.spec_params);
+  document.getElementById('specParams').textContent = data.spec || '-';
   document.getElementById('batchNumber').textContent = data.batch_number || '-';
   document.getElementById('distributorName').textContent = data.distributor_name || '-';
 
@@ -883,7 +857,7 @@ function fillCartonData(data) {
   // 优先使用顶层返回的品牌/产品信息（来自第一个子产品）
   document.getElementById('brandName').textContent = data.brand_name || '-';
   document.getElementById('productName').textContent = data.product_name || '-';
-  document.getElementById('specParams').textContent = formatSpecParams(data.spec_params);
+  document.getElementById('specParams').textContent = data.spec || '-';
   document.getElementById('batchNumber').textContent = data.batch_number || '-';
   document.getElementById('distributorName').textContent = data.distributor_name || '-';
 
@@ -918,7 +892,7 @@ function fillCartonData(data) {
 function fillBoxData(data) {
   document.getElementById('brandName').textContent = data.brand_name || '-';
   document.getElementById('productName').textContent = data.product_name || '-';
-  document.getElementById('specParams').textContent = formatSpecParams(data.spec_params);
+  document.getElementById('specParams').textContent = data.spec || '-';
   document.getElementById('batchNumber').textContent = data.batch_number || '-';
   document.getElementById('distributorName').textContent = data.distributor_name || '-';
 

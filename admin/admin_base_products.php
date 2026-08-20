@@ -120,19 +120,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_product'])) {
     }
 }
 
-// 处理删除产品（仅当没有关联数据时允许删除）
+// 处理删除产品（仅当没有关联数据时允许真删除）
 if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id'])) {
     $id = intval($_GET['id']);
     try {
-        // 检查是否有关联的防伪数据
+        // 检查是否有关联的防伪数据（支码 + 箱码，箱码覆盖一套二零支场景）
         $stmt = $pdo->prepare("SELECT COUNT(*) FROM products WHERE product_id = ?");
         $stmt->execute([$id]);
         $relatedCount = $stmt->fetchColumn();
-        
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM boxes WHERE product_id = ?");
+        $stmt->execute([$id]);
+        $relatedCount += $stmt->fetchColumn();
+
         if ($relatedCount > 0) {
             $error = "该产品有 {$relatedCount} 条关联数据，无法删除，只能禁用";
         } else {
-            $stmt = $pdo->prepare("UPDATE base_products SET status = -1 WHERE id = ? AND tenant_id = ?");
+            $stmt = $pdo->prepare("DELETE FROM base_products WHERE id = ? AND tenant_id = ?");
             $stmt->execute([$id, getCurrentTenantId()]);
             $_SESSION['flash_success'] = "产品已删除";
             header("Location: admin_base_products.php");
@@ -489,10 +492,15 @@ $activeBrands = getActiveBrands($pdo);
                 <tbody>
                     <?php foreach ($products as $prod): ?>
                     <?php 
-                    // 检查是否有关联数据
+                    // 检查是否有关联数据（支码 + 箱码，箱码覆盖一套二零支场景）
                     $checkStmt = $pdo->prepare("SELECT COUNT(*) FROM products WHERE product_id = ?");
                     $checkStmt->execute([$prod['id']]);
                     $hasRelatedData = $checkStmt->fetchColumn() > 0;
+                    if (!$hasRelatedData) {
+                        $checkStmt = $pdo->prepare("SELECT COUNT(*) FROM boxes WHERE product_id = ?");
+                        $checkStmt->execute([$prod['id']]);
+                        $hasRelatedData = $checkStmt->fetchColumn() > 0;
+                    }
                     $status = isset($prod['status']) ? $prod['status'] : 1;
                     ?>
                     <tr>
@@ -546,7 +554,7 @@ $activeBrands = getActiveBrands($pdo);
                                     <a href="?action=toggle_status&id=<?php echo $prod['id']; ?>" class="btn" style="background: #27ae60; padding: 5px 10px; font-size: 12px;" onclick="return confirm('确定要启用该产品吗？');">启用</a>
                                 <?php endif; ?>
                             <?php else: ?>
-                                <a href="?action=delete&id=<?php echo $prod['id']; ?>" class="btn btn-danger" style="padding: 5px 10px; font-size: 12px;" onclick="return confirm('确定要删除这个产品吗？');">删除</a>
+                                <a href="?action=delete&id=<?php echo $prod['id']; ?>" class="btn btn-danger" style="padding: 5px 10px; font-size: 12px;" onclick="return confirm('确定要删除该产品吗？删除后不可恢复！');">删除</a>
                             <?php endif; ?>
                         </td>
                     </tr>

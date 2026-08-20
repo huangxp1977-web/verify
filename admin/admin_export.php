@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['export'])) {
         if (!empty($whereClauses)) {
             $whereSql .= " AND " . implode(" AND ", $whereClauses);
         }
-        $whereSql .= tenantWhere($params);
+        $whereSql .= tenantWhere($params, 'boxes');
         
         $data = [];
         $queryUrl = "http://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . "/index.php?code=";
@@ -55,7 +55,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['export'])) {
             $stmt = $pdo->prepare("
                 SELECT box_code, batch_number, production_date 
                 FROM boxes 
+                LEFT JOIN base_products bp ON boxes.product_id = bp.id
                 $whereSql
+                AND (bp.id IS NULL OR bp.status = 1)
                 ORDER BY production_date DESC, box_code ASC
             ");
             $stmt->execute($params);
@@ -74,7 +76,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['export'])) {
                             SELECT carton_code, boxes.batch_number, boxes.production_date 
                             FROM cartons
                             JOIN boxes ON cartons.box_id = boxes.id
+                            LEFT JOIN base_products bp ON boxes.product_id = bp.id
                             $whereSql
+                            AND (bp.id IS NULL OR bp.status = 1)
                             ORDER BY boxes.production_date DESC, carton_code ASC
                         ");
             $stmt->execute($params);
