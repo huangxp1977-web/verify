@@ -84,14 +84,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_products'])) 
     $production_date = isset($_POST['production_date']) ? trim($_POST['production_date']) : date('Y-m-d H:i:s');
 
     $p_name_select = isset($_POST['product_name_select']) ? trim($_POST['product_name_select']) : '';
-    $p_name_input = isset($_POST['product_name_input']) ? trim($_POST['product_name_input']) : '';
-    $product_name = ($p_name_select === 'custom' || empty($p_name_select)) ? $p_name_input : $p_name_select;
+    $product_name = $p_name_select;
+    $spec = isset($_POST['spec']) ? trim($_POST['spec']) : '';
 
     // 从产品库获取包装配置和 product_id
     $cartons_per_box = 0;
     $units_per_carton = 0;
     $product_id = 0;
-    if ($p_name_select !== 'custom' && !empty($p_name_select)) {
+    if (!empty($p_name_select)) {
         foreach ($product_lib as $p) {
             if ($p['product_name'] === $p_name_select) {
                 $cartons_per_box = intval($p['cartons_per_box'] ?? 0);
@@ -139,11 +139,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_products'])) 
                     } while ($exists);
 
                     $box_codes[] = $box_code;
-                    $box_params[] = [$box_code, $production_date, $batch_number, $tenantId, $product_id];
+                    $box_params[] = [$box_code, $production_date, $batch_number, $tenantId, $product_id, $spec];
                 }
 
-                $placeholders = implode(',', array_fill(0, count($box_params), '(?,?,?,?,?)'));
-                $stmt = $pdo->prepare("INSERT INTO boxes (box_code, production_date, batch_number, tenant_id, product_id) VALUES $placeholders");
+                $placeholders = implode(',', array_fill(0, count($box_params), '(?,?,?,?,?,?)'));
+                $stmt = $pdo->prepare("INSERT INTO boxes (box_code, production_date, batch_number, tenant_id, product_id, spec) VALUES $placeholders");
                 $flat = [];
                 foreach ($box_params as $row) { $flat = array_merge($flat, $row); }
                 $stmt->execute($flat);
@@ -459,13 +459,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_zero_product'
     $production_date = isset($_POST['zero_production_date']) ? trim($_POST['zero_production_date']) : date('Y-m-d H:i:s');
     $production_date = str_replace('T', ' ', $production_date);
     $z_name_select = isset($_POST['zero_product_name_select']) ? trim($_POST['zero_product_name_select']) : '';
-    $z_name_input = isset($_POST['zero_product_name_input']) ? trim($_POST['zero_product_name_input']) : '';
-    $product_name = ($z_name_select === 'custom' || empty($z_name_select)) ? $z_name_input : $z_name_select;
+    $product_name = $z_name_select;
+    $z_spec = isset($_POST['zero_spec']) ? trim($_POST['zero_spec']) : '';
 
     // 从产品库获取包装配置（套二只有盒数，没有支数）
     $z_cartons_per_box = 0;
     $product_id = 0;
-    if ($z_name_select !== 'custom' && !empty($z_name_select)) {
+    if (!empty($z_name_select)) {
         foreach ($product_lib as $p) {
             if ($p['product_name'] === $z_name_select) {
                 $z_cartons_per_box = intval($p['cartons_per_box'] ?? 0);
@@ -507,8 +507,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_zero_product'
             }
 
             if (!empty($box_codes)) {
-                $placeholders = rtrim(str_repeat('(?, ?, ?, ?, ?),', count($box_codes)), ',');
-                $box_sql = "INSERT INTO boxes (box_code, production_date, batch_number, tenant_id, product_id) VALUES {$placeholders}";
+                $placeholders = rtrim(str_repeat('(?, ?, ?, ?, ?, ?),', count($box_codes)), ',');
+                $box_sql = "INSERT INTO boxes (box_code, production_date, batch_number, tenant_id, product_id, spec) VALUES {$placeholders}";
                 $stmt = $pdo->prepare($box_sql);
 
                 $params = [];
@@ -519,6 +519,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['generate_zero_product'
                     $params[] = $batch_number;
                     $params[] = $tenantId;
                     $params[] = $product_id;
+                    $params[] = $z_spec;
                 }
                 $stmt->execute($params);
             } else {
@@ -871,18 +872,21 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_zero_data'])) {
                     <div class="form-row">
                         <div class="form-group" style="flex:1">
                             <label for="product_name">产品名称</label>
-                            <div style="display: flex; gap: 10px;">
-                                <select id="product_name_select" name="product_name_select" style="flex: 1;">
-                                    <option value="">-- 请选择产品 --</option>
-                                    <?php foreach ($product_lib as $p): ?>
-                                        <option value="<?php echo htmlspecialchars($p['product_name']); ?>">
-                                            <?php echo htmlspecialchars($p['product_name']); ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                    <option value="custom">-- 手动输入 --</option>
-                                </select>
-                                <input type="text" id="product_name_input" name="product_name_input" placeholder="输入新产品名称" style="flex: 1; display: none;">
-                            </div>
+                            <select id="product_name_select" name="product_name_select" style="flex: 1;">
+                                <option value="">-- 请选择产品 --</option>
+                                <?php foreach ($product_lib as $p): ?>
+                                    <option value="<?php echo htmlspecialchars($p['product_name']); ?>">
+                                        <?php echo htmlspecialchars($p['product_name']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="form-group" style="flex:1">
+                            <label for="spec">规格型号</label>
+                            <select id="spec" name="spec" style="flex: 1;">
+                                <option value="">-- 请选择规格 --</option>
+                            </select>
+                            <small id="yt3_spec_info"></small>
                         </div>
                         <div class="form-group" style="flex:1">
                             <label for="num_boxes">生成箱数</label>
@@ -942,18 +946,21 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_zero_data'])) {
                     <div class="form-row">
                         <div class="form-group" style="flex:1">
                             <label for="zero_product_name">产品名称</label>
-                            <div style="display: flex; gap: 10px;">
-                                <select id="zero_product_name_select" name="zero_product_name_select" style="flex: 1;">
-                                    <option value="">-- 请选择产品 --</option>
-                                    <?php foreach ($product_lib as $p): ?>
-                                        <option value="<?php echo htmlspecialchars($p['product_name']); ?>">
-                                            <?php echo htmlspecialchars($p['product_name']); ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                    <option value="custom">-- 手动输入 --</option>
-                                </select>
-                                <input type="text" id="zero_product_name_input" name="zero_product_name_input" placeholder="输入新产品名称" style="flex: 1; display: none;">
-                            </div>
+                            <select id="zero_product_name_select" name="zero_product_name_select" style="flex: 1;">
+                                <option value="">-- 请选择产品 --</option>
+                                <?php foreach ($product_lib as $p): ?>
+                                    <option value="<?php echo htmlspecialchars($p['product_name']); ?>">
+                                        <?php echo htmlspecialchars($p['product_name']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="form-group" style="flex:1">
+                            <label for="zero_spec">规格型号</label>
+                            <select id="zero_spec" name="zero_spec" style="flex: 1;">
+                                <option value="">-- 请选择规格 --</option>
+                            </select>
+                            <small id="yt2_spec_info"></small>
                         </div>
                         <div class="form-group" style="flex:1">
                             <label for="zero_num_boxes">生成箱数</label>
@@ -1086,30 +1093,45 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_zero_data'])) {
                 $('#' + target).show();
             });
 
-            // 产品选择时更新包装信息（一套三）
+            // 产品选择时更新包装信息与规格下拉（一套三）
             $('#product_name_select').on('change', function() {
-                var val = $(this).val();
-                if (val === 'custom') {
-                    $('#product_name_input').show().prop('required', true);
-                } else {
-                    $('#product_name_input').hide().prop('required', false);
-                }
                 updatePackagingInfo('yt3');
+                updateSpecDropdown('yt3');
             });
-            // 产品选择时更新包装信息（一套二）
+            // 产品选择时更新包装信息与规格下拉（一套二）
             $('#zero_product_name_select').on('change', function() {
-                var val = $(this).val();
-                if (val === 'custom') {
-                    $('#zero_product_name_input').show().prop('required', true);
-                } else {
-                    $('#zero_product_name_input').hide().prop('required', false);
-                }
                 updatePackagingInfo('yt2');
+                updateSpecDropdown('yt2');
             });
 
-            // 初始化包装信息
+            // 初始化包装信息与规格下拉
             updatePackagingInfo('yt3');
             updatePackagingInfo('yt2');
+            updateSpecDropdown('yt3');
+            updateSpecDropdown('yt2');
+
+            // 一套三提交校验：多规格产品必须选择规格
+            $('#yt3 form').on('submit', function() {
+                var selectName = $('#product_name_select').val();
+                if (!selectName) return true;
+                var specs = getProductSpecs(selectName);
+                if (specs.length > 1 && !$('#spec').val()) {
+                    alert('请选择规格型号');
+                    return false;
+                }
+                return true;
+            });
+            // 一套二提交校验：多规格产品必须选择规格
+            $('#yt2 form').on('submit', function() {
+                var selectName = $('#zero_product_name_select').val();
+                if (!selectName) return true;
+                var specs = getProductSpecs(selectName);
+                if (specs.length > 1 && !$('#zero_spec').val()) {
+                    alert('请选择规格型号');
+                    return false;
+                }
+                return true;
+            });
 
             // 导出一套三 - 产品选择时更新批号列表
             $('#dc_product_name').on('change', function() {
@@ -1134,7 +1156,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_zero_data'])) {
             var cartonsPerBox = 100;
             var unitsPerCarton = isYt3 ? 5 : 0;
 
-            if (selectedName && selectedName !== 'custom' && selectedName !== '') {
+            if (selectedName && selectedName !== '') {
                 for (var i = 0; i < productLib.length; i++) {
                     if (productLib[i].product_name === selectedName) {
                         cartonsPerBox = parseInt(productLib[i].cartons_per_box) || 100;
@@ -1151,6 +1173,62 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['export_zero_data'])) {
                 }
             } else {
                 $(infoId).text('请先选择产品');
+            }
+        }
+
+        // 获取产品的规格数组（spec_params 字段，JSON数组格式；兼容旧格式对象）
+        function getProductSpecs(productName) {
+            for (var i = 0; i < productLib.length; i++) {
+                if (productLib[i].product_name === productName) {
+                    var raw = productLib[i].spec_params;
+                    if (!raw) return [];
+                    try {
+                        var parsed = JSON.parse(raw);
+                        if (Array.isArray(parsed)) {
+                            return parsed.filter(function(s) { return typeof s === 'string' && s.trim() !== ''; });
+                        }
+                        // 旧格式对象 {名称:值} → 取 values
+                        return Object.keys(parsed).length ? Object.values(parsed).filter(function(s) { return typeof s === 'string' && s.trim() !== ''; }) : [];
+                    } catch(e) {
+                        return [];
+                    }
+                }
+            }
+            return [];
+        }
+
+        // 填充规格下拉：无规格隐藏，单规格默认选中，多规格可选项
+        function updateSpecDropdown(tab) {
+            var isYt3 = (tab === 'yt3');
+            var specSel = isYt3 ? '#spec' : '#zero_spec';
+            var specInfo = isYt3 ? '#yt3_spec_info' : '#yt2_spec_info';
+            var selectId = isYt3 ? '#product_name_select' : '#zero_product_name_select';
+            var selectedName = $(selectId).val();
+
+            var specs = selectedName ? getProductSpecs(selectedName) : [];
+            if (specs.length === 0) {
+                // 无规格：隐藏下拉，spec 传空
+                $(specSel).hide();
+                $(specSel).empty().append('<option value="">-- 请选择规格 --</option>');
+                $(specSel).val('');
+                $(specInfo).text('');
+                return;
+            }
+            $(specSel).show();
+            $(specSel).empty();
+            if (specs.length === 1) {
+                // 单规格：默认选中
+                $(specSel).append('<option value="' + specs[0] + '">' + specs[0] + 'ml</option>');
+                $(specSel).val(specs[0]);
+                $(specInfo).text('默认规格：' + specs[0] + 'ml');
+            } else {
+                // 多规格：让用户选
+                $(specSel).append('<option value="">-- 请选择规格 --</option>');
+                for (var i = 0; i < specs.length; i++) {
+                    $(specSel).append('<option value="' + specs[i] + '">' + specs[i] + 'ml</option>');
+                }
+                $(specSel).val('');
+                $(specInfo).text('');
             }
         }
     </script>
